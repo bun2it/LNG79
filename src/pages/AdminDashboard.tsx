@@ -1503,9 +1503,10 @@ const styles: { [key: string]: React.CSSProperties } = {
     backdropFilter: 'blur(4px)',
     zIndex: 2500,
     display: 'flex',
-    alignItems: 'center',
+    alignItems: 'flex-start',
     justifyContent: 'center',
-    padding: '1rem',
+    padding: '2rem 1rem',
+    overflowY: 'auto',
   },
   modalCard: {
     width: '100%',
@@ -1514,6 +1515,7 @@ const styles: { [key: string]: React.CSSProperties } = {
     borderRadius: 'var(--border-radius-lg)',
     boxShadow: 'var(--shadow-premium)',
     overflow: 'hidden',
+    margin: '2rem 0',
   },
   modalHeader: {
     padding: '1.25rem 1.5rem',
