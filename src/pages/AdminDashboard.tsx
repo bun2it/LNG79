@@ -2,9 +2,10 @@ import React, { useState } from 'react';
 import { useLanguage } from '../context/LanguageContext';
 import { 
   Users, Layers, Settings, FileSpreadsheet, Check, 
-  Trash2, Plus, Edit, RefreshCw, TrendingUp, Flame, ChefHat, FileText 
+  Trash2, Plus, Edit, RefreshCw, TrendingUp, Flame, ChefHat, FileText, Briefcase 
 } from 'lucide-react';
 import type { ArticleItem } from './Knowledge';
+import type { ProjectItem } from './Projects';
 
 interface LeadItem {
   id: string;
@@ -29,6 +30,10 @@ interface AdminDashboardProps {
   onAddArticle: (article: ArticleItem) => void;
   onDeleteArticle: (id: string) => void;
   onToggleArticle: (id: string) => void;
+  projects: ProjectItem[];
+  onAddProject: (project: ProjectItem) => void;
+  onDeleteProject: (id: string) => void;
+  onToggleProject: (id: string) => void;
 }
 
 const AUDIT_FUELS: { [key: string]: { name: { vi: string; en: string }; lhv: number; co2Factor: number; defaultPrice: number; defaultEff: number } } = {
@@ -41,7 +46,8 @@ const AUDIT_FUELS: { [key: string]: { name: { vi: string; en: string }; lhv: num
 
 export const AdminDashboard: React.FC<AdminDashboardProps> = ({
   leads, onUpdateStatus, onDeleteLead, fuelSettings, onUpdateSettings,
-  articles, onAddArticle, onDeleteArticle, onToggleArticle
+  articles, onAddArticle, onDeleteArticle, onToggleArticle,
+  projects, onAddProject, onDeleteProject, onToggleProject
 }) => {
   const { language } = useLanguage();
   const [isLoggedIn, setIsLoggedIn] = useState<boolean>(() => {
@@ -50,7 +56,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
   const [authError, setAuthError] = useState('');
-  const [activeTab, setActiveTab] = useState<'leads' | 'products' | 'settings' | 'articles'>('leads');
+  const [activeTab, setActiveTab] = useState<'leads' | 'products' | 'settings' | 'articles' | 'projects'>('leads');
   const [lngInput, setLngInput] = useState(fuelSettings.lngPrice);
   const [lpgInput, setLpgInput] = useState(fuelSettings.lpgPrice);
   const [selectedLead, setSelectedLead] = useState<LeadItem | null>(null);
@@ -92,6 +98,56 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
       excerptEn: '',
       contentVi: '',
       contentEn: ''
+    });
+  };
+
+  // Projects management state
+  const [showAddProjectModal, setShowAddProjectModal] = useState(false);
+  const [newProj, setNewProj] = useState({
+    nameVi: '',
+    nameEn: '',
+    category: 'lng' as 'lng' | 'lpg' | 'conversion' | 'kitchen',
+    locationVi: '',
+    locationEn: '',
+    scopeVi: '',
+    scopeEn: '',
+    capacityVi: '',
+    capacityEn: '',
+    resultVi: '',
+    resultEn: '',
+    equipmentsInput: '',
+    imageURL: ''
+  });
+
+  const handleAddProjectSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    onAddProject({
+      id: 'proj-' + Date.now(),
+      name: { vi: newProj.nameVi, en: newProj.nameEn },
+      category: newProj.category,
+      location: { vi: newProj.locationVi, en: newProj.locationEn },
+      scope: { vi: newProj.scopeVi, en: newProj.scopeEn },
+      capacity: { vi: newProj.capacityVi, en: newProj.capacityEn },
+      result: { vi: newProj.resultVi, en: newProj.resultEn },
+      equipments: newProj.equipmentsInput.split(',').map(s => s.trim()).filter(Boolean),
+      image: newProj.imageURL || 'https://images.unsplash.com/photo-1581094128547-1388d1397865?q=80&w=600&auto=format&fit=crop',
+      visible: true
+    });
+    setShowAddProjectModal(false);
+    setNewProj({
+      nameVi: '',
+      nameEn: '',
+      category: 'lng',
+      locationVi: '',
+      locationEn: '',
+      scopeVi: '',
+      scopeEn: '',
+      capacityVi: '',
+      capacityEn: '',
+      resultVi: '',
+      resultEn: '',
+      equipmentsInput: '',
+      imageURL: ''
     });
   };
 
@@ -298,6 +354,12 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
           style={{...styles.tabBtn, ...(activeTab === 'articles' ? styles.tabBtnActive : {})}}
         >
           <FileText size={16} /> {language === 'vi' ? 'Thư viện bài viết' : 'Knowledge Articles'}
+        </button>
+        <button 
+          onClick={() => setActiveTab('projects')} 
+          style={{...styles.tabBtn, ...(activeTab === 'projects' ? styles.tabBtnActive : {})}}
+        >
+          <Briefcase size={16} /> {language === 'vi' ? 'Dự án đã làm' : 'Projects Done'}
         </button>
       </div>
 
@@ -716,6 +778,93 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
           </div>
         </div>
       )}
+
+      {/* PROJECTS MANAGEMENT TAB */}
+      {activeTab === 'projects' && (
+        <div className="animate-fade-in">
+          <div style={styles.tableHeader}>
+            <h3 style={{ fontSize: '1.2rem', color: 'var(--color-navy)' }}>
+              {language === 'vi' ? 'Quản Lý Danh Sách Dự Án Đã Làm' : 'Manage Case Studies & Projects'}
+            </h3>
+            <button 
+              className="btn btn-teal btn-sm"
+              onClick={() => setShowAddProjectModal(true)}
+            >
+              <Plus size={16} /> {language === 'vi' ? 'Thêm dự án mới' : 'Add New Project'}
+            </button>
+          </div>
+
+          <p style={{ fontSize: '0.85rem', color: 'var(--color-text-muted)', marginBottom: '1.5rem' }}>
+            {language === 'vi' 
+              ? 'Thêm, xóa hoặc tắt/bật quyền hiển thị các dự án cơ sở hạ tầng gas và bếp công nghiệp ngoài trang Dự án.' 
+              : 'Add, delete, or toggle public visibility of central gas and commercial kitchen projects.'}
+          </p>
+
+          <div style={styles.tableResponsive}>
+            <table style={styles.table}>
+              <thead>
+                <tr style={styles.thRow}>
+                  <th style={styles.th}>{language === 'vi' ? 'Hình ảnh' : 'Image'}</th>
+                  <th style={styles.th}>{language === 'vi' ? 'Tên dự án' : 'Project Title'}</th>
+                  <th style={styles.th}>{language === 'vi' ? 'Phân loại' : 'Category'}</th>
+                  <th style={styles.th}>{language === 'vi' ? 'Địa điểm' : 'Location'}</th>
+                  <th style={styles.th}>{language === 'vi' ? 'Hiển thị' : 'Status'}</th>
+                  <th style={styles.th}>{language === 'vi' ? 'Thao tác' : 'Actions'}</th>
+                </tr>
+              </thead>
+              <tbody>
+                {projects.map((proj) => (
+                  <tr key={proj.id} style={styles.tr}>
+                    <td style={styles.td}>
+                      <img 
+                        src={proj.image || "https://images.unsplash.com/photo-1581094128547-1388d1397865?q=80&w=100&auto=format&fit=crop"} 
+                        alt="Project preview"
+                        style={{ width: '60px', height: '40px', objectFit: 'cover', borderRadius: 'var(--border-radius-sm)', border: '1px solid var(--color-gray-border)' }}
+                      />
+                    </td>
+                    <td style={styles.td}>
+                      <strong>{proj.name[language === 'vi' ? 'vi' : 'en']}</strong>
+                      <div style={{ fontSize: '0.75rem', color: 'var(--color-text-muted)', marginTop: '0.25rem' }}>
+                        {proj.scope[language === 'vi' ? 'vi' : 'en']}
+                      </div>
+                    </td>
+                    <td style={styles.td}>
+                      <span style={{
+                        ...styles.badge,
+                        backgroundColor: proj.category === 'lng' ? '#E0F2FE' : proj.category === 'lpg' ? '#D1FAE5' : proj.category === 'conversion' ? '#FEF3C7' : '#F5F3FF',
+                        color: proj.category === 'lng' ? '#0369A1' : proj.category === 'lpg' ? '#047857' : proj.category === 'conversion' ? '#B45309' : '#6D28D9'
+                      }}>
+                        {proj.category.toUpperCase()}
+                      </span>
+                    </td>
+                    <td style={styles.td}>{proj.location[language === 'vi' ? 'vi' : 'en']}</td>
+                    <td style={styles.td}>
+                      <button
+                        className={`btn btn-sm ${proj.visible !== false ? 'btn-teal' : 'btn-outline'}`}
+                        style={{ padding: '0.2rem 0.5rem', fontSize: '0.75rem' }}
+                        onClick={() => onToggleProject(proj.id)}
+                      >
+                        {proj.visible !== false 
+                          ? (language === 'vi' ? 'Đang hiện' : 'Visible') 
+                          : (language === 'vi' ? 'Đang ẩn' : 'Hidden')}
+                      </button>
+                    </td>
+                    <td style={styles.td}>
+                      <button 
+                        className="btn btn-outline btn-sm"
+                        style={{ color: '#EF4444', padding: '0.25rem' }}
+                        onClick={() => onDeleteProject(proj.id)}
+                      >
+                        <Trash2 size={14} />
+                      </button>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
     </div>
 
       {/* Lead Detail Modal */}
@@ -875,6 +1024,192 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                 </button>
                 <button type="submit" className="btn btn-teal">
                   {language === 'vi' ? 'Tạo bài viết' : 'Create Article'}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* Add Project Modal */}
+      {showAddProjectModal && (
+        <div style={styles.modalOverlay}>
+          <div style={{ ...styles.modalCard, maxWidth: '750px' }} className="animate-fade-in">
+            <div style={styles.modalHeader}>
+              <h3 style={{ margin: 0, fontSize: '1.15rem', color: 'var(--color-white)' }}>
+                {language === 'vi' ? 'Thêm Dự Án Mới Đã Thực Hiện' : 'Add New Case Study Project'}
+              </h3>
+              <button onClick={() => setShowAddProjectModal(false)} style={styles.closeBtn}>Close</button>
+            </div>
+            <form onSubmit={handleAddProjectSubmit} style={{ padding: '1.5rem' }}>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem', marginBottom: '1rem' }}>
+                <div className="form-group" style={{ marginBottom: 0 }}>
+                  <label className="form-label">{language === 'vi' ? 'Tên dự án (Tiếng Việt) *' : 'Project Title (Vietnamese) *'}</label>
+                  <input 
+                    type="text" 
+                    className="form-input" 
+                    value={newProj.nameVi}
+                    onChange={(e) => setNewProj({ ...newProj, nameVi: e.target.value })}
+                    required
+                  />
+                </div>
+                <div className="form-group" style={{ marginBottom: 0 }}>
+                  <label className="form-label">{language === 'vi' ? 'Tên dự án (Tiếng Anh) *' : 'Project Title (English) *'}</label>
+                  <input 
+                    type="text" 
+                    className="form-input" 
+                    value={newProj.nameEn}
+                    onChange={(e) => setNewProj({ ...newProj, nameEn: e.target.value })}
+                    required
+                  />
+                </div>
+              </div>
+
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem', marginBottom: '1rem' }}>
+                <div className="form-group" style={{ marginBottom: 0 }}>
+                  <label className="form-label">{language === 'vi' ? 'Chuyên mục *' : 'Category *'}</label>
+                  <select 
+                    className="form-select"
+                    value={newProj.category}
+                    onChange={(e) => setNewProj({ ...newProj, category: e.target.value as any })}
+                    required
+                  >
+                    <option value="lng">LNG Solutions</option>
+                    <option value="lpg">LPG Solutions</option>
+                    <option value="conversion">{language === 'vi' ? 'Cải tạo đầu đốt' : 'Boiler Conversion'}</option>
+                    <option value="kitchen">{language === 'vi' ? 'Thiết kế bếp và Central gas' : 'Commercial Kitchen'}</option>
+                  </select>
+                </div>
+                <div className="form-group" style={{ marginBottom: 0 }}>
+                  <label className="form-label">{language === 'vi' ? 'Đường dẫn hình ảnh (URL)' : 'Project Image URL'}</label>
+                  <input 
+                    type="text" 
+                    className="form-input" 
+                    placeholder="https://images.unsplash.com/..."
+                    value={newProj.imageURL}
+                    onChange={(e) => setNewProj({ ...newProj, imageURL: e.target.value })}
+                  />
+                </div>
+              </div>
+
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem', marginBottom: '1rem' }}>
+                <div className="form-group" style={{ marginBottom: 0 }}>
+                  <label className="form-label">{language === 'vi' ? 'Địa điểm (Tiếng Việt) *' : 'Location (Vietnamese) *'}</label>
+                  <input 
+                    type="text" 
+                    className="form-input" 
+                    placeholder="KCN Mỹ Phước 3, Bình Dương"
+                    value={newProj.locationVi}
+                    onChange={(e) => setNewProj({ ...newProj, locationVi: e.target.value })}
+                    required
+                  />
+                </div>
+                <div className="form-group" style={{ marginBottom: 0 }}>
+                  <label className="form-label">{language === 'vi' ? 'Địa điểm (Tiếng Anh) *' : 'Location (English) *'}</label>
+                  <input 
+                    type="text" 
+                    className="form-input" 
+                    placeholder="My Phuoc 3 IP, Binh Duong"
+                    value={newProj.locationEn}
+                    onChange={(e) => setNewProj({ ...newProj, locationEn: e.target.value })}
+                    required
+                  />
+                </div>
+              </div>
+
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem', marginBottom: '1rem' }}>
+                <div className="form-group" style={{ marginBottom: 0 }}>
+                  <label className="form-label">{language === 'vi' ? 'Quy mô công suất (Tiếng Việt) *' : 'Capacity (Vietnamese) *'}</label>
+                  <input 
+                    type="text" 
+                    className="form-input" 
+                    placeholder="Tiêu thụ 25 tấn LPG / tháng"
+                    value={newProj.capacityVi}
+                    onChange={(e) => setNewProj({ ...newProj, capacityVi: e.target.value })}
+                    required
+                  />
+                </div>
+                <div className="form-group" style={{ marginBottom: 0 }}>
+                  <label className="form-label">{language === 'vi' ? 'Quy mô công suất (Tiếng Anh) *' : 'Capacity (English) *'}</label>
+                  <input 
+                    type="text" 
+                    className="form-input" 
+                    placeholder="25 tons LPG per month"
+                    value={newProj.capacityEn}
+                    onChange={(e) => setNewProj({ ...newProj, capacityEn: e.target.value })}
+                    required
+                  />
+                </div>
+              </div>
+
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem', marginBottom: '1rem' }}>
+                <div className="form-group" style={{ marginBottom: 0 }}>
+                  <label className="form-label">{language === 'vi' ? 'Phạm vi công việc (Tiếng Việt) *' : 'Scope of Work (Vietnamese) *'}</label>
+                  <textarea 
+                    className="form-input" 
+                    style={{ height: '50px', resize: 'vertical' }}
+                    value={newProj.scopeVi}
+                    onChange={(e) => setNewProj({ ...newProj, scopeVi: e.target.value })}
+                    required
+                  />
+                </div>
+                <div className="form-group" style={{ marginBottom: 0 }}>
+                  <label className="form-label">{language === 'vi' ? 'Phạm vi công việc (Tiếng Anh) *' : 'Scope of Work (English) *'}</label>
+                  <textarea 
+                    className="form-input" 
+                    style={{ height: '50px', resize: 'vertical' }}
+                    value={newProj.scopeEn}
+                    onChange={(e) => setNewProj({ ...newProj, scopeEn: e.target.value })}
+                    required
+                  />
+                </div>
+              </div>
+
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem', marginBottom: '1rem' }}>
+                <div className="form-group" style={{ marginBottom: 0 }}>
+                  <label className="form-label">{language === 'vi' ? 'Kết quả đạt được (Tiếng Việt) *' : 'Result (Vietnamese) *'}</label>
+                  <textarea 
+                    className="form-input" 
+                    style={{ height: '50px', resize: 'vertical' }}
+                    value={newProj.resultVi}
+                    onChange={(e) => setNewProj({ ...newProj, resultVi: e.target.value })}
+                    required
+                  />
+                </div>
+                <div className="form-group" style={{ marginBottom: 0 }}>
+                  <label className="form-label">{language === 'vi' ? 'Kết quả đạt được (Tiếng Anh) *' : 'Result (English) *'}</label>
+                  <textarea 
+                    className="form-input" 
+                    style={{ height: '50px', resize: 'vertical' }}
+                    value={newProj.resultEn}
+                    onChange={(e) => setNewProj({ ...newProj, resultEn: e.target.value })}
+                    required
+                  />
+                </div>
+              </div>
+
+              <div className="form-group" style={{ marginBottom: '1.5rem' }}>
+                <label className="form-label">{language === 'vi' ? 'Thiết bị chính lắp đặt (Phân cách bằng dấu phẩy) *' : 'Key Equipment (Comma separated) *'}</label>
+                <input 
+                  type="text" 
+                  className="form-input" 
+                  placeholder="30m³ LPG Tank, 300 kg/h Vaporizer, Fisher Regulators"
+                  value={newProj.equipmentsInput}
+                  onChange={(e) => setNewProj({ ...newProj, equipmentsInput: e.target.value })}
+                  required
+                />
+              </div>
+
+              <div style={{ display: 'flex', gap: '0.75rem', justifyContent: 'flex-end' }}>
+                <button 
+                  type="button" 
+                  className="btn btn-outline" 
+                  onClick={() => setShowAddProjectModal(false)}
+                >
+                  {language === 'vi' ? 'Hủy bỏ' : 'Cancel'}
+                </button>
+                <button type="submit" className="btn btn-teal">
+                  {language === 'vi' ? 'Thêm dự án' : 'Add Project'}
                 </button>
               </div>
             </form>
