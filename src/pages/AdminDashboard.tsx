@@ -2,8 +2,9 @@ import React, { useState } from 'react';
 import { useLanguage } from '../context/LanguageContext';
 import { 
   Users, Layers, Settings, FileSpreadsheet, Check, 
-  Trash2, Plus, Edit, RefreshCw, TrendingUp, Flame, ChefHat 
+  Trash2, Plus, Edit, RefreshCw, TrendingUp, Flame, ChefHat, FileText 
 } from 'lucide-react';
+import type { ArticleItem } from './Knowledge';
 
 interface LeadItem {
   id: string;
@@ -24,6 +25,10 @@ interface AdminDashboardProps {
   onDeleteLead: (id: string) => void;
   fuelSettings: { lngPrice: number; lpgPrice: number };
   onUpdateSettings: (settings: { lngPrice: number; lpgPrice: number }) => void;
+  articles: ArticleItem[];
+  onAddArticle: (article: ArticleItem) => void;
+  onDeleteArticle: (id: string) => void;
+  onToggleArticle: (id: string) => void;
 }
 
 const AUDIT_FUELS: { [key: string]: { name: { vi: string; en: string }; lhv: number; co2Factor: number; defaultPrice: number; defaultEff: number } } = {
@@ -35,7 +40,8 @@ const AUDIT_FUELS: { [key: string]: { name: { vi: string; en: string }; lhv: num
 };
 
 export const AdminDashboard: React.FC<AdminDashboardProps> = ({
-  leads, onUpdateStatus, onDeleteLead, fuelSettings, onUpdateSettings
+  leads, onUpdateStatus, onDeleteLead, fuelSettings, onUpdateSettings,
+  articles, onAddArticle, onDeleteArticle, onToggleArticle
 }) => {
   const { language } = useLanguage();
   const [isLoggedIn, setIsLoggedIn] = useState<boolean>(() => {
@@ -44,7 +50,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
   const [authError, setAuthError] = useState('');
-  const [activeTab, setActiveTab] = useState<'leads' | 'products' | 'settings'>('leads');
+  const [activeTab, setActiveTab] = useState<'leads' | 'products' | 'settings' | 'articles'>('leads');
   const [lngInput, setLngInput] = useState(fuelSettings.lngPrice);
   const [lpgInput, setLpgInput] = useState(fuelSettings.lpgPrice);
   const [selectedLead, setSelectedLead] = useState<LeadItem | null>(null);
@@ -53,6 +59,41 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
   const [auditCons, setAuditCons] = useState(50000);
   const [auditEff, setAuditEff] = useState(82);
   const [auditPrice, setAuditPrice] = useState(20000);
+
+  // Articles management state
+  const [showAddArticleModal, setShowAddArticleModal] = useState(false);
+  const [newArt, setNewArt] = useState({
+    titleVi: '',
+    titleEn: '',
+    category: 'energy' as 'energy' | 'safety' | 'kitchen',
+    excerptVi: '',
+    excerptEn: '',
+    contentVi: '',
+    contentEn: ''
+  });
+
+  const handleAddSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    onAddArticle({
+      id: 'art-' + Date.now(),
+      title: { vi: newArt.titleVi, en: newArt.titleEn },
+      category: newArt.category,
+      excerpt: { vi: newArt.excerptVi, en: newArt.excerptEn },
+      content: { vi: newArt.contentVi, en: newArt.contentEn },
+      date: new Date().toISOString().split('T')[0],
+      visible: true
+    });
+    setShowAddArticleModal(false);
+    setNewArt({
+      titleVi: '',
+      titleEn: '',
+      category: 'energy',
+      excerptVi: '',
+      excerptEn: '',
+      contentVi: '',
+      contentEn: ''
+    });
+  };
 
   const currentAuditFuel = AUDIT_FUELS[auditFuel];
   const monthlyEnergy = auditCons * currentAuditFuel.lhv * (auditEff / 100);
@@ -251,6 +292,12 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
           style={{...styles.tabBtn, ...(activeTab === 'settings' ? styles.tabBtnActive : {})}}
         >
           <Settings size={16} /> {language === 'vi' ? 'Cấu hình hệ số' : 'Calculator Tuning'}
+        </button>
+        <button 
+          onClick={() => setActiveTab('articles')} 
+          style={{...styles.tabBtn, ...(activeTab === 'articles' ? styles.tabBtnActive : {})}}
+        >
+          <FileText size={16} /> {language === 'vi' ? 'Thư viện bài viết' : 'Knowledge Articles'}
         </button>
       </div>
 
@@ -586,11 +633,90 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                   <span style={styles.mathFormula}>Vol = Math.ceil(M_lng/12 / 1000 * 0.4)</span>
                   <span style={styles.mathValue}>{calcTankSize} m³</span>
                 </div>
-              </div>
             </div>
           </div>
-        )}
-      </div>
+        </div>
+      )}
+
+      {/* ARTICLES MANAGEMENT TAB */}
+      {activeTab === 'articles' && (
+        <div className="animate-fade-in">
+          <div style={styles.tableHeader}>
+            <h3 style={{ fontSize: '1.2rem', color: 'var(--color-navy)' }}>
+              {language === 'vi' ? 'Quản Lý Bài Viết Thư Viện Kiến Thức' : 'Manage Knowledge Library Articles'}
+            </h3>
+            <button 
+              className="btn btn-teal btn-sm"
+              onClick={() => setShowAddArticleModal(true)}
+            >
+              <Plus size={16} /> {language === 'vi' ? 'Thêm bài viết mới' : 'Add New Article'}
+            </button>
+          </div>
+
+          <p style={{ fontSize: '0.85rem', color: 'var(--color-text-muted)', marginBottom: '1.5rem' }}>
+            {language === 'vi' 
+              ? 'Thêm, xóa hoặc tắt/bật quyền hiển thị các bài viết kỹ thuật và tiêu chuẩn an toàn PCCC ngoài trang Thư viện.' 
+              : 'Add, delete, or enable/disable public visibility of safety and engineering articles in the Library.'}
+          </p>
+
+          <div style={styles.tableResponsive}>
+            <table style={styles.table}>
+              <thead>
+                <tr style={styles.thRow}>
+                  <th style={styles.th}>{language === 'vi' ? 'Tiêu đề' : 'Title'}</th>
+                  <th style={styles.th}>{language === 'vi' ? 'Chuyên mục' : 'Category'}</th>
+                  <th style={styles.th}>{language === 'vi' ? 'Ngày đăng' : 'Date'}</th>
+                  <th style={styles.th}>{language === 'vi' ? 'Hiển thị' : 'Status'}</th>
+                  <th style={styles.th}>{language === 'vi' ? 'Thao tác' : 'Actions'}</th>
+                </tr>
+              </thead>
+              <tbody>
+                {articles.map((art) => (
+                  <tr key={art.id} style={styles.tr}>
+                    <td style={styles.td}>
+                      <strong>{art.title[language === 'vi' ? 'vi' : 'en']}</strong>
+                      <div style={{ fontSize: '0.75rem', color: 'var(--color-text-muted)', marginTop: '0.25rem' }}>
+                        {art.excerpt[language === 'vi' ? 'vi' : 'en']}
+                      </div>
+                    </td>
+                    <td style={styles.td}>
+                      <span style={{
+                        ...styles.badge,
+                        backgroundColor: art.category === 'energy' ? '#FFE4E6' : art.category === 'safety' ? '#FEF3C7' : '#E0F2FE',
+                        color: art.category === 'energy' ? '#9F1239' : art.category === 'safety' ? '#D97706' : '#0369A1'
+                      }}>
+                        {art.category.toUpperCase()}
+                      </span>
+                    </td>
+                    <td style={styles.td}>{art.date}</td>
+                    <td style={styles.td}>
+                      <button
+                        className={`btn btn-sm ${art.visible !== false ? 'btn-teal' : 'btn-outline'}`}
+                        style={{ padding: '0.2rem 0.5rem', fontSize: '0.75rem' }}
+                        onClick={() => onToggleArticle(art.id)}
+                      >
+                        {art.visible !== false 
+                          ? (language === 'vi' ? 'Đang hiện' : 'Visible') 
+                          : (language === 'vi' ? 'Đang ẩn' : 'Hidden')}
+                      </button>
+                    </td>
+                    <td style={styles.td}>
+                      <button 
+                        className="btn btn-outline btn-sm"
+                        style={{ color: '#EF4444', padding: '0.25rem' }}
+                        onClick={() => onDeleteArticle(art.id)}
+                      >
+                        <Trash2 size={14} />
+                      </button>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
+    </div>
 
       {/* Lead Detail Modal */}
       {selectedLead && (
@@ -641,6 +767,117 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                 </div>
               </div>
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* Add Article Modal */}
+      {showAddArticleModal && (
+        <div style={styles.modalOverlay}>
+          <div style={{ ...styles.modalCard, maxWidth: '700px' }} className="animate-fade-in">
+            <div style={styles.modalHeader}>
+              <h3 style={{ margin: 0, fontSize: '1.15rem', color: 'var(--color-white)' }}>
+                {language === 'vi' ? 'Tạo Bài Viết Kỹ Thuật Mới' : 'Create New Technical Article'}
+              </h3>
+              <button onClick={() => setShowAddArticleModal(false)} style={styles.closeBtn}>Close</button>
+            </div>
+            <form onSubmit={handleAddSubmit} style={{ padding: '1.5rem' }}>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem', marginBottom: '1rem' }}>
+                <div className="form-group" style={{ marginBottom: 0 }}>
+                  <label className="form-label">{language === 'vi' ? 'Tiêu đề (Tiếng Việt) *' : 'Title (Vietnamese) *'}</label>
+                  <input 
+                    type="text" 
+                    className="form-input" 
+                    value={newArt.titleVi}
+                    onChange={(e) => setNewArt({ ...newArt, titleVi: e.target.value })}
+                    required
+                  />
+                </div>
+                <div className="form-group" style={{ marginBottom: 0 }}>
+                  <label className="form-label">{language === 'vi' ? 'Tiêu đề (Tiếng Anh) *' : 'Title (English) *'}</label>
+                  <input 
+                    type="text" 
+                    className="form-input" 
+                    value={newArt.titleEn}
+                    onChange={(e) => setNewArt({ ...newArt, titleEn: e.target.value })}
+                    required
+                  />
+                </div>
+              </div>
+
+              <div className="form-group" style={{ marginBottom: '1rem' }}>
+                <label className="form-label">{language === 'vi' ? 'Chuyên mục *' : 'Category *'}</label>
+                <select 
+                  className="form-select"
+                  value={newArt.category}
+                  onChange={(e) => setNewArt({ ...newArt, category: e.target.value as any })}
+                  required
+                >
+                  <option value="energy">{language === 'vi' ? 'Công nghệ Khí & Nhiệt' : 'Gas & Thermal Tech'}</option>
+                  <option value="safety">{language === 'vi' ? 'An toàn PCCC' : 'Fire & Safety'}</option>
+                  <option value="kitchen">{language === 'vi' ? 'Thiết kế Bếp công nghiệp' : 'Kitchen Design'}</option>
+                </select>
+              </div>
+
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem', marginBottom: '1rem' }}>
+                <div className="form-group" style={{ marginBottom: 0 }}>
+                  <label className="form-label">{language === 'vi' ? 'Mô tả ngắn (Tiếng Việt) *' : 'Excerpt (Vietnamese) *'}</label>
+                  <textarea 
+                    className="form-input" 
+                    style={{ height: '60px', resize: 'vertical' }}
+                    value={newArt.excerptVi}
+                    onChange={(e) => setNewArt({ ...newArt, excerptVi: e.target.value })}
+                    required
+                  />
+                </div>
+                <div className="form-group" style={{ marginBottom: 0 }}>
+                  <label className="form-label">{language === 'vi' ? 'Mô tả ngắn (Tiếng Anh) *' : 'Excerpt (English) *'}</label>
+                  <textarea 
+                    className="form-input" 
+                    style={{ height: '60px', resize: 'vertical' }}
+                    value={newArt.excerptEn}
+                    onChange={(e) => setNewArt({ ...newArt, excerptEn: e.target.value })}
+                    required
+                  />
+                </div>
+              </div>
+
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem', marginBottom: '1.5rem' }}>
+                <div className="form-group" style={{ marginBottom: 0 }}>
+                  <label className="form-label">{language === 'vi' ? 'Nội dung chi tiết (Tiếng Việt) *' : 'Content (Vietnamese) *'}</label>
+                  <textarea 
+                    className="form-input" 
+                    style={{ height: '120px', resize: 'vertical' }}
+                    value={newArt.contentVi}
+                    onChange={(e) => setNewArt({ ...newArt, contentVi: e.target.value })}
+                    required
+                  />
+                </div>
+                <div className="form-group" style={{ marginBottom: 0 }}>
+                  <label className="form-label">{language === 'vi' ? 'Nội dung chi tiết (Tiếng Anh) *' : 'Content (English) *'}</label>
+                  <textarea 
+                    className="form-input" 
+                    style={{ height: '120px', resize: 'vertical' }}
+                    value={newArt.contentEn}
+                    onChange={(e) => setNewArt({ ...newArt, contentEn: e.target.value })}
+                    required
+                  />
+                </div>
+              </div>
+
+              <div style={{ display: 'flex', gap: '0.75rem', justifyContent: 'flex-end' }}>
+                <button 
+                  type="button" 
+                  className="btn btn-outline" 
+                  onClick={() => setShowAddArticleModal(false)}
+                >
+                  {language === 'vi' ? 'Hủy bỏ' : 'Cancel'}
+                </button>
+                <button type="submit" className="btn btn-teal">
+                  {language === 'vi' ? 'Tạo bài viết' : 'Create Article'}
+                </button>
+              </div>
+            </form>
           </div>
         </div>
       )}

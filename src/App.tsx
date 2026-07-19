@@ -9,6 +9,7 @@ import { Products } from './pages/Products';
 import { Projects } from './pages/Projects';
 import { FuelCalculator } from './components/FuelCalculator';
 import { Knowledge } from './pages/Knowledge';
+import type { ArticleItem } from './pages/Knowledge';
 import { Contact } from './pages/Contact';
 import { AdminDashboard } from './pages/AdminDashboard';
 
@@ -52,12 +53,61 @@ const initialLeads: LeadItem[] = [
   }
 ];
 
+const initialArticles: ArticleItem[] = [
+  {
+    id: 'art-1',
+    title: { vi: 'Khí tự nhiên hóa lỏng LNG là gì? Tiềm năng thay thế than đá', en: 'What is LNG? The Potential to Replace Coal in Industry' },
+    category: 'energy',
+    excerpt: {
+      vi: 'Khám phá cấu tạo hóa học, nhiệt trị và hiệu suất sinh năng lượng của khí hóa lỏng LNG so với các nhiên liệu hóa thạch truyền thống.',
+      en: 'Explore the chemical structure, heat value, and thermal efficiency of LNG compared to traditional fossil fuels.'
+    },
+    content: {
+      vi: 'Khí tự nhiên hóa lỏng LNG (Liquefied Natural Gas) chủ yếu là Methane (CH4) siêu tinh khiết. Nhiệt trị trung bình đạt 50 MJ/kg (12,000 kcal/kg). Khi đốt, LNG giảm 35-40% lượng phát thải CO2 so với than đá, loại bỏ hoàn toàn SOx và hạt bụi mịn PM2.5. Đây là xu hướng bắt buộc đối với các doanh nghiệp FDI hướng tới mục tiêu ESG.',
+      en: 'Liquefied Natural Gas (LNG) is ultra-pure methane (CH4). It features a high heating value of 50 MJ/kg (12,000 kcal/kg). Combustion of LNG generates 35-40% less CO2 than coal, with zero SOx or PM2.5 particulate emissions. Converting to LNG is a critical step for factories pursuing ESG compliance.'
+    },
+    date: '2026-06-15',
+    visible: true
+  },
+  {
+    id: 'art-2',
+    title: { vi: 'Quy chuẩn an toàn khoảng cách trạm cấp khí LPG công nghiệp', en: 'Safety Distance Regulations for Industrial LPG Stations' },
+    category: 'safety',
+    excerpt: {
+      vi: 'Tóm tắt các yêu cầu an toàn phòng cháy chữa cháy về ranh giới khoảng cách tối thiểu cho bồn chứa LPG theo tiêu chuẩn quốc gia.',
+      en: 'Summary of fire safety codes and minimum safety boundary clearances for bulk LPG storage tanks.'
+    },
+    content: {
+      vi: 'Theo tiêu chuẩn Việt Nam TCVN 7441, khoảng cách an toàn cháy nổ từ bồn chứa gas LPG đến ranh giới nhà máy hoặc nguồn nhiệt tối thiểu dao động từ 3 mét đến 15 mét tùy thuộc thể tích tồn chứa. Ví dụ, bồn chứa LPG từ 10m³ đến 50m³ đòi hỏi khoảng cách an toàn cách ly 15 mét. Trạm gas bắt buộc lắp đặt đầu báo rò rỉ gas phòng nổ kết nối trực tiếp đến van solenoid ngắt khẩn cấp cấp khí đầu nguồn.',
+      en: 'According to Vietnam National Standard TCVN 7441, the safety distance from an LPG tank to property lines or ignition sources ranges from 3 to 15 meters depending on tank capacity. For instance, tanks between 10m³ and 50m³ require a 15m safety clearance zone. Stations must integrate flameproof gas detectors interlocked to emergency shut-off valves.'
+    },
+    date: '2026-07-02',
+    visible: true
+  },
+  {
+    id: 'art-3',
+    title: { vi: 'Nguyên lý thiết kế bếp công nghiệp theo quy trình một chiều', en: 'Principles of One-Way Commercial Kitchen Layouts' },
+    category: 'kitchen',
+    excerpt: {
+      vi: 'Tại sao bếp nhà hàng khách sạn bắt buộc phải thiết kế theo quy trình khép kín một chiều và cách phân bổ hợp lý các khu chức năng.',
+      en: 'Why commercial catering projects must follow a strict one-way workflow, and how to distribute kitchen zones.'
+    },
+    content: {
+      vi: 'Quy trình một chiều trong bếp công nghiệp đảm bảo các công đoạn sơ chế nguyên liệu sống và ra đồ ăn chín không bao giờ giao nhau chéo luồng. Sắp xếp bố cục tuần tự: Khu tiếp nhận -> Kho đông mát -> Khu sơ chế thô -> Khu chế biến tinh -> Khu nấu nướng lò hơi gas -> Khu soạn chia món ăn nóng -> Khu thu gom rửa dọn bát đĩa. Điều này giảm thiểu tối đa rủi ro nhiễm khuẩn sinh học chéo và tối ưu năng suất hoạt động của đầu bếp.',
+      en: 'A one-way layout ensures raw materials and finished hot dishes never cross paths, preventing biological contamination. The functional flow matches a logical sequence: Receiving -> Cold storage -> Raw prep -> Fine prep -> Main cooking range line -> Plating & service -> Dishwashing. This minimizes biological hazards and optimizes kitchen staff throughput.'
+    },
+    date: '2026-07-10',
+    visible: true
+  }
+];
+
 export const AppContent: React.FC = () => {
   const [currentView, setView] = useState<string>('home');
   const [cartItems, setCartItems] = useState<any[]>([]);
   const [cartOpen, setCartOpen] = useState<boolean>(false);
   const [leads, setLeads] = useState<LeadItem[]>(initialLeads);
   const [fuelSettings, setFuelSettings] = useState({ lngPrice: 18500, lpgPrice: 23000 });
+  const [articles, setArticles] = useState<ArticleItem[]>(initialArticles);
 
   const handleAddProduct = (product: any) => {
     setCartItems((prev) => {
@@ -103,6 +153,21 @@ export const AppContent: React.FC = () => {
     setLeads((prev) => prev.filter((lead) => lead.id !== id));
   };
 
+  // Article handlers
+  const handleAddArticle = (article: ArticleItem) => {
+    setArticles((prev) => [article, ...prev]);
+  };
+
+  const handleDeleteArticle = (id: string) => {
+    setArticles((prev) => prev.filter((art) => art.id !== id));
+  };
+
+  const handleToggleArticleVisibility = (id: string) => {
+    setArticles((prev) =>
+      prev.map((art) => (art.id === id ? { ...art, visible: !art.visible } : art))
+    );
+  };
+
   // Render the current view page
   const renderView = () => {
     switch (currentView) {
@@ -127,7 +192,7 @@ export const AppContent: React.FC = () => {
           </div>
         );
       case 'knowledge':
-        return <Knowledge />;
+        return <Knowledge articles={articles.filter((a) => a.visible !== false)} />;
       case 'contact':
         return <Contact onSubmitLead={(data: any) => handleCreateLead('wizard', data)} />;
       case 'admin':
@@ -138,6 +203,10 @@ export const AppContent: React.FC = () => {
             onDeleteLead={handleDeleteLead}
             fuelSettings={fuelSettings}
             onUpdateSettings={setFuelSettings}
+            articles={articles}
+            onAddArticle={handleAddArticle}
+            onDeleteArticle={handleDeleteArticle}
+            onToggleArticle={handleToggleArticleVisibility}
           />
         );
       default:
