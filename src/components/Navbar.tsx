@@ -15,12 +15,10 @@ interface NavbarProps {
 export const Navbar: React.FC<NavbarProps> = ({ currentView, setView, cartCount, toggleCart }) => {
   const { language, setLanguage, t } = useLanguage();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
-  const [solutionsDropdownOpen, setSolutionsDropdownOpen] = useState(false);
 
   const handleNav = (view: string) => {
     setView(view);
     setMobileMenuOpen(false);
-    setSolutionsDropdownOpen(false);
     window.scrollTo({ top: 0, behavior: 'smooth' });
   };
 
@@ -52,46 +50,39 @@ export const Navbar: React.FC<NavbarProps> = ({ currentView, setView, cartCount,
             {t('navHome')}
           </button>
 
-          {/* Solutions Dropdown */}
-          <div 
-            className="nav-dropdown-container"
-            onMouseEnter={() => setSolutionsDropdownOpen(true)}
-            onMouseLeave={() => setSolutionsDropdownOpen(false)}
-          >
+          <div className="nav-dropdown-container">
             <button 
               className={`nav-link nav-dropdown-btn ${(currentView.includes('solution') || currentView === 'conversion') ? 'active' : ''}`}
             >
               {t('navSolutions')} <ChevronDown size={14} className="dropdown-arrow" />
             </button>
             
-            {solutionsDropdownOpen && (
-              <div className="nav-dropdown-menu">
-                <div className="nav-dropdown-item" onClick={() => handleNav('lng-solution')}>
-                  <div className="nav-dropdown-item-title">{t('lngTurnkey')}</div>
-                  <div className="nav-dropdown-item-desc">
-                    {language === 'vi' ? 'Trạm tồn chứa khí hóa hơi LNG' : 'Bulk regasification station'}
-                  </div>
-                </div>
-                <div className="nav-dropdown-item" onClick={() => handleNav('lpg-solution')}>
-                  <div className="nav-dropdown-item-title">{t('lpgTurnkey')}</div>
-                  <div className="nav-dropdown-item-desc">
-                    {language === 'vi' ? 'Hệ thống bồn, gas hóa hơi công nghiệp' : 'LPG bulk & manifold gas supply'}
-                  </div>
-                </div>
-                <div className="nav-dropdown-item" onClick={() => handleNav('conversion')}>
-                  <div className="nav-dropdown-item-title">{t('fuelConv')}</div>
-                  <div className="nav-dropdown-item-desc">
-                    {language === 'vi' ? 'Cải tạo đầu đốt than/FO sang khí sạch' : 'Burner fuel conversion to gas'}
-                  </div>
-                </div>
-                <div className="nav-dropdown-item" onClick={() => handleNav('kitchen-solution')}>
-                  <div className="nav-dropdown-item-title">{t('commKitchen')}</div>
-                  <div className="nav-dropdown-item-desc">
-                    {language === 'vi' ? 'Thiết kế bếp và an toàn gas trung tâm' : 'Central gas kitchen integration'}
-                  </div>
+            <div className="nav-dropdown-menu">
+              <div className="nav-dropdown-item" onClick={() => handleNav('lng-solution')}>
+                <div className="nav-dropdown-item-title">{t('lngTurnkey')}</div>
+                <div className="nav-dropdown-item-desc">
+                  {language === 'vi' ? 'Trạm tồn chứa khí hóa hơi LNG' : 'Bulk regasification station'}
                 </div>
               </div>
-            )}
+              <div className="nav-dropdown-item" onClick={() => handleNav('lpg-solution')}>
+                <div className="nav-dropdown-item-title">{t('lpgTurnkey')}</div>
+                <div className="nav-dropdown-item-desc">
+                  {language === 'vi' ? 'Hệ thống bồn, gas hóa hơi công nghiệp' : 'LPG bulk & manifold gas supply'}
+                </div>
+              </div>
+              <div className="nav-dropdown-item" onClick={() => handleNav('conversion')}>
+                <div className="nav-dropdown-item-title">{t('fuelConv')}</div>
+                <div className="nav-dropdown-item-desc">
+                  {language === 'vi' ? 'Cải tạo đầu đốt than/FO sang khí sạch' : 'Burner fuel conversion to gas'}
+                </div>
+              </div>
+              <div className="nav-dropdown-item" onClick={() => handleNav('kitchen-solution')}>
+                <div className="nav-dropdown-item-title">{t('commKitchen')}</div>
+                <div className="nav-dropdown-item-desc">
+                  {language === 'vi' ? 'Thiết kế bếp và an toàn gas trung tâm' : 'Central gas kitchen integration'}
+                </div>
+              </div>
+            </div>
           </div>
 
           <button 

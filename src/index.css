@@ -414,7 +414,7 @@ button, input, select, textarea {
   position: absolute;
   top: 100%;
   left: 50%;
-  transform: translateX(-50%);
+  transform: translateX(-50%) translateY(8px);
   width: 280px;
   background-color: var(--color-navy-light);
   border: 1px solid var(--color-navy-accent);
@@ -424,15 +424,25 @@ button, input, select, textarea {
   margin-top: 0.75rem;
   display: flex;
   flex-direction: column;
-  animation: fadeIn 0.2s ease forwards;
+  opacity: 0;
+  visibility: hidden;
+  transition: opacity 0.2s cubic-bezier(0.4, 0, 0.2, 1), transform 0.2s cubic-bezier(0.16, 1, 0.3, 1), visibility 0.2s;
+  pointer-events: none;
+  z-index: 1010;
+}
+.nav-dropdown-container:hover .nav-dropdown-menu {
+  opacity: 1;
+  visibility: visible;
+  transform: translateX(-50%) translateY(0);
+  pointer-events: auto;
 }
 .nav-dropdown-menu::before {
   content: '';
   position: absolute;
-  top: -0.75rem;
+  top: -1.25rem;
   left: 0;
   right: 0;
-  height: 0.75rem;
+  height: 1.25rem;
   background: transparent;
 }
 .nav-dropdown-item {
