@@ -1144,7 +1144,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
       {/* Add Project Modal */}
       {showAddProjectModal && (
         <div style={styles.modalOverlay}>
-          <div style={{ ...styles.modalCard, maxWidth: '750px' }} className="animate-fade-in">
+          <div style={{ ...styles.modalCard, maxWidth: '1000px' }} className="animate-fade-in">
             <div style={styles.modalHeader}>
               <h3 style={{ margin: 0, fontSize: '1.15rem', color: 'var(--color-white)' }}>
                 {editingProject 
@@ -1154,184 +1154,193 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
               <button onClick={() => setShowAddProjectModal(false)} style={styles.closeBtn}>Close</button>
             </div>
             <form onSubmit={handleProjectFormSubmit} style={{ padding: '1.5rem' }}>
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem', marginBottom: '1rem' }}>
-                <div className="form-group" style={{ marginBottom: 0 }}>
-                  <label className="form-label">{language === 'vi' ? 'Tên dự án (Tiếng Việt) *' : 'Project Title (Vietnamese) *'}</label>
-                  <input 
-                    type="text" 
-                    className="form-input" 
-                    value={newProj.nameVi}
-                    onChange={(e) => setNewProj({ ...newProj, nameVi: e.target.value })}
-                    required
-                  />
-                </div>
-                <div className="form-group" style={{ marginBottom: 0 }}>
-                  <label className="form-label">{language === 'vi' ? 'Tên dự án (Tiếng Anh) *' : 'Project Title (English) *'}</label>
-                  <input 
-                    type="text" 
-                    className="form-input" 
-                    value={newProj.nameEn}
-                    onChange={(e) => setNewProj({ ...newProj, nameEn: e.target.value })}
-                    required
-                  />
-                </div>
-              </div>
-
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem', marginBottom: '1rem' }}>
-                <div className="form-group" style={{ marginBottom: 0 }}>
-                  <label className="form-label">{language === 'vi' ? 'Chuyên mục *' : 'Category *'}</label>
-                  <select 
-                    className="form-select"
-                    value={newProj.category}
-                    onChange={(e) => setNewProj({ ...newProj, category: e.target.value as any })}
-                    required
-                  >
-                    <option value="lng">LNG Solutions</option>
-                    <option value="lpg">LPG Solutions</option>
-                    <option value="conversion">{language === 'vi' ? 'Cải tạo đầu đốt' : 'Boiler Conversion'}</option>
-                    <option value="kitchen">{language === 'vi' ? 'Thiết kế bếp và Central gas' : 'Commercial Kitchen'}</option>
-                  </select>
-                </div>
-                <div className="form-group" style={{ marginBottom: 0 }}>
-                  <label className="form-label">{language === 'vi' ? 'Tải lên hình ảnh' : 'Upload Image'}</label>
-                  <div style={{ display: 'flex', gap: '1rem', alignItems: 'center' }}>
-                    <input 
-                      type="file" 
-                      accept="image/*" 
-                      className="form-input" 
-                      onChange={(e) => handleImageFileChange(e, (base64) => setNewProj({ ...newProj, imageURL: base64 }))}
-                    />
-                    {newProj.imageURL && (
-                      <img 
-                        src={newProj.imageURL} 
-                        alt="Preview" 
-                        style={{ width: '50px', height: '35px', objectFit: 'cover', borderRadius: 'var(--border-radius-sm)', border: '1px solid var(--color-gray-border)' }} 
+              <div className="admin-settings-grid" style={{ gap: '2rem', marginBottom: '1.5rem' }}>
+                
+                {/* Cột trái: Thông tin nhận dạng & Hình ảnh */}
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
+                    <div className="form-group" style={{ marginBottom: 0 }}>
+                      <label className="form-label">{language === 'vi' ? 'Tên dự án (Tiếng Việt) *' : 'Project Title (Vietnamese) *'}</label>
+                      <input 
+                        type="text" 
+                        className="form-input" 
+                        value={newProj.nameVi}
+                        onChange={(e) => setNewProj({ ...newProj, nameVi: e.target.value })}
+                        required
                       />
-                    )}
+                    </div>
+                    <div className="form-group" style={{ marginBottom: 0 }}>
+                      <label className="form-label">{language === 'vi' ? 'Tên dự án (Tiếng Anh) *' : 'Project Title (English) *'}</label>
+                      <input 
+                        type="text" 
+                        className="form-input" 
+                        value={newProj.nameEn}
+                        onChange={(e) => setNewProj({ ...newProj, nameEn: e.target.value })}
+                        required
+                      />
+                    </div>
+                  </div>
+
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
+                    <div className="form-group" style={{ marginBottom: 0 }}>
+                      <label className="form-label">{language === 'vi' ? 'Chuyên mục *' : 'Category *'}</label>
+                      <select 
+                        className="form-select"
+                        value={newProj.category}
+                        onChange={(e) => setNewProj({ ...newProj, category: e.target.value as any })}
+                        required
+                      >
+                        <option value="lng">LNG Solutions</option>
+                        <option value="lpg">LPG Solutions</option>
+                        <option value="conversion">{language === 'vi' ? 'Cải tạo đầu đốt' : 'Boiler Conversion'}</option>
+                        <option value="kitchen">{language === 'vi' ? 'Thiết kế bếp và Central gas' : 'Commercial Kitchen'}</option>
+                      </select>
+                    </div>
+                    <div className="form-group" style={{ marginBottom: 0 }}>
+                      <label className="form-label">{language === 'vi' ? 'Tải lên hình ảnh' : 'Upload Image'}</label>
+                      <div style={{ display: 'flex', gap: '1rem', alignItems: 'center' }}>
+                        <input 
+                          type="file" 
+                          accept="image/*" 
+                          className="form-input" 
+                          onChange={(e) => handleImageFileChange(e, (base64) => setNewProj({ ...newProj, imageURL: base64 }))}
+                        />
+                        {newProj.imageURL && (
+                          <img 
+                            src={newProj.imageURL} 
+                            alt="Preview" 
+                            style={{ width: '50px', height: '35px', objectFit: 'cover', borderRadius: 'var(--border-radius-sm)', border: '1px solid var(--color-gray-border)' }} 
+                          />
+                        )}
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="form-group" style={{ marginBottom: 0 }}>
+                    <label className="form-label">{language === 'vi' ? 'Đường dẫn hình ảnh (URL)' : 'Project Image URL'}</label>
+                    <input 
+                      type="text" 
+                      className="form-input" 
+                      placeholder="https://images.unsplash.com/..."
+                      value={newProj.imageURL}
+                      onChange={(e) => setNewProj({ ...newProj, imageURL: e.target.value })}
+                    />
+                  </div>
+
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
+                    <div className="form-group" style={{ marginBottom: 0 }}>
+                      <label className="form-label">{language === 'vi' ? 'Địa điểm (Tiếng Việt) *' : 'Location (Vietnamese) *'}</label>
+                      <input 
+                        type="text" 
+                        className="form-input" 
+                        placeholder="KCN Mỹ Phước 3, Bình Dương"
+                        value={newProj.locationVi}
+                        onChange={(e) => setNewProj({ ...newProj, locationVi: e.target.value })}
+                        required
+                      />
+                    </div>
+                    <div className="form-group" style={{ marginBottom: 0 }}>
+                      <label className="form-label">{language === 'vi' ? 'Địa điểm (Tiếng Anh) *' : 'Location (English) *'}</label>
+                      <input 
+                        type="text" 
+                        className="form-input" 
+                        placeholder="My Phuoc 3 IP, Binh Duong"
+                        value={newProj.locationEn}
+                        onChange={(e) => setNewProj({ ...newProj, locationEn: e.target.value })}
+                        required
+                      />
+                    </div>
+                  </div>
+
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
+                    <div className="form-group" style={{ marginBottom: 0 }}>
+                      <label className="form-label">{language === 'vi' ? 'Quy mô công suất (Tiếng Việt) *' : 'Capacity (Vietnamese) *'}</label>
+                      <input 
+                        type="text" 
+                        className="form-input" 
+                        placeholder="Tiêu thụ 25 tấn LPG / tháng"
+                        value={newProj.capacityVi}
+                        onChange={(e) => setNewProj({ ...newProj, capacityVi: e.target.value })}
+                        required
+                      />
+                    </div>
+                    <div className="form-group" style={{ marginBottom: 0 }}>
+                      <label className="form-label">{language === 'vi' ? 'Quy mô công suất (Tiếng Anh) *' : 'Capacity (English) *'}</label>
+                      <input 
+                        type="text" 
+                        className="form-input" 
+                        placeholder="25 tons LPG per month"
+                        value={newProj.capacityEn}
+                        onChange={(e) => setNewProj({ ...newProj, capacityEn: e.target.value })}
+                        required
+                      />
+                    </div>
+                  </div>
+                </div>
+
+                {/* Cột phải: Phạm vi, kết quả & thiết bị */}
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
+                    <div className="form-group" style={{ marginBottom: 0 }}>
+                      <label className="form-label">{language === 'vi' ? 'Phạm vi công việc (Tiếng Việt) *' : 'Scope of Work (Vietnamese) *'}</label>
+                      <textarea 
+                        className="form-input" 
+                        style={{ height: '80px', resize: 'vertical' }}
+                        value={newProj.scopeVi}
+                        onChange={(e) => setNewProj({ ...newProj, scopeVi: e.target.value })}
+                        required
+                      />
+                    </div>
+                    <div className="form-group" style={{ marginBottom: 0 }}>
+                      <label className="form-label">{language === 'vi' ? 'Phạm vi công việc (Tiếng Anh) *' : 'Scope of Work (English) *'}</label>
+                      <textarea 
+                        className="form-input" 
+                        style={{ height: '80px', resize: 'vertical' }}
+                        value={newProj.scopeEn}
+                        onChange={(e) => setNewProj({ ...newProj, scopeEn: e.target.value })}
+                        required
+                      />
+                    </div>
+                  </div>
+
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
+                    <div className="form-group" style={{ marginBottom: 0 }}>
+                      <label className="form-label">{language === 'vi' ? 'Kết quả đạt được (Tiếng Việt) *' : 'Result (Vietnamese) *'}</label>
+                      <textarea 
+                        className="form-input" 
+                        style={{ height: '80px', resize: 'vertical' }}
+                        value={newProj.resultVi}
+                        onChange={(e) => setNewProj({ ...newProj, resultVi: e.target.value })}
+                        required
+                      />
+                    </div>
+                    <div className="form-group" style={{ marginBottom: 0 }}>
+                      <label className="form-label">{language === 'vi' ? 'Kết quả đạt được (Tiếng Anh) *' : 'Result (English) *'}</label>
+                      <textarea 
+                        className="form-input" 
+                        style={{ height: '80px', resize: 'vertical' }}
+                        value={newProj.resultEn}
+                        onChange={(e) => setNewProj({ ...newProj, resultEn: e.target.value })}
+                        required
+                      />
+                    </div>
+                  </div>
+
+                  <div className="form-group" style={{ marginBottom: 0 }}>
+                    <label className="form-label">{language === 'vi' ? 'Thiết bị chính lắp đặt (Phân cách bằng dấu phẩy) *' : 'Key Equipment (Comma separated) *'}</label>
+                    <textarea 
+                      className="form-input" 
+                      style={{ height: '65px', resize: 'vertical' }}
+                      placeholder="30m³ LPG Tank, 300 kg/h Vaporizer, Fisher Regulators"
+                      value={newProj.equipmentsInput}
+                      onChange={(e) => setNewProj({ ...newProj, equipmentsInput: e.target.value })}
+                      required
+                    />
                   </div>
                 </div>
               </div>
 
-              <div className="form-group" style={{ marginBottom: '1rem' }}>
-                <label className="form-label">{language === 'vi' ? 'Đường dẫn hình ảnh (URL)' : 'Project Image URL'}</label>
-                <input 
-                  type="text" 
-                  className="form-input" 
-                  placeholder="https://images.unsplash.com/..."
-                  value={newProj.imageURL}
-                  onChange={(e) => setNewProj({ ...newProj, imageURL: e.target.value })}
-                />
-              </div>
-
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem', marginBottom: '1rem' }}>
-                <div className="form-group" style={{ marginBottom: 0 }}>
-                  <label className="form-label">{language === 'vi' ? 'Địa điểm (Tiếng Việt) *' : 'Location (Vietnamese) *'}</label>
-                  <input 
-                    type="text" 
-                    className="form-input" 
-                    placeholder="KCN Mỹ Phước 3, Bình Dương"
-                    value={newProj.locationVi}
-                    onChange={(e) => setNewProj({ ...newProj, locationVi: e.target.value })}
-                    required
-                  />
-                </div>
-                <div className="form-group" style={{ marginBottom: 0 }}>
-                  <label className="form-label">{language === 'vi' ? 'Địa điểm (Tiếng Anh) *' : 'Location (English) *'}</label>
-                  <input 
-                    type="text" 
-                    className="form-input" 
-                    placeholder="My Phuoc 3 IP, Binh Duong"
-                    value={newProj.locationEn}
-                    onChange={(e) => setNewProj({ ...newProj, locationEn: e.target.value })}
-                    required
-                  />
-                </div>
-              </div>
-
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem', marginBottom: '1rem' }}>
-                <div className="form-group" style={{ marginBottom: 0 }}>
-                  <label className="form-label">{language === 'vi' ? 'Quy mô công suất (Tiếng Việt) *' : 'Capacity (Vietnamese) *'}</label>
-                  <input 
-                    type="text" 
-                    className="form-input" 
-                    placeholder="Tiêu thụ 25 tấn LPG / tháng"
-                    value={newProj.capacityVi}
-                    onChange={(e) => setNewProj({ ...newProj, capacityVi: e.target.value })}
-                    required
-                  />
-                </div>
-                <div className="form-group" style={{ marginBottom: 0 }}>
-                  <label className="form-label">{language === 'vi' ? 'Quy mô công suất (Tiếng Anh) *' : 'Capacity (English) *'}</label>
-                  <input 
-                    type="text" 
-                    className="form-input" 
-                    placeholder="25 tons LPG per month"
-                    value={newProj.capacityEn}
-                    onChange={(e) => setNewProj({ ...newProj, capacityEn: e.target.value })}
-                    required
-                  />
-                </div>
-              </div>
-
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem', marginBottom: '1rem' }}>
-                <div className="form-group" style={{ marginBottom: 0 }}>
-                  <label className="form-label">{language === 'vi' ? 'Phạm vi công việc (Tiếng Việt) *' : 'Scope of Work (Vietnamese) *'}</label>
-                  <textarea 
-                    className="form-input" 
-                    style={{ height: '50px', resize: 'vertical' }}
-                    value={newProj.scopeVi}
-                    onChange={(e) => setNewProj({ ...newProj, scopeVi: e.target.value })}
-                    required
-                  />
-                </div>
-                <div className="form-group" style={{ marginBottom: 0 }}>
-                  <label className="form-label">{language === 'vi' ? 'Phạm vi công việc (Tiếng Anh) *' : 'Scope of Work (English) *'}</label>
-                  <textarea 
-                    className="form-input" 
-                    style={{ height: '50px', resize: 'vertical' }}
-                    value={newProj.scopeEn}
-                    onChange={(e) => setNewProj({ ...newProj, scopeEn: e.target.value })}
-                    required
-                  />
-                </div>
-              </div>
-
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem', marginBottom: '1rem' }}>
-                <div className="form-group" style={{ marginBottom: 0 }}>
-                  <label className="form-label">{language === 'vi' ? 'Kết quả đạt được (Tiếng Việt) *' : 'Result (Vietnamese) *'}</label>
-                  <textarea 
-                    className="form-input" 
-                    style={{ height: '50px', resize: 'vertical' }}
-                    value={newProj.resultVi}
-                    onChange={(e) => setNewProj({ ...newProj, resultVi: e.target.value })}
-                    required
-                  />
-                </div>
-                <div className="form-group" style={{ marginBottom: 0 }}>
-                  <label className="form-label">{language === 'vi' ? 'Kết quả đạt được (Tiếng Anh) *' : 'Result (English) *'}</label>
-                  <textarea 
-                    className="form-input" 
-                    style={{ height: '50px', resize: 'vertical' }}
-                    value={newProj.resultEn}
-                    onChange={(e) => setNewProj({ ...newProj, resultEn: e.target.value })}
-                    required
-                  />
-                </div>
-              </div>
-
-              <div className="form-group" style={{ marginBottom: '1.5rem' }}>
-                <label className="form-label">{language === 'vi' ? 'Thiết bị chính lắp đặt (Phân cách bằng dấu phẩy) *' : 'Key Equipment (Comma separated) *'}</label>
-                <input 
-                  type="text" 
-                  className="form-input" 
-                  placeholder="30m³ LPG Tank, 300 kg/h Vaporizer, Fisher Regulators"
-                  value={newProj.equipmentsInput}
-                  onChange={(e) => setNewProj({ ...newProj, equipmentsInput: e.target.value })}
-                  required
-                />
-              </div>
-
-              <div style={{ display: 'flex', gap: '0.75rem', justifyContent: 'flex-end' }}>
+              <div style={{ display: 'flex', gap: '0.75rem', justifyContent: 'flex-end', borderTop: '1px solid var(--color-gray-border)', paddingTop: '1.25rem' }}>
                 <button 
                   type="button" 
                   className="btn btn-outline" 
