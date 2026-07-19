@@ -3,7 +3,11 @@ import { useLanguage } from '../context/LanguageContext';
 import { MapPin, Phone, Mail, Clock, ShieldAlert } from 'lucide-react';
 import { ProjectWizard } from '../components/ProjectWizard';
 
-export const Contact: React.FC = () => {
+interface ContactProps {
+  onSubmitLead?: (data: any) => void;
+}
+
+export const Contact: React.FC<ContactProps> = ({ onSubmitLead }) => {
   const { language, t } = useLanguage();
 
   return (
@@ -87,7 +91,7 @@ export const Contact: React.FC = () => {
 
           {/* Project Wizard Container */}
           <div style={styles.wizardCol}>
-            <ProjectWizard />
+            <ProjectWizard onSubmitLead={onSubmitLead} />
           </div>
         </div>
       </section>

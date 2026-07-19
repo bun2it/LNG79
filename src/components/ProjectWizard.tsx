@@ -7,9 +7,10 @@ import {
 
 interface ProjectWizardProps {
   onComplete?: () => void;
+  onSubmitLead?: (data: any) => void;
 }
 
-export const ProjectWizard: React.FC<ProjectWizardProps> = ({ onComplete }) => {
+export const ProjectWizard: React.FC<ProjectWizardProps> = ({ onComplete, onSubmitLead }) => {
   const { language, t } = useLanguage();
   const [step, setStep] = useState(1);
   const [submitted, setSubmitted] = useState(false);
@@ -55,6 +56,18 @@ export const ProjectWizard: React.FC<ProjectWizardProps> = ({ onComplete }) => {
       alert(language === 'vi' ? 'Vui lòng nhập đầy đủ thông tin liên hệ bắt buộc.' : 'Please fill all required contact fields.');
       return;
     }
+    
+    if (onSubmitLead) {
+      onSubmitLead({
+        company: formData.companyName,
+        contactName: formData.contactName,
+        phone: formData.phone,
+        email: formData.email,
+        province: formData.province,
+        details: `Khảo sát dự án:\nNgành: ${formData.industry}\nGiải pháp: ${formData.solution}\nTiêu thụ dự kiến: ${formData.consumption}\nLoại dự án: ${formData.projectType === 'new' ? 'Đầu tư mới' : 'Cải tạo'}\nTimeline: ${formData.timeline === '3-6' ? '3-6 tháng' : formData.timeline === '<3' ? 'Dưới 3 tháng' : 'Trên 6 tháng'}\nTập tin đính kèm: ${formData.fileName || 'Không có'}\n\nGhi chú: ${formData.details}`
+      });
+    }
+
     setSubmitted(true);
   };
 

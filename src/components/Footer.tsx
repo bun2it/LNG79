@@ -57,6 +57,7 @@ export const Footer: React.FC<FooterProps> = ({ setView }) => {
             <li><button style={styles.linkBtn} onClick={() => handleNav('projects')}>{t('navProjects')}</button></li>
             <li><button style={styles.linkBtn} onClick={() => handleNav('knowledge')}>{t('navKnowledge')}</button></li>
             <li><button style={styles.linkBtn} onClick={() => handleNav('contact')}>{t('navContact')}</button></li>
+            <li><button style={styles.linkBtn} onClick={() => handleNav('admin')}>{language === 'vi' ? 'Trang quản trị (CMS)' : 'CMS Portal'}</button></li>
             <li><a href="#" style={styles.linkBtn}>{language === 'vi' ? 'Tải Catalogue Thiết bị' : 'Download Catalog (PDF)'}</a></li>
           </ul>
         </div>

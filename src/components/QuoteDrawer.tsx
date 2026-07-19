@@ -15,10 +15,11 @@ interface QuoteDrawerProps {
   cartItems: ProductItem[];
   onRemoveItem: (id: string) => void;
   onClearCart: () => void;
+  onSubmitLead?: (data: any) => void;
 }
 
 export const QuoteDrawer: React.FC<QuoteDrawerProps> = ({ 
-  isOpen, onClose, cartItems, onRemoveItem, onClearCart 
+  isOpen, onClose, cartItems, onRemoveItem, onClearCart, onSubmitLead
 }) => {
   const { language, t } = useLanguage();
   const [submitted, setSubmitted] = useState(false);
@@ -42,7 +43,17 @@ export const QuoteDrawer: React.FC<QuoteDrawerProps> = ({
       alert(language === 'vi' ? 'Vui lòng điền đủ các thông tin bắt buộc (*)' : 'Please fill all required fields (*)');
       return;
     }
-    // Simulate API request
+    
+    if (onSubmitLead) {
+      onSubmitLead({
+        company: form.company,
+        contactName: form.contactName,
+        phone: form.phone,
+        email: form.email,
+        details: `Yêu cầu báo giá thiết bị:\n${cartItems.map(item => `- ${item.name[language]} (${item.specs[language]})`).join('\n')}\n\nGhi chú: ${form.message}`
+      });
+    }
+
     setSubmitted(true);
     setTimeout(() => {
       onClearCart();

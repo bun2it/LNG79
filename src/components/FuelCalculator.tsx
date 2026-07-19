@@ -19,7 +19,15 @@ const FUEL_TYPES: { [key: string]: FuelConfig } = {
   ELEC: { name: { vi: 'Điện công nghiệp', en: 'Electricity' }, unit: 'kWh', lhv: 3.6, co2Factor: 0.82, defaultPrice: 2200, defaultEff: 95 }
 };
 
-export const FuelCalculator: React.FC = () => {
+interface FuelCalculatorProps {
+  lngPrice?: number;
+  lpgPrice?: number;
+}
+
+export const FuelCalculator: React.FC<FuelCalculatorProps> = ({ 
+  lngPrice = 18500, 
+  lpgPrice = 23000 
+}) => {
   const { language, t } = useLanguage();
   const [selectedFuelKey, setSelectedFuelKey] = useState<string>('DO');
   const [consumption, setConsumption] = useState<number>(50000);
@@ -29,12 +37,12 @@ export const FuelCalculator: React.FC = () => {
   // Target constants
   const LNG_LHV = 50; // MJ/kg
   const LNG_CO2_FACTOR = 2.75; // kg CO2/kg
-  const LNG_PRICE = 18500; // VND/kg
+  const LNG_PRICE = lngPrice; // VND/kg
   const LNG_EFF = 92; // %
 
   const LPG_LHV = 46; // MJ/kg
   const LPG_CO2_FACTOR = 3.00; // kg CO2/kg
-  const LPG_PRICE = 23000; // VND/kg
+  const LPG_PRICE = lpgPrice; // VND/kg
   const LPG_EFF = 90; // %
 
   const currentFuel = FUEL_TYPES[selectedFuelKey];
