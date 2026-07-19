@@ -221,6 +221,12 @@ export const AppContent: React.FC = () => {
     );
   };
 
+  const handleEditArticle = (updatedArticle: ArticleItem) => {
+    setArticles((prev) =>
+      prev.map((art) => (art.id === updatedArticle.id ? updatedArticle : art))
+    );
+  };
+
   // Project handlers
   const handleAddProject = (project: ProjectItem) => {
     setProjects((prev) => [project, ...prev]);
@@ -281,6 +287,7 @@ export const AppContent: React.FC = () => {
             onAddArticle={handleAddArticle}
             onDeleteArticle={handleDeleteArticle}
             onToggleArticle={handleToggleArticleVisibility}
+            onEditArticle={handleEditArticle}
             projects={projects}
             onAddProject={handleAddProject}
             onDeleteProject={handleDeleteProject}

@@ -35,6 +35,7 @@ interface AdminDashboardProps {
   onDeleteProject: (id: string) => void;
   onToggleProject: (id: string) => void;
   onEditProject: (project: ProjectItem) => void;
+  onEditArticle: (article: ArticleItem) => void;
 }
 
 const AUDIT_FUELS: { [key: string]: { name: { vi: string; en: string }; lhv: number; co2Factor: number; defaultPrice: number; defaultEff: number } } = {
@@ -48,7 +49,8 @@ const AUDIT_FUELS: { [key: string]: { name: { vi: string; en: string }; lhv: num
 export const AdminDashboard: React.FC<AdminDashboardProps> = ({
   leads, onUpdateStatus, onDeleteLead, fuelSettings, onUpdateSettings,
   articles, onAddArticle, onDeleteArticle, onToggleArticle,
-  projects, onAddProject, onDeleteProject, onToggleProject, onEditProject
+  projects, onAddProject, onDeleteProject, onToggleProject, onEditProject,
+  onEditArticle
 }) => {
   const { language } = useLanguage();
   const [isLoggedIn, setIsLoggedIn] = useState<boolean>(() => {
@@ -83,6 +85,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
 
   // Articles management state
   const [showAddArticleModal, setShowAddArticleModal] = useState(false);
+  const [editingArticle, setEditingArticle] = useState<ArticleItem | null>(null);
   const [newArt, setNewArt] = useState({
     titleVi: '',
     titleEn: '',
@@ -94,19 +97,47 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
     imageURL: ''
   });
 
-  const handleAddSubmit = (e: React.FormEvent) => {
+  const handleEditArticleClick = (art: ArticleItem) => {
+    setEditingArticle(art);
+    setNewArt({
+      titleVi: art.title.vi,
+      titleEn: art.title.en,
+      category: art.category,
+      excerptVi: art.excerpt.vi,
+      excerptEn: art.excerpt.en,
+      contentVi: art.content.vi,
+      contentEn: art.content.en,
+      imageURL: art.image || ''
+    });
+    setShowAddArticleModal(true);
+  };
+
+  const handleArticleFormSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    onAddArticle({
-      id: 'art-' + Date.now(),
+    const artData = {
       title: { vi: newArt.titleVi, en: newArt.titleEn },
       category: newArt.category,
       excerpt: { vi: newArt.excerptVi, en: newArt.excerptEn },
       content: { vi: newArt.contentVi, en: newArt.contentEn },
       image: newArt.imageURL || undefined,
-      date: new Date().toISOString().split('T')[0],
-      visible: true
-    });
+      visible: editingArticle ? editingArticle.visible : true
+    };
+
+    if (editingArticle) {
+      onEditArticle({
+        ...editingArticle,
+        ...artData
+      });
+    } else {
+      onAddArticle({
+        id: 'art-' + Date.now(),
+        ...artData,
+        date: new Date().toISOString().split('T')[0]
+      });
+    }
+    
     setShowAddArticleModal(false);
+    setEditingArticle(null);
     setNewArt({
       titleVi: '',
       titleEn: '',
@@ -761,7 +792,20 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
             </h3>
             <button 
               className="btn btn-teal btn-sm"
-              onClick={() => setShowAddArticleModal(true)}
+              onClick={() => {
+                setEditingArticle(null);
+                setNewArt({
+                  titleVi: '',
+                  titleEn: '',
+                  category: 'energy',
+                  excerptVi: '',
+                  excerptEn: '',
+                  contentVi: '',
+                  contentEn: '',
+                  imageURL: ''
+                });
+                setShowAddArticleModal(true);
+              }}
             >
               <Plus size={16} /> {language === 'vi' ? 'Thêm bài viết mới' : 'Add New Article'}
             </button>
@@ -815,13 +859,22 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                       </button>
                     </td>
                     <td style={styles.td}>
-                      <button 
-                        className="btn btn-outline btn-sm"
-                        style={{ color: '#EF4444', padding: '0.25rem' }}
-                        onClick={() => onDeleteArticle(art.id)}
-                      >
-                        <Trash2 size={14} />
-                      </button>
+                      <div style={{ display: 'flex', gap: '0.5rem' }}>
+                        <button 
+                          className="btn btn-outline btn-sm"
+                          style={{ color: 'var(--color-teal)', padding: '0.25rem' }}
+                          onClick={() => handleEditArticleClick(art)}
+                        >
+                          <Edit size={14} />
+                        </button>
+                        <button 
+                          className="btn btn-outline btn-sm"
+                          style={{ color: '#EF4444', padding: '0.25rem' }}
+                          onClick={() => onDeleteArticle(art.id)}
+                        >
+                          <Trash2 size={14} />
+                        </button>
+                      </div>
                     </td>
                   </tr>
                 ))}
@@ -1005,11 +1058,13 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
           <div style={{ ...styles.modalCard, maxWidth: '1000px', width: '90%' }} className="animate-fade-in">
             <div style={styles.modalHeader}>
               <h3 style={{ margin: 0, fontSize: '1.15rem', color: 'var(--color-white)' }}>
-                {language === 'vi' ? 'Tạo Bài Viết Kỹ Thuật Mới' : 'Create New Technical Article'}
+                {editingArticle 
+                  ? (language === 'vi' ? 'Chỉnh Sửa Bài Viết Kỹ Thuật' : 'Edit Technical Article') 
+                  : (language === 'vi' ? 'Tạo Bài Viết Kỹ Thuật Mới' : 'Create New Technical Article')}
               </h3>
               <button onClick={() => setShowAddArticleModal(false)} style={styles.closeBtn}>Close</button>
             </div>
-            <form onSubmit={handleAddSubmit} style={{ padding: '1.5rem' }}>
+            <form onSubmit={handleArticleFormSubmit} style={{ padding: '1.5rem' }}>
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem', marginBottom: '1rem' }}>
                 <div className="form-group" style={{ marginBottom: 0 }}>
                   <label className="form-label">{language === 'vi' ? 'Tiêu đề (Tiếng Việt) *' : 'Title (Vietnamese) *'}</label>
@@ -1133,7 +1188,9 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                   {language === 'vi' ? 'Hủy bỏ' : 'Cancel'}
                 </button>
                 <button type="submit" className="btn btn-teal">
-                  {language === 'vi' ? 'Tạo bài viết' : 'Create Article'}
+                  {editingArticle 
+                    ? (language === 'vi' ? 'Lưu thay đổi' : 'Save Changes') 
+                    : (language === 'vi' ? 'Tạo bài viết' : 'Create Article')}
                 </button>
               </div>
             </form>
