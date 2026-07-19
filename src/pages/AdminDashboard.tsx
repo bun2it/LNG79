@@ -1002,7 +1002,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
       {/* Add Article Modal */}
       {showAddArticleModal && (
         <div style={styles.modalOverlay}>
-          <div style={{ ...styles.modalCard, maxWidth: '700px' }} className="animate-fade-in">
+          <div style={{ ...styles.modalCard, maxWidth: '1000px', width: '90%' }} className="animate-fade-in">
             <div style={styles.modalHeader}>
               <h3 style={{ margin: 0, fontSize: '1.15rem', color: 'var(--color-white)' }}>
                 {language === 'vi' ? 'Tạo Bài Viết Kỹ Thuật Mới' : 'Create New Technical Article'}
@@ -1144,7 +1144,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
       {/* Add Project Modal */}
       {showAddProjectModal && (
         <div style={styles.modalOverlay}>
-          <div style={{ ...styles.modalCard, maxWidth: '1000px' }} className="animate-fade-in">
+          <div style={{ ...styles.modalCard, maxWidth: '1200px', width: '95%' }} className="animate-fade-in">
             <div style={styles.modalHeader}>
               <h3 style={{ margin: 0, fontSize: '1.15rem', color: 'var(--color-white)' }}>
                 {editingProject 
