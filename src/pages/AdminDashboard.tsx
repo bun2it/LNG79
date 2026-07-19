@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { useLanguage } from '../context/LanguageContext';
 import { 
   Users, Layers, Settings, FileSpreadsheet, Check, 
-  Trash2, Plus, Edit, RefreshCw, TrendingUp 
+  Trash2, Plus, Edit, RefreshCw, TrendingUp, Flame, ChefHat 
 } from 'lucide-react';
 
 interface LeadItem {
@@ -30,10 +30,32 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
   leads, onUpdateStatus, onDeleteLead, fuelSettings, onUpdateSettings
 }) => {
   const { language } = useLanguage();
+  const [isLoggedIn, setIsLoggedIn] = useState<boolean>(() => {
+    return sessionStorage.getItem('cms_logged_in') === 'true';
+  });
+  const [username, setUsername] = useState('');
+  const [password, setPassword] = useState('');
+  const [authError, setAuthError] = useState('');
   const [activeTab, setActiveTab] = useState<'leads' | 'products' | 'settings'>('leads');
   const [lngInput, setLngInput] = useState(fuelSettings.lngPrice);
   const [lpgInput, setLpgInput] = useState(fuelSettings.lpgPrice);
   const [selectedLead, setSelectedLead] = useState<LeadItem | null>(null);
+
+  const handleLogin = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (username === 'admin' && password === 'admin123') {
+      setIsLoggedIn(true);
+      sessionStorage.setItem('cms_logged_in', 'true');
+      setAuthError('');
+    } else {
+      setAuthError(language === 'vi' ? 'Sai tài khoản hoặc mật khẩu!' : 'Invalid username or password!');
+    }
+  };
+
+  const handleLogout = () => {
+    setIsLoggedIn(false);
+    sessionStorage.removeItem('cms_logged_in');
+  };
 
   // Statistics
   const newLeads = leads.filter(l => l.status === 'new').length;
@@ -56,6 +78,65 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
     return labels[status];
   };
 
+  if (!isLoggedIn) {
+    return (
+      <div style={styles.loginOverlay}>
+        <div style={styles.loginCard} className="animate-fade-in">
+          <div style={styles.loginHeader}>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.5rem', marginBottom: '0.75rem' }}>
+              <Flame size={24} color="var(--color-orange)" />
+              <ChefHat size={24} color="var(--color-teal)" />
+            </div>
+            <h3 style={{ fontSize: '1.25rem', color: 'var(--color-navy)', textAlign: 'center', margin: 0 }}>
+              {language === 'vi' ? 'Cổng Bảo Mật CMS' : 'CMS Security Portal'}
+            </h3>
+            <p style={{ fontSize: '0.8rem', color: 'var(--color-text-muted)', textAlign: 'center', marginTop: '0.25rem', marginBottom: 0 }}>
+              {language === 'vi' ? 'Đăng nhập quyền quản trị trạm cấp khí & bếp' : 'Sign in to access energy & kitchen controls'}
+            </p>
+          </div>
+          
+          <form onSubmit={handleLogin} style={{ display: 'flex', flexDirection: 'column', gap: '1rem', padding: '1.5rem' }}>
+            {authError && (
+              <div style={styles.errorAlert}>
+                <span>⚠️ {authError}</span>
+              </div>
+            )}
+            
+            <div className="form-group" style={{ marginBottom: 0 }}>
+              <label className="form-label">{language === 'vi' ? 'Tài khoản *' : 'Username *'}</label>
+              <input 
+                type="text" 
+                className="form-input" 
+                value={username}
+                onChange={(e) => setUsername(e.target.value)}
+                required
+              />
+            </div>
+            
+            <div className="form-group" style={{ marginBottom: 0 }}>
+              <label className="form-label">{language === 'vi' ? 'Mật khẩu *' : 'Password *'}</label>
+              <input 
+                type="password" 
+                className="form-input" 
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                required
+              />
+            </div>
+            
+            <button type="submit" className="btn btn-teal" style={{ width: '100%', marginTop: '0.5rem' }}>
+              {language === 'vi' ? 'Đăng Nhập' : 'Sign In'}
+            </button>
+
+            <div style={styles.credentialsHint}>
+              <span>💡 {language === 'vi' ? 'Tài khoản demo: admin / mật khẩu: admin123' : 'Demo account: admin / password: admin123'}</span>
+            </div>
+          </form>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="container" style={{ padding: '4rem 1.5rem', textAlign: 'left' }}>
       <div style={styles.header}>
@@ -67,7 +148,16 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
             {language === 'vi' ? 'Quản lý thông tin yêu cầu, sản phẩm catalog và cấu hình hệ số máy tính.' : 'Manage client leads, catalog hardware, and adjust calculator pricing parameters.'}
           </p>
         </div>
-        <span style={styles.versionBadge}>Mock CMS v1.0</span>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+          <span style={styles.versionBadge}>Mock CMS v1.0</span>
+          <button 
+            className="btn btn-outline btn-sm" 
+            onClick={handleLogout}
+            style={{ padding: '0.25rem 0.5rem', fontSize: '0.75rem', borderColor: 'var(--color-navy-accent)' }}
+          >
+            {language === 'vi' ? 'Đăng xuất' : 'Sign Out'}
+          </button>
+        </div>
       </div>
 
       {/* Stats row */}
@@ -598,5 +688,44 @@ const styles: { [key: string]: React.CSSProperties } = {
     marginTop: '1.5rem',
     borderTop: '1px solid var(--color-gray-border)',
     paddingTop: '1.25rem',
+  },
+  loginOverlay: {
+    display: 'flex',
+    justifyContent: 'center',
+    alignItems: 'center',
+    minHeight: '60vh',
+    padding: '2rem 0',
+  },
+  loginCard: {
+    width: '100%',
+    maxWidth: '360px',
+    backgroundColor: 'var(--color-gray-card)',
+    border: '1px solid var(--color-gray-border)',
+    borderRadius: 'var(--border-radius-md)',
+    boxShadow: 'var(--shadow-premium)',
+    overflow: 'hidden',
+  },
+  loginHeader: {
+    padding: '1.5rem',
+    backgroundColor: 'var(--color-gray-bg)',
+    borderBottom: '1px solid var(--color-gray-border)',
+    textAlign: 'center',
+  },
+  errorAlert: {
+    backgroundColor: '#FEE2E2',
+    border: '1px solid #FCA5A5',
+    color: '#B91C1C',
+    padding: '0.5rem 0.75rem',
+    borderRadius: 'var(--border-radius-sm)',
+    fontSize: '0.8rem',
+    fontWeight: 600,
+    textAlign: 'center',
+  },
+  credentialsHint: {
+    fontSize: '0.7rem',
+    color: 'var(--color-text-muted)',
+    textAlign: 'center',
+    fontStyle: 'italic',
+    marginTop: '0.5rem',
   }
 };
