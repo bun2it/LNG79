@@ -10,6 +10,7 @@ export interface ArticleItem {
   content: { vi: string; en: string };
   date: string;
   visible?: boolean;
+  image?: string;
 }
 
 interface KnowledgeProps {
@@ -70,24 +71,35 @@ export const Knowledge: React.FC<KnowledgeProps> = ({ articles }) => {
           {/* Article Cards Grid */}
           <div className="grid-3" style={{ marginTop: '2.5rem' }}>
             {filteredArticles.map((art) => (
-              <div key={art.id} className="card" style={styles.artCard}>
-                <div style={styles.artMeta}>
-                  <span style={styles.artCat}>{art.category.toUpperCase()}</span>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.25rem' }}>
-                    <BookOpen size={12} />
-                    <span>{art.date}</span>
+              <div key={art.id} className="card" style={{ ...styles.artCard, display: 'flex', flexDirection: 'column', overflow: 'hidden', padding: 0 }}>
+                {art.image && (
+                  <div style={{ width: '100%', height: '180px', overflow: 'hidden', borderBottom: '1px solid var(--color-gray-border)' }}>
+                    <img 
+                      src={art.image} 
+                      alt={art.title[language]} 
+                      style={{ width: '100%', height: '100%', objectFit: 'cover' }} 
+                    />
                   </div>
+                )}
+                <div style={{ padding: '1.5rem', display: 'flex', flexDirection: 'column', flex: 1 }}>
+                  <div style={styles.artMeta}>
+                    <span style={styles.artCat}>{art.category.toUpperCase()}</span>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.25rem' }}>
+                      <BookOpen size={12} />
+                      <span>{art.date}</span>
+                    </div>
+                  </div>
+
+                  <h3 style={styles.artTitle}>{art.title[language]}</h3>
+                  <p style={styles.artExcerpt}>{art.excerpt[language]}</p>
+
+                  <button 
+                    onClick={() => setReadingArticle(art)} 
+                    style={{ ...styles.readMoreBtn, marginTop: 'auto' }}
+                  >
+                    {language === 'vi' ? 'Đọc bài viết đầy đủ' : 'Read Full Manual'} →
+                  </button>
                 </div>
-
-                <h3 style={styles.artTitle}>{art.title[language]}</h3>
-                <p style={styles.artExcerpt}>{art.excerpt[language]}</p>
-
-                <button 
-                  onClick={() => setReadingArticle(art)} 
-                  style={styles.readMoreBtn}
-                >
-                  {language === 'vi' ? 'Đọc bài viết đầy đủ' : 'Read Full Manual'} →
-                </button>
               </div>
             ))}
           </div>

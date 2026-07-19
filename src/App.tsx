@@ -236,6 +236,12 @@ export const AppContent: React.FC = () => {
     );
   };
 
+  const handleEditProject = (updatedProject: ProjectItem) => {
+    setProjects((prev) =>
+      prev.map((proj) => (proj.id === updatedProject.id ? updatedProject : proj))
+    );
+  };
+
   // Render the current view page
   const renderView = () => {
     switch (currentView) {
@@ -279,6 +285,7 @@ export const AppContent: React.FC = () => {
             onAddProject={handleAddProject}
             onDeleteProject={handleDeleteProject}
             onToggleProject={handleToggleProjectVisibility}
+            onEditProject={handleEditProject}
           />
         );
       default:

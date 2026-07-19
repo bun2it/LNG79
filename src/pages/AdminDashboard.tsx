@@ -34,6 +34,7 @@ interface AdminDashboardProps {
   onAddProject: (project: ProjectItem) => void;
   onDeleteProject: (id: string) => void;
   onToggleProject: (id: string) => void;
+  onEditProject: (project: ProjectItem) => void;
 }
 
 const AUDIT_FUELS: { [key: string]: { name: { vi: string; en: string }; lhv: number; co2Factor: number; defaultPrice: number; defaultEff: number } } = {
@@ -47,7 +48,7 @@ const AUDIT_FUELS: { [key: string]: { name: { vi: string; en: string }; lhv: num
 export const AdminDashboard: React.FC<AdminDashboardProps> = ({
   leads, onUpdateStatus, onDeleteLead, fuelSettings, onUpdateSettings,
   articles, onAddArticle, onDeleteArticle, onToggleArticle,
-  projects, onAddProject, onDeleteProject, onToggleProject
+  projects, onAddProject, onDeleteProject, onToggleProject, onEditProject
 }) => {
   const { language } = useLanguage();
   const [isLoggedIn, setIsLoggedIn] = useState<boolean>(() => {
@@ -66,6 +67,20 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
   const [auditEff, setAuditEff] = useState(82);
   const [auditPrice, setAuditPrice] = useState(20000);
 
+  // Image reader to base64
+  const handleImageFileChange = (e: React.ChangeEvent<HTMLInputElement>, callback: (base64: string) => void) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      const reader = new FileReader();
+      reader.onloadend = () => {
+        if (typeof reader.result === 'string') {
+          callback(reader.result);
+        }
+      };
+      reader.readAsDataURL(file);
+    }
+  };
+
   // Articles management state
   const [showAddArticleModal, setShowAddArticleModal] = useState(false);
   const [newArt, setNewArt] = useState({
@@ -75,7 +90,8 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
     excerptVi: '',
     excerptEn: '',
     contentVi: '',
-    contentEn: ''
+    contentEn: '',
+    imageURL: ''
   });
 
   const handleAddSubmit = (e: React.FormEvent) => {
@@ -86,6 +102,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
       category: newArt.category,
       excerpt: { vi: newArt.excerptVi, en: newArt.excerptEn },
       content: { vi: newArt.contentVi, en: newArt.contentEn },
+      image: newArt.imageURL || undefined,
       date: new Date().toISOString().split('T')[0],
       visible: true
     });
@@ -97,12 +114,14 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
       excerptVi: '',
       excerptEn: '',
       contentVi: '',
-      contentEn: ''
+      contentEn: '',
+      imageURL: ''
     });
   };
 
   // Projects management state
   const [showAddProjectModal, setShowAddProjectModal] = useState(false);
+  const [editingProject, setEditingProject] = useState<ProjectItem | null>(null);
   const [newProj, setNewProj] = useState({
     nameVi: '',
     nameEn: '',
@@ -119,10 +138,29 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
     imageURL: ''
   });
 
-  const handleAddProjectSubmit = (e: React.FormEvent) => {
+  const handleEditClick = (proj: ProjectItem) => {
+    setEditingProject(proj);
+    setNewProj({
+      nameVi: proj.name.vi,
+      nameEn: proj.name.en,
+      category: proj.category,
+      locationVi: proj.location.vi,
+      locationEn: proj.location.en,
+      scopeVi: proj.scope.vi,
+      scopeEn: proj.scope.en,
+      capacityVi: proj.capacity.vi,
+      capacityEn: proj.capacity.en,
+      resultVi: proj.result.vi,
+      resultEn: proj.result.en,
+      equipmentsInput: proj.equipments.join(', '),
+      imageURL: proj.image || ''
+    });
+    setShowAddProjectModal(true);
+  };
+
+  const handleProjectFormSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    onAddProject({
-      id: 'proj-' + Date.now(),
+    const projData = {
       name: { vi: newProj.nameVi, en: newProj.nameEn },
       category: newProj.category,
       location: { vi: newProj.locationVi, en: newProj.locationEn },
@@ -131,9 +169,23 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
       result: { vi: newProj.resultVi, en: newProj.resultEn },
       equipments: newProj.equipmentsInput.split(',').map(s => s.trim()).filter(Boolean),
       image: newProj.imageURL || 'https://images.unsplash.com/photo-1581094128547-1388d1397865?q=80&w=600&auto=format&fit=crop',
-      visible: true
-    });
+      visible: editingProject ? editingProject.visible : true
+    };
+
+    if (editingProject) {
+      onEditProject({
+        ...editingProject,
+        ...projData
+      });
+    } else {
+      onAddProject({
+        id: 'proj-' + Date.now(),
+        ...projData
+      });
+    }
+
     setShowAddProjectModal(false);
+    setEditingProject(null);
     setNewProj({
       nameVi: '',
       nameEn: '',
@@ -788,7 +840,25 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
             </h3>
             <button 
               className="btn btn-teal btn-sm"
-              onClick={() => setShowAddProjectModal(true)}
+              onClick={() => {
+                setEditingProject(null);
+                setNewProj({
+                  nameVi: '',
+                  nameEn: '',
+                  category: 'lng',
+                  locationVi: '',
+                  locationEn: '',
+                  scopeVi: '',
+                  scopeEn: '',
+                  capacityVi: '',
+                  capacityEn: '',
+                  resultVi: '',
+                  resultEn: '',
+                  equipmentsInput: '',
+                  imageURL: ''
+                });
+                setShowAddProjectModal(true);
+              }}
             >
               <Plus size={16} /> {language === 'vi' ? 'Thêm dự án mới' : 'Add New Project'}
             </button>
@@ -850,13 +920,22 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                       </button>
                     </td>
                     <td style={styles.td}>
-                      <button 
-                        className="btn btn-outline btn-sm"
-                        style={{ color: '#EF4444', padding: '0.25rem' }}
-                        onClick={() => onDeleteProject(proj.id)}
-                      >
-                        <Trash2 size={14} />
-                      </button>
+                      <div style={{ display: 'flex', gap: '0.5rem' }}>
+                        <button 
+                          className="btn btn-outline btn-sm"
+                          style={{ color: 'var(--color-teal)', padding: '0.25rem' }}
+                          onClick={() => handleEditClick(proj)}
+                        >
+                          <Edit size={14} />
+                        </button>
+                        <button 
+                          className="btn btn-outline btn-sm"
+                          style={{ color: '#EF4444', padding: '0.25rem' }}
+                          onClick={() => onDeleteProject(proj.id)}
+                        >
+                          <Trash2 size={14} />
+                        </button>
+                      </div>
                     </td>
                   </tr>
                 ))}
@@ -970,6 +1049,37 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
 
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem', marginBottom: '1rem' }}>
                 <div className="form-group" style={{ marginBottom: 0 }}>
+                  <label className="form-label">{language === 'vi' ? 'Tải lên hình ảnh' : 'Upload Image'}</label>
+                  <div style={{ display: 'flex', gap: '1rem', alignItems: 'center' }}>
+                    <input 
+                      type="file" 
+                      accept="image/*" 
+                      className="form-input" 
+                      onChange={(e) => handleImageFileChange(e, (base64) => setNewArt({ ...newArt, imageURL: base64 }))}
+                    />
+                    {newArt.imageURL && (
+                      <img 
+                        src={newArt.imageURL} 
+                        alt="Preview" 
+                        style={{ width: '50px', height: '35px', objectFit: 'cover', borderRadius: 'var(--border-radius-sm)', border: '1px solid var(--color-gray-border)' }} 
+                      />
+                    )}
+                  </div>
+                </div>
+                <div className="form-group" style={{ marginBottom: 0 }}>
+                  <label className="form-label">{language === 'vi' ? 'Đường dẫn hình ảnh (URL)' : 'Image URL'}</label>
+                  <input 
+                    type="text" 
+                    className="form-input" 
+                    placeholder="https://images.unsplash.com/..."
+                    value={newArt.imageURL}
+                    onChange={(e) => setNewArt({ ...newArt, imageURL: e.target.value })}
+                  />
+                </div>
+              </div>
+
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem', marginBottom: '1rem' }}>
+                <div className="form-group" style={{ marginBottom: 0 }}>
                   <label className="form-label">{language === 'vi' ? 'Mô tả ngắn (Tiếng Việt) *' : 'Excerpt (Vietnamese) *'}</label>
                   <textarea 
                     className="form-input" 
@@ -1037,11 +1147,13 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
           <div style={{ ...styles.modalCard, maxWidth: '750px' }} className="animate-fade-in">
             <div style={styles.modalHeader}>
               <h3 style={{ margin: 0, fontSize: '1.15rem', color: 'var(--color-white)' }}>
-                {language === 'vi' ? 'Thêm Dự Án Mới Đã Thực Hiện' : 'Add New Case Study Project'}
+                {editingProject 
+                  ? (language === 'vi' ? 'Chỉnh Sửa Dự Án Đã Thực Hiện' : 'Edit Case Study Project') 
+                  : (language === 'vi' ? 'Thêm Dự Án Mới Đã Thực Hiện' : 'Add New Case Study Project')}
               </h3>
               <button onClick={() => setShowAddProjectModal(false)} style={styles.closeBtn}>Close</button>
             </div>
-            <form onSubmit={handleAddProjectSubmit} style={{ padding: '1.5rem' }}>
+            <form onSubmit={handleProjectFormSubmit} style={{ padding: '1.5rem' }}>
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem', marginBottom: '1rem' }}>
                 <div className="form-group" style={{ marginBottom: 0 }}>
                   <label className="form-label">{language === 'vi' ? 'Tên dự án (Tiếng Việt) *' : 'Project Title (Vietnamese) *'}</label>
@@ -1081,15 +1193,34 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                   </select>
                 </div>
                 <div className="form-group" style={{ marginBottom: 0 }}>
-                  <label className="form-label">{language === 'vi' ? 'Đường dẫn hình ảnh (URL)' : 'Project Image URL'}</label>
-                  <input 
-                    type="text" 
-                    className="form-input" 
-                    placeholder="https://images.unsplash.com/..."
-                    value={newProj.imageURL}
-                    onChange={(e) => setNewProj({ ...newProj, imageURL: e.target.value })}
-                  />
+                  <label className="form-label">{language === 'vi' ? 'Tải lên hình ảnh' : 'Upload Image'}</label>
+                  <div style={{ display: 'flex', gap: '1rem', alignItems: 'center' }}>
+                    <input 
+                      type="file" 
+                      accept="image/*" 
+                      className="form-input" 
+                      onChange={(e) => handleImageFileChange(e, (base64) => setNewProj({ ...newProj, imageURL: base64 }))}
+                    />
+                    {newProj.imageURL && (
+                      <img 
+                        src={newProj.imageURL} 
+                        alt="Preview" 
+                        style={{ width: '50px', height: '35px', objectFit: 'cover', borderRadius: 'var(--border-radius-sm)', border: '1px solid var(--color-gray-border)' }} 
+                      />
+                    )}
+                  </div>
                 </div>
+              </div>
+
+              <div className="form-group" style={{ marginBottom: '1rem' }}>
+                <label className="form-label">{language === 'vi' ? 'Đường dẫn hình ảnh (URL)' : 'Project Image URL'}</label>
+                <input 
+                  type="text" 
+                  className="form-input" 
+                  placeholder="https://images.unsplash.com/..."
+                  value={newProj.imageURL}
+                  onChange={(e) => setNewProj({ ...newProj, imageURL: e.target.value })}
+                />
               </div>
 
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem', marginBottom: '1rem' }}>
@@ -1209,7 +1340,9 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                   {language === 'vi' ? 'Hủy bỏ' : 'Cancel'}
                 </button>
                 <button type="submit" className="btn btn-teal">
-                  {language === 'vi' ? 'Thêm dự án' : 'Add Project'}
+                  {editingProject 
+                    ? (language === 'vi' ? 'Lưu thay đổi' : 'Save Changes') 
+                    : (language === 'vi' ? 'Thêm dự án' : 'Add Project')}
                 </button>
               </div>
             </form>
