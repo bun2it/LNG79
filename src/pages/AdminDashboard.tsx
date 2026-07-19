@@ -26,6 +26,14 @@ interface AdminDashboardProps {
   onUpdateSettings: (settings: { lngPrice: number; lpgPrice: number }) => void;
 }
 
+const AUDIT_FUELS: { [key: string]: { name: { vi: string; en: string }; lhv: number; co2Factor: number; defaultPrice: number; defaultEff: number } } = {
+  DO: { name: { vi: 'Dầu Diesel (DO)', en: 'Diesel Oil (DO)' }, lhv: 36, co2Factor: 2.68, defaultPrice: 20000, defaultEff: 82 },
+  FO: { name: { vi: 'Dầu Mè / Dầu nặng (FO)', en: 'Fuel Oil (FO)' }, lhv: 40, co2Factor: 3.10, defaultPrice: 16000, defaultEff: 80 },
+  COAL: { name: { vi: 'Than đá', en: 'Coal' }, lhv: 20, co2Factor: 2.40, defaultPrice: 4500, defaultEff: 68 },
+  LPG_OLD: { name: { vi: 'LPG Hiện tại', en: 'Current LPG' }, lhv: 46, co2Factor: 3.00, defaultPrice: 26000, defaultEff: 85 },
+  ELEC: { name: { vi: 'Điện công nghiệp', en: 'Electricity' }, lhv: 3.6, co2Factor: 0.82, defaultPrice: 2200, defaultEff: 95 }
+};
+
 export const AdminDashboard: React.FC<AdminDashboardProps> = ({
   leads, onUpdateStatus, onDeleteLead, fuelSettings, onUpdateSettings
 }) => {
@@ -40,6 +48,38 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
   const [lngInput, setLngInput] = useState(fuelSettings.lngPrice);
   const [lpgInput, setLpgInput] = useState(fuelSettings.lpgPrice);
   const [selectedLead, setSelectedLead] = useState<LeadItem | null>(null);
+
+  const [auditFuel, setAuditFuel] = useState('DO');
+  const [auditCons, setAuditCons] = useState(50000);
+  const [auditEff, setAuditEff] = useState(82);
+  const [auditPrice, setAuditPrice] = useState(20000);
+
+  const currentAuditFuel = AUDIT_FUELS[auditFuel];
+  const monthlyEnergy = auditCons * currentAuditFuel.lhv * (auditEff / 100);
+  const annualEnergy = monthlyEnergy * 12;
+  const annualOldCost = auditCons * auditPrice * 12;
+  const oldCo2 = (auditCons * currentAuditFuel.co2Factor * 12) / 1000;
+
+  const lngNeeded = annualEnergy / (50 * 0.92);
+  const lngCost = lngNeeded * fuelSettings.lngPrice;
+  const lngCo2 = (lngNeeded * 2.75) / 1000;
+  const lngSavings = annualOldCost - lngCost;
+  const co2Saved = Math.max(0, oldCo2 - lngCo2);
+
+  const calcVapSize = Math.ceil(((lngNeeded / 12) / 250) * 1.5);
+  const calcTankSize = Math.ceil(((lngNeeded / 12) / 1000) * 0.4);
+
+  const formatCurrency = (val: number) => {
+    return new Intl.NumberFormat(language === 'vi' ? 'vi-VN' : 'en-US', {
+      maximumFractionDigits: 0
+    }).format(val);
+  };
+  const formatNumber = (val: number, decimals = 0) => {
+    return new Intl.NumberFormat(language === 'vi' ? 'vi-VN' : 'en-US', {
+      minimumFractionDigits: decimals,
+      maximumFractionDigits: decimals
+    }).format(val);
+  };
 
   const handleLogin = (e: React.FormEvent) => {
     e.preventDefault();
@@ -382,48 +422,172 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
 
         {/* SETTINGS ADJUSTER TAB */}
         {activeTab === 'settings' && (
-          <div className="animate-fade-in" style={{ maxWidth: '600px' }}>
-            <h3 style={{ fontSize: '1.2rem', marginBottom: '1.5rem' }}>
-              {language === 'vi' ? 'Cấu Hình Giá Nhiên Liệu Mặc Định' : 'Tune Calculator Pricing Parameters'}
-            </h3>
+          <div className="animate-fade-in admin-settings-grid">
+            {/* Left side: Config form */}
+            <div style={styles.configCol}>
+              <h3 style={{ fontSize: '1.2rem', marginBottom: '1.5rem', color: 'var(--color-navy)' }}>
+                {language === 'vi' ? 'Cấu Hình Giá Nhiên Liệu Mặc Định' : 'Tune Calculator Pricing Parameters'}
+              </h3>
 
-            <form onSubmit={handleSaveSettings} style={styles.form}>
-              <div className="form-group">
-                <label className="form-label">
-                  {language === 'vi' ? 'Giá bán LNG mặc định (VNĐ / kg) *' : 'Default LNG Price (VND / kg) *'}
-                </label>
-                <input 
-                  type="number" 
-                  className="form-input" 
-                  value={lngInput}
-                  onChange={(e) => setLngInput(parseFloat(e.target.value) || 0)}
-                  required
-                />
-                <span style={styles.inputHelp}>
-                  {language === 'vi' ? 'Giá LNG thị trường hiện giao động khoảng 17,000đ - 22,000đ/kg' : 'Market rates typically fluctuate around 17,000 - 22,000 VND/kg'}
-                </span>
+              <form onSubmit={handleSaveSettings} style={styles.form}>
+                <div className="form-group">
+                  <label className="form-label">
+                    {language === 'vi' ? 'Giá bán LNG mặc định (VNĐ / kg) *' : 'Default LNG Price (VND / kg) *'}
+                  </label>
+                  <input 
+                    type="number" 
+                    className="form-input" 
+                    value={lngInput}
+                    onChange={(e) => setLngInput(parseFloat(e.target.value) || 0)}
+                    required
+                  />
+                  <span style={styles.inputHelp}>
+                    {language === 'vi' ? 'Giá LNG thị trường hiện giao động khoảng 17,000đ - 22,000đ/kg' : 'Market rates typically fluctuate around 17,000 - 22,000 VND/kg'}
+                  </span>
+                </div>
+
+                <div className="form-group">
+                  <label className="form-label">
+                    {language === 'vi' ? 'Giá bán LPG mặc định (VNĐ / kg) *' : 'Default LPG Price (VND / kg) *'}
+                  </label>
+                  <input 
+                    type="number" 
+                    className="form-input" 
+                    value={lpgInput}
+                    onChange={(e) => setLpgInput(parseFloat(e.target.value) || 0)}
+                    required
+                  />
+                  <span style={styles.inputHelp}>
+                    {language === 'vi' ? 'Giá LPG dân dụng và công nghiệp dao động 21,000đ - 26,000đ/kg' : 'Industrial LPG averages 21,000 - 26,000 VND/kg'}
+                  </span>
+                </div>
+
+                <button type="submit" className="btn btn-teal" style={{ marginTop: '1rem', width: '100%' }}>
+                  {language === 'vi' ? 'Lưu cấu hình mặc định' : 'Save Default Factors'}
+                </button>
+              </form>
+            </div>
+
+            {/* Right side: Calculator Auditor Simulator */}
+            <div style={styles.auditorCol}>
+              <h3 style={{ fontSize: '1.2rem', marginBottom: '1.5rem', color: 'var(--color-navy)' }}>
+                {language === 'vi' ? 'Trình Thẩm Định Công Thức & Giả Lập' : 'Calculator Formula Auditor & Simulator'}
+              </h3>
+              
+              <div style={styles.auditorInputsRow}>
+                <div className="form-group" style={{ flex: 1, minWidth: '120px', marginBottom: 0 }}>
+                  <label className="form-label" style={{ fontSize: '0.75rem' }}>{language === 'vi' ? 'Nhiên liệu' : 'Fuel'}</label>
+                  <select 
+                    className="form-select" 
+                    style={{ padding: '0.4rem', fontSize: '0.8rem' }}
+                    value={auditFuel}
+                    onChange={(e) => {
+                      setAuditFuel(e.target.value);
+                      const f = AUDIT_FUELS[e.target.value];
+                      setAuditPrice(f.defaultPrice);
+                      setAuditEff(f.defaultEff);
+                      if (e.target.value === 'ELEC') setAuditCons(500000);
+                      else if (e.target.value === 'COAL') setAuditCons(150000);
+                      else setAuditCons(50000);
+                    }}
+                  >
+                    {Object.keys(AUDIT_FUELS).map((k) => (
+                      <option key={k} value={k}>{AUDIT_FUELS[k].name[language === 'vi' ? 'vi' : 'en']}</option>
+                    ))}
+                  </select>
+                </div>
+
+                <div className="form-group" style={{ flex: 1, minWidth: '100px', marginBottom: 0 }}>
+                  <label className="form-label" style={{ fontSize: '0.75rem' }}>{language === 'vi' ? 'Lượng dùng / tháng' : 'Monthly Cons.'}</label>
+                  <input 
+                    type="number" 
+                    className="form-input"
+                    style={{ padding: '0.4rem', fontSize: '0.8rem' }}
+                    value={auditCons}
+                    onChange={(e) => setAuditCons(parseFloat(e.target.value) || 0)}
+                  />
+                </div>
+
+                <div className="form-group" style={{ flex: 1, minWidth: '80px', marginBottom: 0 }}>
+                  <label className="form-label" style={{ fontSize: '0.75rem' }}>{language === 'vi' ? 'Hiệu suất (%)' : 'Boiler Eff (%)'}</label>
+                  <input 
+                    type="number" 
+                    className="form-input"
+                    style={{ padding: '0.4rem', fontSize: '0.8rem' }}
+                    value={auditEff}
+                    onChange={(e) => setAuditEff(parseFloat(e.target.value) || 0)}
+                  />
+                </div>
+
+                <div className="form-group" style={{ flex: 1, minWidth: '100px', marginBottom: 0 }}>
+                  <label className="form-label" style={{ fontSize: '0.75rem' }}>{language === 'vi' ? 'Đơn giá cũ' : 'Old Unit Cost'}</label>
+                  <input 
+                    type="number" 
+                    className="form-input"
+                    style={{ padding: '0.4rem', fontSize: '0.8rem' }}
+                    value={auditPrice}
+                    onChange={(e) => setAuditPrice(parseFloat(e.target.value) || 0)}
+                  />
+                </div>
               </div>
 
-              <div className="form-group">
-                <label className="form-label">
-                  {language === 'vi' ? 'Giá bán LPG mặc định (VNĐ / kg) *' : 'Default LPG Price (VND / kg) *'}
-                </label>
-                <input 
-                  type="number" 
-                  className="form-input" 
-                  value={lpgInput}
-                  onChange={(e) => setLpgInput(parseFloat(e.target.value) || 0)}
-                  required
-                />
-                <span style={styles.inputHelp}>
-                  {language === 'vi' ? 'Giá LPG dân dụng và công nghiệp dao động 21,000đ - 26,000đ/kg' : 'Industrial LPG averages 21,000 - 26,000 VND/kg'}
-                </span>
-              </div>
+              {/* Math Auditing Table */}
+              <div style={styles.mathAuditBox}>
+                <h4 style={{ fontSize: '0.85rem', color: 'var(--color-teal)', marginBottom: '0.75rem', borderBottom: '1px solid var(--color-teal-glow)', paddingBottom: '0.25rem' }}>
+                  {language === 'vi' ? 'Hệ thống tính toán chi tiết (Bước trung gian):' : 'Intermediate Variable Calculations (Auditing Sheet):'}
+                </h4>
+                
+                <div style={styles.mathLine}>
+                  <span><strong>1. Nhiệt lượng có ích / tháng:</strong></span>
+                  <span style={styles.mathFormula}>Q_use = Cons * LHV * Eff</span>
+                  <span style={styles.mathValue}>{formatNumber(monthlyEnergy)} MJ</span>
+                </div>
 
-              <button type="submit" className="btn btn-teal" style={{ marginTop: '1rem' }}>
-                {language === 'vi' ? 'Lưu cấu hình mặc định' : 'Save Default Factors'}
-              </button>
-            </form>
+                <div style={styles.mathLine}>
+                  <span><strong>2. Chi phí nhiên liệu cũ / năm:</strong></span>
+                  <span style={styles.mathFormula}>C_old = Cons * Price * 12</span>
+                  <span style={styles.mathValue}>{formatCurrency(annualOldCost)} VNĐ</span>
+                </div>
+
+                <div style={styles.mathLine}>
+                  <span><strong>3. LNG thay thế / năm:</strong></span>
+                  <span style={styles.mathFormula}>M_lng = Q_use * 12 / (50 * 0.92)</span>
+                  <span style={styles.mathValue}>{formatNumber(lngNeeded)} kg</span>
+                </div>
+
+                <div style={styles.mathLine}>
+                  <span><strong>4. Chi phí LNG mới / năm:</strong></span>
+                  <span style={styles.mathFormula}>C_lng = M_lng * {fuelSettings.lngPrice}đ</span>
+                  <span style={styles.mathValue}>{formatCurrency(lngCost)} VNĐ</span>
+                </div>
+
+                <div style={{ ...styles.mathLine, borderBottom: '1px dashed var(--color-gray-border)', paddingBottom: '0.5rem' }}>
+                  <span><strong>5. Tiết kiệm chi phí / năm:</strong></span>
+                  <span style={styles.mathFormula}>Savings = C_old - C_lng</span>
+                  <span style={{ ...styles.mathValue, color: lngSavings > 0 ? '#10B981' : '#EF4444', fontSize: '0.95rem' }}>
+                    {formatCurrency(lngSavings)} VNĐ
+                  </span>
+                </div>
+
+                <div style={{ ...styles.mathLine, paddingTop: '0.5rem' }}>
+                  <span><strong>6. Giảm phát thải CO2 / năm:</strong></span>
+                  <span style={styles.mathFormula}>CO2_saved = CO2_old - CO2_lng</span>
+                  <span style={styles.mathValue}>{formatNumber(co2Saved, 1)} Tấn</span>
+                </div>
+
+                <div style={styles.mathLine}>
+                  <span><strong>7. Công suất Dàn hóa hơi:</strong></span>
+                  <span style={styles.mathFormula}>Cap = Math.ceil(M_lng/12 / 250 * 1.5)</span>
+                  <span style={styles.mathValue}>{calcVapSize} Nm³/h</span>
+                </div>
+
+                <div style={styles.mathLine}>
+                  <span><strong>8. Dung tích bồn chứa gợi ý:</strong></span>
+                  <span style={styles.mathFormula}>Vol = Math.ceil(M_lng/12 / 1000 * 0.4)</span>
+                  <span style={styles.mathValue}>{calcTankSize} m³</span>
+                </div>
+              </div>
+            </div>
           </div>
         )}
       </div>
@@ -727,5 +891,48 @@ const styles: { [key: string]: React.CSSProperties } = {
     textAlign: 'center',
     fontStyle: 'italic',
     marginTop: '0.5rem',
+  },
+  configCol: {},
+  auditorCol: {
+    backgroundColor: 'var(--color-white)',
+    border: '1px solid var(--color-gray-border)',
+    borderRadius: 'var(--border-radius-md)',
+    padding: '1.5rem',
+    boxShadow: 'var(--shadow-sm)',
+  },
+  auditorInputsRow: {
+    display: 'flex',
+    flexWrap: 'wrap',
+    gap: '0.75rem',
+    marginBottom: '1.5rem',
+    backgroundColor: 'var(--color-gray-bg)',
+    padding: '1rem',
+    borderRadius: 'var(--border-radius-sm)',
+    border: '1px solid var(--color-gray-border)',
+  },
+  mathAuditBox: {
+    display: 'flex',
+    flexDirection: 'column',
+    gap: '0.75rem',
+  },
+  mathLine: {
+    display: 'flex',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    fontSize: '0.8rem',
+    flexWrap: 'wrap',
+    gap: '0.5rem',
+  },
+  mathFormula: {
+    fontFamily: 'var(--font-mono)',
+    color: 'var(--color-text-muted)',
+    fontSize: '0.7rem',
+    backgroundColor: 'var(--color-gray-bg)',
+    padding: '0.15rem 0.3rem',
+    borderRadius: 'var(--border-radius-sm)',
+  },
+  mathValue: {
+    fontWeight: 600,
+    color: 'var(--color-navy)',
   }
 };
