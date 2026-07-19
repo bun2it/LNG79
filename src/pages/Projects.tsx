@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { useLanguage } from '../context/LanguageContext';
 import { Filter, MapPin, Zap } from 'lucide-react';
 
-interface ProjectItem {
+export interface ProjectItem {
   id: string;
   name: { vi: string; en: string };
   category: 'lng' | 'lpg' | 'conversion' | 'kitchen';
@@ -11,52 +11,15 @@ interface ProjectItem {
   capacity: { vi: string; en: string };
   result: { vi: string; en: string };
   equipments: string[];
+  image?: string;
+  visible?: boolean;
 }
 
-const PROJECTS_DATA: ProjectItem[] = [
-  {
-    id: 'proj-1',
-    name: { vi: 'Hệ thống LPG trung tâm cho nhà máy chế biến thực phẩm', en: 'Central LPG system for FDI Food Factory' },
-    category: 'lpg',
-    location: { vi: 'KCN Thuận Đạo, Long An, Việt Nam', en: 'Thuan Dao IP, Long An, Vietnam' },
-    scope: { vi: 'Khảo sát hiện trường, thiết kế P&ID, cung cấp bồn chứa 30m³, thi công đường ống, chạy thử vận hành đầu đốt.', en: 'Site survey, P&ID engineering, supply 30m³ bulk storage tank, gas piping welding, burner commissioning.' },
-    capacity: { vi: 'Tiêu thụ 25 tấn LPG / tháng', en: '25 tons LPG per month' },
-    result: { vi: 'Hệ thống vận hành an toàn ổn định 100%, được Công an PCCC Long An nghiệm thu chất lượng.', en: '100% reliable gas supply, fully approved by Long An fire department.' },
-    equipments: ['30m³ LPG Tank', '300 kg/h Vaporizer', 'Fisher Regulators', 'Honeywell Gas Detectors']
-  },
-  {
-    id: 'proj-2',
-    name: { vi: 'Trạm hóa hơi & Cấp khí tự nhiên hóa lỏng LNG', en: 'Industrial LNG Regasification Station' },
-    category: 'lng',
-    location: { vi: 'KCN Mỹ Phước 3, Bình Dương, Việt Nam', en: 'My Phuoc 3 IP, Binh Duong, Vietnam' },
-    scope: { vi: 'Thi công móng bồn cryogenic, lắp bồn đứng 50m³, cụm điều áp đo lường PRMS, kiểm định thử kín Nitơ đường ống.', en: 'Cryogenic foundation civil works, install 50m³ vertical tank, PRMS regulating skid, Nitrogen pressure leak test.' },
-    capacity: { vi: 'Lưu lượng khí cực đại 1,500 Nm³/h', en: 'Peak capacity 1,500 Nm³/h' },
-    result: { vi: 'Tiết kiệm 22% chi phí năng lượng so với khi sử dụng dầu DO trước đây.', en: 'Achieved 22% fuel cost savings compared to previous diesel oil usage.' },
-    equipments: ['50m³ Cryogenic Tank', '1500 Nm³/h Ambient Vaporizer', 'Ultrasonic Flowmeter', 'Slam-shut Safety Valves']
-  },
-  {
-    id: 'proj-3',
-    name: { vi: 'Chuyển đổi lò hơi từ dầu FO sang khí gas sạch LNG', en: 'Boiler Fuel Conversion from FO to LNG' },
-    category: 'conversion',
-    location: { vi: 'KCN Amata, Đồng Nai, Việt Nam', en: 'Amata IP, Dong Nai, Vietnam' },
-    scope: { vi: 'Cải tạo buồng đốt lò hơi 10 tấn/giờ, thay đầu đốt dầu cũ sang đầu đốt gas lưỡng phẩm Weishaupt, lập trình điều khiển tỷ lệ O2 tự động.', en: 'Retrofit 10 T/h steam boiler, replace heavy oil burner with Weishaupt dual-fuel burner, program automated oxygen-trim control.' },
-    capacity: { vi: 'Lò hơi công suất 10 tấn hơi / giờ', en: '10 Ton steam per hour capacity' },
-    result: { vi: 'Cắt giảm 30% lượng khí phát thải CO2 nhà máy, loại bỏ hoàn toàn muội khói đen.', en: 'Reduced CO2 footprint by 30%, completely eliminated black soot emissions.' },
-    equipments: ['Weishaupt Gas Burner', 'Double block solenoid valves', 'O2 Flue gas analyzer controller']
-  },
-  {
-    id: 'proj-4',
-    name: { vi: 'Thiết kế bếp và gas trung tâm cho khách sạn 5 sao', en: '5-Star Hotel Kitchen & Central Gas System' },
-    category: 'kitchen',
-    location: { vi: 'Bãi Bắc, Đà Nẵng, Việt Nam', en: 'Bai Bac, Da Nang, Vietnam' },
-    scope: { vi: 'Thiết kế layout bếp ăn theo quy trình 1 chiều chống khuẩn chéo, thi công đường dẫn gas Inox đúc từ kho chứa chai gas trung tâm.', en: 'One-way layout design, seamless stainless steel gas piping routed from central cylinder manifold.' },
-    capacity: { vi: 'Phục vụ tối đa 1,200 khách / ngày', en: 'Serves up to 1,200 guests daily' },
-    result: { vi: 'Khu bếp được bàn giao đúng tiến độ, vận hành tiện lợi và an toàn tuyệt đối.', en: 'Kitchen delivered on schedule, high operational workflow, certified safety.' },
-    equipments: ['Commercial Cooking Ranges', 'Exhaust canopy hoods', 'Central gas manifold', 'Gas solenoid safety valves']
-  }
-];
+interface ProjectsProps {
+  projects: ProjectItem[];
+}
 
-export const Projects: React.FC = () => {
+export const Projects: React.FC<ProjectsProps> = ({ projects }) => {
   const { language, t } = useLanguage();
   const [activeFilter, setActiveFilter] = useState<string>('all');
 
@@ -68,7 +31,7 @@ export const Projects: React.FC = () => {
     { id: 'kitchen', label: t('commKitchen') }
   ];
 
-  const filteredProjects = PROJECTS_DATA.filter(proj => 
+  const filteredProjects = projects.filter(proj => 
     activeFilter === 'all' || proj.category === activeFilter
   );
 
@@ -108,34 +71,49 @@ export const Projects: React.FC = () => {
           {/* Project List Grid */}
           <div style={styles.list}>
             {filteredProjects.map((proj) => (
-              <div key={proj.id} className="card" style={styles.projectCard}>
-                <h3 style={styles.projectTitle}>{proj.name[language]}</h3>
-                
-                <div style={styles.metaRow}>
-                  <div style={styles.metaItem}>
-                    <MapPin size={16} color="var(--color-teal)" />
-                    <span>{proj.location[language]}</span>
+              <div key={proj.id} className="card project-card-layout" style={{ padding: '2rem' }}>
+                {/* Left side: details */}
+                <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-start', textAlign: 'left', width: '100%' }}>
+                  <h3 style={styles.projectTitle}>{proj.name[language]}</h3>
+                  
+                  <div style={styles.metaRow}>
+                    <div style={styles.metaItem}>
+                      <MapPin size={16} color="var(--color-teal)" />
+                      <span>{proj.location[language]}</span>
+                    </div>
+                    <div style={styles.metaItem}>
+                      <Zap size={16} color="var(--color-orange)" />
+                      <span>{proj.capacity[language]}</span>
+                    </div>
                   </div>
-                  <div style={styles.metaItem}>
-                    <Zap size={16} color="var(--color-orange)" />
-                    <span>{proj.capacity[language]}</span>
+
+                  <div style={styles.detailsBox}>
+                    <p><strong>{t('projScope')}:</strong> {proj.scope[language]}</p>
+                    <p style={{ marginTop: '0.75rem' }}><strong>{t('projResult')}:</strong> {proj.result[language]}</p>
+                  </div>
+
+                  <div style={styles.eqBox}>
+                    <span style={{ fontSize: '0.8rem', fontWeight: 700, color: 'var(--color-navy)', marginRight: '0.5rem' }}>
+                      {language === 'vi' ? 'Thiết bị chính lắp đặt:' : 'Key installed equipment:'}
+                    </span>
+                    <div style={styles.tagWrap}>
+                      {proj.equipments.map((eq, i) => (
+                        <span key={i} style={styles.tag}>{eq}</span>
+                      ))}
+                    </div>
                   </div>
                 </div>
 
-                <div style={styles.detailsBox}>
-                  <p><strong>{t('projScope')}:</strong> {proj.scope[language]}</p>
-                  <p style={{ marginTop: '0.75rem' }}><strong>{t('projResult')}:</strong> {proj.result[language]}</p>
-                </div>
-
-                <div style={styles.eqBox}>
-                  <span style={{ fontSize: '0.8rem', fontWeight: 700, color: 'var(--color-navy)', marginRight: '0.5rem' }}>
-                    {language === 'vi' ? 'Thiết bị chính lắp đặt:' : 'Key installed equipment:'}
-                  </span>
-                  <div style={styles.tagWrap}>
-                    {proj.equipments.map((eq, i) => (
-                      <span key={i} style={styles.tag}>{eq}</span>
-                    ))}
-                  </div>
+                {/* Right side: Image */}
+                <div className="project-img-container">
+                  <img 
+                    src={proj.image || "https://images.unsplash.com/photo-1581094128547-1388d1397865?q=80&w=600&auto=format&fit=crop"} 
+                    alt={proj.name[language]} 
+                    className="project-img"
+                    onError={(e) => {
+                      (e.target as HTMLImageElement).src = "https://images.unsplash.com/photo-1581094128547-1388d1397865?q=80&w=600&auto=format&fit=crop";
+                    }}
+                  />
                 </div>
               </div>
             ))}
