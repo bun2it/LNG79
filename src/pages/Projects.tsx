@@ -17,9 +17,11 @@ export interface ProjectItem {
 
 interface ProjectsProps {
   projects: ProjectItem[];
+  setProjects?: React.Dispatch<React.SetStateAction<ProjectItem[]>>;
+  isVisualEditing?: boolean;
 }
 
-export const Projects: React.FC<ProjectsProps> = ({ projects }) => {
+export const Projects: React.FC<ProjectsProps> = ({ projects, setProjects, isVisualEditing }) => {
   const { language, t } = useLanguage();
   const [activeFilter, setActiveFilter] = useState<string>('all');
 
@@ -74,22 +76,103 @@ export const Projects: React.FC<ProjectsProps> = ({ projects }) => {
               <div key={proj.id} className="card project-card-layout" style={{ padding: '2rem' }}>
                 {/* Left side: details */}
                 <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-start', textAlign: 'left', width: '100%' }}>
-                  <h3 style={styles.projectTitle}>{proj.name[language]}</h3>
+                  {isVisualEditing && setProjects ? (
+                    <h3
+                      contentEditable={true}
+                      suppressContentEditableWarning={true}
+                      onBlur={(e) => {
+                        const text = e.currentTarget.innerText;
+                        const list = projects.map((p) => p.id === proj.id ? { ...p, name: { ...p.name, [language]: text } } : p);
+                        setProjects(list);
+                      }}
+                      style={{ ...styles.projectTitle, outline: 'none', border: '1px dashed var(--color-teal)', padding: '0.1rem 0.2rem', backgroundColor: 'rgba(13,148,136,0.05)', cursor: 'text' }}
+                    >
+                      {proj.name[language]}
+                    </h3>
+                  ) : (
+                    <h3 style={styles.projectTitle}>{proj.name[language]}</h3>
+                  )}
                   
                   <div style={styles.metaRow}>
                     <div style={styles.metaItem}>
                       <MapPin size={16} color="var(--color-teal)" />
-                      <span>{proj.location[language]}</span>
+                      {isVisualEditing && setProjects ? (
+                        <span
+                          contentEditable={true}
+                          suppressContentEditableWarning={true}
+                          onBlur={(e) => {
+                            const text = e.currentTarget.innerText;
+                            const list = projects.map((p) => p.id === proj.id ? { ...p, location: { ...p.location, [language]: text } } : p);
+                            setProjects(list);
+                          }}
+                          style={{ outline: 'none', border: '1px dashed var(--color-teal)', padding: '0.1rem 0.2rem', backgroundColor: 'rgba(13,148,136,0.05)', cursor: 'text' }}
+                        >
+                          {proj.location[language]}
+                        </span>
+                      ) : (
+                        <span>{proj.location[language]}</span>
+                      )}
                     </div>
                     <div style={styles.metaItem}>
                       <Zap size={16} color="var(--color-orange)" />
-                      <span>{proj.capacity[language]}</span>
+                      {isVisualEditing && setProjects ? (
+                        <span
+                          contentEditable={true}
+                          suppressContentEditableWarning={true}
+                          onBlur={(e) => {
+                            const text = e.currentTarget.innerText;
+                            const list = projects.map((p) => p.id === proj.id ? { ...p, capacity: { ...p.capacity, [language]: text } } : p);
+                            setProjects(list);
+                          }}
+                          style={{ outline: 'none', border: '1px dashed var(--color-teal)', padding: '0.1rem 0.2rem', backgroundColor: 'rgba(13,148,136,0.05)', cursor: 'text' }}
+                        >
+                          {proj.capacity[language]}
+                        </span>
+                      ) : (
+                        <span>{proj.capacity[language]}</span>
+                      )}
                     </div>
                   </div>
 
                   <div style={styles.detailsBox}>
-                    <p><strong>{t('projScope')}:</strong> {proj.scope[language]}</p>
-                    <p style={{ marginTop: '0.75rem' }}><strong>{t('projResult')}:</strong> {proj.result[language]}</p>
+                    <p>
+                      <strong>{t('projScope')}:</strong>{" "}
+                      {isVisualEditing && setProjects ? (
+                        <span
+                          contentEditable={true}
+                          suppressContentEditableWarning={true}
+                          onBlur={(e) => {
+                            const text = e.currentTarget.innerText;
+                            const list = projects.map((p) => p.id === proj.id ? { ...p, scope: { ...p.scope, [language]: text } } : p);
+                            setProjects(list);
+                          }}
+                          style={{ outline: 'none', border: '1px dashed var(--color-teal)', padding: '0.1rem 0.2rem', backgroundColor: 'rgba(13,148,136,0.05)', cursor: 'text' }}
+                        >
+                          {proj.scope[language]}
+                        </span>
+                      ) : (
+                        <span>{proj.scope[language]}</span>
+                      )}
+                    </p>
+                    <p style={{ marginTop: '0.75rem' }}>
+                      <strong>{t('projResult')}:</strong>{" "}
+                      {isVisualEditing && setProjects ? (
+                        <span
+                          contentEditable={true}
+                          suppressContentEditableWarning={true}
+                          onBlur={(e) => {
+                            const text = e.currentTarget.innerText;
+                            const list = projects.map((p) => p.id === proj.id ? { ...p, result: { ...p.result, [language]: text } } : p);
+                            setProjects(list);
+                          }}
+                          style={{ outline: 'none', border: '1px dashed var(--color-teal)', padding: '0.1rem 0.2rem', backgroundColor: 'rgba(13,148,136,0.05)', cursor: 'text' }}
+                        >
+                          {proj.result[language]}
+                        </span>
+                      ) : (
+                        <span>{proj.result[language]}</span>
+                      )}
+                    </p>
                   </div>
 
                   <div style={styles.eqBox}>
@@ -105,7 +188,7 @@ export const Projects: React.FC<ProjectsProps> = ({ projects }) => {
                 </div>
 
                 {/* Right side: Image */}
-                <div className="project-img-container">
+                <div className="project-img-container" style={{ position: 'relative' }}>
                   <img 
                     src={proj.image || "https://images.unsplash.com/photo-1581094128547-1388d1397865?q=80&w=600&auto=format&fit=crop"} 
                     alt={proj.name[language]} 
@@ -114,6 +197,32 @@ export const Projects: React.FC<ProjectsProps> = ({ projects }) => {
                       (e.target as HTMLImageElement).src = "https://images.unsplash.com/photo-1581094128547-1388d1397865?q=80&w=600&auto=format&fit=crop";
                     }}
                   />
+                  {isVisualEditing && setProjects && (
+                    <label style={{
+                      position: 'absolute', inset: 0, backgroundColor: 'rgba(0,0,0,0.5)',
+                      display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
+                      color: '#fff', cursor: 'pointer', fontSize: '0.8rem', opacity: 0.9, transition: 'var(--transition-fast)'
+                    }}>
+                      📷 Upload Project Cover
+                      <input
+                        type="file"
+                        accept="image/*"
+                        style={{ display: 'none' }}
+                        onChange={(e) => {
+                          const file = e.target.files?.[0];
+                          if (file) {
+                            const reader = new FileReader();
+                            reader.onload = (event) => {
+                              const base64 = event.target?.result as string;
+                              const list = projects.map((p) => p.id === proj.id ? { ...p, image: base64 } : p);
+                              setProjects(list);
+                            };
+                            reader.readAsDataURL(file);
+                          }
+                        }}
+                      />
+                    </label>
+                  )}
                 </div>
               </div>
             ))}

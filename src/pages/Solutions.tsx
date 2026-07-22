@@ -8,11 +8,138 @@ import {
 interface SolutionsProps {
   subView: 'lng-solution' | 'lpg-solution' | 'conversion' | 'kitchen-solution';
   setView: (view: string) => void;
+  pages?: any[];
+  setPages?: React.Dispatch<React.SetStateAction<any[]>>;
+  isVisualEditing?: boolean;
 }
 
-export const Solutions: React.FC<SolutionsProps> = ({ subView, setView }) => {
+export const Solutions: React.FC<SolutionsProps> = ({ subView, setView, pages, setPages, isVisualEditing }) => {
   const { language, t } = useLanguage();
   const [openFaq, setOpenFaq] = useState<number | null>(null);
+
+  const pageMap: { [key: string]: string } = {
+    'lng-solution': 'p-2',
+    'lpg-solution': 'p-3',
+    'conversion': 'p-4',
+    'kitchen-solution': 'p-5'
+  };
+  const pageId = pageMap[subView];
+  const pageObj = pages?.find(p => p.id === pageId);
+
+  const getSolutionField = (field: 'title' | 'subtitle' | 'desc') => {
+    if (pageObj) {
+      if (field === 'title') {
+        return pageObj.title?.[language] || pageData[subView].title;
+      }
+      if (field === 'subtitle') {
+        return pageObj.excerpt?.[language] || pageData[subView].subtitle[language];
+      }
+      if (field === 'desc') {
+        return pageObj.content?.[language] || pageData[subView].desc[language];
+      }
+    }
+    return field === 'title' ? pageData[subView].title : pageData[subView][field][language];
+  };
+
+  const setSolutionField = (field: 'title' | 'subtitle' | 'desc', val: string) => {
+    if (setPages && pages) {
+      const updated = pages.map((p: any) => {
+        if (p.id === pageId) {
+          if (field === 'title') {
+            return { ...p, title: { ...(p.title || {}), [language]: val } };
+          }
+          if (field === 'subtitle') {
+            return { ...p, excerpt: { ...(p.excerpt || {}), [language]: val } };
+          }
+          if (field === 'desc') {
+            return { ...p, content: { ...(p.content || {}), [language]: val } };
+          }
+        }
+        return p;
+      });
+      setPages(updated);
+    }
+  };
+
+  const getSchematic = (): any[] => {
+    return pageObj?.schematic || pageData[subView].schematic;
+  };
+
+  const getFaqs = (): any[] => {
+    return pageObj?.faqs || pageData[subView].faqs;
+  };
+
+  const setSchematicField = (index: number, type: 'label' | 'desc', val: string) => {
+    if (setPages && pages) {
+      const currentSchematic = [...getSchematic()];
+      currentSchematic[index] = {
+        ...currentSchematic[index],
+        [type]: {
+          ...(currentSchematic[index][type] || {}),
+          [language]: val
+        }
+      };
+      const updated = pages.map((p: any) => {
+        if (p.id === pageId) {
+          return { ...p, schematic: currentSchematic };
+        }
+        return p;
+      });
+      setPages(updated);
+    }
+  };
+
+  const setFaqField = (index: number, type: 'q' | 'a', val: string) => {
+    if (setPages && pages) {
+      const currentFaqs = [...getFaqs()];
+      currentFaqs[index] = {
+        ...currentFaqs[index],
+        [type]: {
+          ...(currentFaqs[index][type] || {}),
+          [language]: val
+        }
+      };
+      const updated = pages.map((p: any) => {
+        if (p.id === pageId) {
+          return { ...p, faqs: currentFaqs };
+        }
+        return p;
+      });
+      setPages(updated);
+    }
+  };
+
+  const renderEditableText = (
+    field: 'title' | 'subtitle' | 'desc',
+    tagName: 'h1' | 'h2' | 'h3' | 'h4' | 'p' | 'span' | 'div',
+    extraStyle: React.CSSProperties = {}
+  ) => {
+    const Tag = tagName;
+    const currentVal = getSolutionField(field);
+    if (!isVisualEditing) {
+      return <Tag style={extraStyle}>{currentVal}</Tag>;
+    }
+    return (
+      <Tag
+        contentEditable={true}
+        suppressContentEditableWarning={true}
+        onBlur={(e) => {
+          const text = e.currentTarget.innerText;
+          setSolutionField(field, text);
+        }}
+        style={{
+          ...extraStyle,
+          outline: 'none',
+          border: '1px dashed var(--color-teal)',
+          padding: '0.1rem 0.2rem',
+          backgroundColor: 'rgba(13,148,136,0.05)',
+          cursor: 'text'
+        }}
+      >
+        {currentVal}
+      </Tag>
+    );
+  };
 
   const handleNav = (view: string) => {
     setView(view);
@@ -116,8 +243,8 @@ export const Solutions: React.FC<SolutionsProps> = ({ subView, setView }) => {
         <div style={styles.bannerOverlay}></div>
         <div className="container" style={styles.bannerContainer}>
           <span style={styles.bannerTag}>{language === 'vi' ? 'Phạm vi Kỹ thuật EPC' : 'EPC Scope of Engineering'}</span>
-          <h1 style={styles.bannerTitle}>{data.title}</h1>
-          <p style={styles.bannerSubtitle}>{data.subtitle[language]}</p>
+          {renderEditableText('title', 'h1', { fontSize: '2.5rem', fontWeight: 800, color: '#fff', marginBottom: '1rem' })}
+          {renderEditableText('subtitle', 'p', { fontSize: '1.2rem', color: 'rgba(255,255,255,0.9)', margin: 0 })}
         </div>
       </section>
 
@@ -127,7 +254,7 @@ export const Solutions: React.FC<SolutionsProps> = ({ subView, setView }) => {
           {/* Detailed text */}
           <div style={styles.descCol}>
             <h3 style={styles.sectionHeader}>{language === 'vi' ? 'Giải Pháp Chìa Khóa Trao Tay' : 'Turnkey Engineering Scope'}</h3>
-            <p style={styles.descParagraph}>{data.desc[language]}</p>
+            {renderEditableText('desc', 'p', { color: 'var(--color-text-main)', fontSize: '1.05rem', lineHeight: 1.7, marginBottom: '1.5rem' })}
             <div style={styles.capabilityBadgeBox}>
               <div style={styles.capBadge}>
                 <Shield size={18} color="var(--color-teal)" />
@@ -201,12 +328,34 @@ export const Solutions: React.FC<SolutionsProps> = ({ subView, setView }) => {
           </div>
 
           <div className="solutions-flow-container">
-            {data.schematic.map((step, index) => (
+            {getSchematic().map((step, index) => (
               <React.Fragment key={index}>
                 <div className="solutions-flow-step-card">
                   <div style={styles.flowNum}>{index + 1}</div>
-                  <h4 style={styles.flowTitle}>{step.label[language]}</h4>
-                  <p style={styles.flowDesc}>{step.desc[language]}</p>
+                  {isVisualEditing ? (
+                    <h4
+                      contentEditable={true}
+                      suppressContentEditableWarning={true}
+                      onBlur={(e) => setSchematicField(index, 'label', e.currentTarget.innerText)}
+                      style={{ ...styles.flowTitle, outline: 'none', border: '1px dashed var(--color-teal)', padding: '0.1rem 0.2rem', backgroundColor: 'rgba(13,148,136,0.05)', cursor: 'text' }}
+                    >
+                      {step.label[language]}
+                    </h4>
+                  ) : (
+                    <h4 style={styles.flowTitle}>{step.label[language]}</h4>
+                  )}
+                  {isVisualEditing ? (
+                    <p
+                      contentEditable={true}
+                      suppressContentEditableWarning={true}
+                      onBlur={(e) => setSchematicField(index, 'desc', e.currentTarget.innerText)}
+                      style={{ ...styles.flowDesc, outline: 'none', border: '1px dashed var(--color-teal)', padding: '0.1rem 0.2rem', backgroundColor: 'rgba(13,148,136,0.05)', cursor: 'text' }}
+                    >
+                      {step.desc[language]}
+                    </p>
+                  ) : (
+                    <p style={styles.flowDesc}>{step.desc[language]}</p>
+                  )}
                 </div>
                 {index < data.schematic.length - 1 && (
                   <div className="solutions-flow-arrow">
@@ -228,13 +377,25 @@ export const Solutions: React.FC<SolutionsProps> = ({ subView, setView }) => {
           </div>
 
           <div style={styles.faqList}>
-            {data.faqs.map((faq, idx) => {
+            {getFaqs().map((faq, idx) => {
               const isOpen = openFaq === idx;
               return (
                 <div key={idx} style={styles.faqCard}>
                   <button onClick={() => toggleFaq(idx)} style={styles.faqHeader}>
                     <HelpCircle size={18} color="var(--color-teal)" style={{ flexShrink: 0 }} />
-                    <span style={styles.faqQuestion}>{faq.q[language]}</span>
+                    {isVisualEditing ? (
+                      <span
+                        contentEditable={true}
+                        suppressContentEditableWarning={true}
+                        onClick={(e) => e.stopPropagation()}
+                        onBlur={(e) => setFaqField(idx, 'q', e.currentTarget.innerText)}
+                        style={{ ...styles.faqQuestion, outline: 'none', border: '1px dashed var(--color-teal)', padding: '0.1rem 0.2rem', backgroundColor: 'rgba(13,148,136,0.05)', cursor: 'text' }}
+                      >
+                        {faq.q[language]}
+                      </span>
+                    ) : (
+                      <span style={styles.faqQuestion}>{faq.q[language]}</span>
+                    )}
                     <ChevronDown size={18} style={{
                       marginLeft: 'auto',
                       transform: isOpen ? 'rotate(180deg)' : 'none',
@@ -243,7 +404,18 @@ export const Solutions: React.FC<SolutionsProps> = ({ subView, setView }) => {
                   </button>
                   {isOpen && (
                     <div style={styles.faqAnswer} className="animate-fade-in">
-                      <p>{faq.a[language]}</p>
+                      {isVisualEditing ? (
+                        <p
+                          contentEditable={true}
+                          suppressContentEditableWarning={true}
+                          onBlur={(e) => setFaqField(idx, 'a', e.currentTarget.innerText)}
+                          style={{ outline: 'none', border: '1px dashed var(--color-teal)', padding: '0.1rem 0.2rem', backgroundColor: 'rgba(13,148,136,0.05)', cursor: 'text' }}
+                        >
+                          {faq.a[language]}
+                        </p>
+                      ) : (
+                        <p>{faq.a[language]}</p>
+                      )}
                     </div>
                   )}
                 </div>

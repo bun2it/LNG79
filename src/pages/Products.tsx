@@ -15,9 +15,12 @@ interface ProductItem {
 interface ProductsProps {
   onAddProduct: (prod: any) => void;
   cartItems: any[];
+  products?: any[];
+  setProducts?: React.Dispatch<React.SetStateAction<any[]>>;
+  isVisualEditing?: boolean;
 }
 
-const PRODUCTS_DATA: ProductItem[] = [
+export const PRODUCTS_DATA: ProductItem[] = [
   {
     id: 'lng-tank-1',
     name: { vi: 'Bồn Chứa Cryogenic LNG', en: 'Cryogenic LNG Storage Tank' },
@@ -133,7 +136,7 @@ const PRODUCTS_DATA: ProductItem[] = [
   }
 ];
 
-export const Products: React.FC<ProductsProps> = ({ onAddProduct, cartItems }) => {
+export const Products: React.FC<ProductsProps> = ({ onAddProduct, cartItems, products = [], setProducts, isVisualEditing }) => {
   const { language, t } = useLanguage();
   const [activeTab, setActiveTab] = useState<string>('all');
   const [searchQuery, setSearchQuery] = useState<string>('');
@@ -148,7 +151,8 @@ export const Products: React.FC<ProductsProps> = ({ onAddProduct, cartItems }) =
     { id: 'inox', label: t('prodFilterInox') }
   ];
 
-  const filteredProducts = PRODUCTS_DATA.filter((prod) => {
+  const listData = products && products.length > 0 ? products : PRODUCTS_DATA;
+  const filteredProducts = listData.filter((prod) => {
     const matchesTab = activeTab === 'all' || prod.category === activeTab;
     const matchesSearch = prod.name[language].toLowerCase().includes(searchQuery.toLowerCase()) || 
                           prod.specs[language].toLowerCase().includes(searchQuery.toLowerCase());
@@ -208,13 +212,59 @@ export const Products: React.FC<ProductsProps> = ({ onAddProduct, cartItems }) =
                 <div key={prod.id} className="card" style={styles.productCard}>
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.75rem' }}>
                     <span style={styles.prodCat}>{prod.category.toUpperCase()}</span>
-                    <span style={{ fontSize: '0.75rem', color: 'var(--color-text-muted)', fontWeight: 6 }}>
-                      {prod.origin}
-                    </span>
+                    {isVisualEditing && setProducts ? (
+                      <span
+                        contentEditable={true}
+                        suppressContentEditableWarning={true}
+                        onBlur={(e) => {
+                          const text = e.currentTarget.innerText;
+                          const list = listData.map((p: any) => p.id === prod.id ? { ...p, origin: text } : p);
+                          setProducts(list);
+                        }}
+                        style={{ fontSize: '0.75rem', color: 'var(--color-text-muted)', fontWeight: 600, outline: 'none', border: '1px dashed var(--color-teal)', padding: '0.1rem 0.2rem', backgroundColor: 'rgba(13,148,136,0.05)', cursor: 'text' }}
+                      >
+                        {prod.origin}
+                      </span>
+                    ) : (
+                      <span style={{ fontSize: '0.75rem', color: 'var(--color-text-muted)', fontWeight: 6 }}>
+                        {prod.origin}
+                      </span>
+                    )}
                   </div>
                   
-                  <h4 style={styles.prodName}>{prod.name[language]}</h4>
-                  <p style={styles.prodSpecText}>{prod.specs[language]}</p>
+                  {isVisualEditing && setProducts ? (
+                    <h4
+                      contentEditable={true}
+                      suppressContentEditableWarning={true}
+                      onBlur={(e) => {
+                        const text = e.currentTarget.innerText;
+                        const list = listData.map((p: any) => p.id === prod.id ? { ...p, name: { ...p.name, [language]: text } } : p);
+                        setProducts(list);
+                      }}
+                      style={{ ...styles.prodName, outline: 'none', border: '1px dashed var(--color-teal)', padding: '0.1rem 0.2rem', backgroundColor: 'rgba(13,148,136,0.05)', cursor: 'text' }}
+                    >
+                      {prod.name[language]}
+                    </h4>
+                  ) : (
+                    <h4 style={styles.prodName}>{prod.name[language]}</h4>
+                  )}
+                  
+                  {isVisualEditing && setProducts ? (
+                    <p
+                      contentEditable={true}
+                      suppressContentEditableWarning={true}
+                      onBlur={(e) => {
+                        const text = e.currentTarget.innerText;
+                        const list = listData.map((p: any) => p.id === prod.id ? { ...p, specs: { ...p.specs, [language]: text } } : p);
+                        setProducts(list);
+                      }}
+                      style={{ ...styles.prodSpecText, outline: 'none', border: '1px dashed var(--color-teal)', padding: '0.1rem 0.2rem', backgroundColor: 'rgba(13,148,136,0.05)', cursor: 'text' }}
+                    >
+                      {prod.specs[language]}
+                    </p>
+                  ) : (
+                    <p style={styles.prodSpecText}>{prod.specs[language]}</p>
+                  )}
 
                   <div style={styles.cardActions}>
                     <button 

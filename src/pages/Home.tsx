@@ -9,9 +9,12 @@ interface HomeProps {
   setView: (view: string) => void;
   onAddProduct: (prod: any) => void;
   cartItems: any[];
+  pages?: any[];
+  setPages?: React.Dispatch<React.SetStateAction<any[]>>;
+  isVisualEditing?: boolean;
 }
 
-export const Home: React.FC<HomeProps> = ({ setView, onAddProduct, cartItems }) => {
+export const Home: React.FC<HomeProps> = ({ setView, onAddProduct, cartItems, pages, setPages, isVisualEditing }) => {
   const { language, t } = useLanguage();
   const [activeProcessStep, setActiveProcessStep] = useState<number>(0);
 
@@ -61,6 +64,262 @@ export const Home: React.FC<HomeProps> = ({ setView, onAddProduct, cartItems }) 
       origin: 'Malaysia / Italy'
     }
   ];
+
+  const renderEditableText = (
+    blockId: string, 
+    field: 'titleVi' | 'titleEn' | 'subtitleVi' | 'subtitleEn' | 'contentVi' | 'contentEn' | 'ctaVi' | 'ctaEn' | 'itemsVi' | 'itemsEn',
+    currentVal: string,
+    tagName: 'h1' | 'h2' | 'h3' | 'h4' | 'p' | 'span' | 'div',
+    extraStyle: React.CSSProperties = {}
+  ) => {
+    const Tag = tagName;
+    if (!isVisualEditing) {
+      return <Tag style={extraStyle}>{currentVal}</Tag>;
+    }
+    return (
+      <Tag
+        contentEditable={true}
+        suppressContentEditableWarning={true}
+        onBlur={(e) => {
+          const text = e.currentTarget.innerText;
+          if (setPages && pages) {
+            const updated = pages.map((p: any) => {
+              if (p.id === 'p-1') {
+                return {
+                  ...p,
+                  blocks: p.blocks.map((b: any) =>
+                    b.id === blockId ? { ...b, [field]: text } : b
+                  )
+                };
+              }
+              return p;
+            });
+            setPages(updated);
+          }
+        }}
+        style={{
+          ...extraStyle,
+          outline: 'none',
+          border: '1px dashed var(--color-teal)',
+          padding: '0.1rem 0.2rem',
+          backgroundColor: 'rgba(13,148,136,0.05)',
+          cursor: 'text'
+        }}
+      >
+        {currentVal}
+      </Tag>
+    );
+  };
+
+
+
+  const homePage = pages?.find(p => p.slug === '/' || p.id === 'p-1');
+  const blocks = homePage?.blocks || [];
+
+  if (blocks.length > 0) {
+    return (
+      <div style={{ width: '100%' }}>
+        {blocks.map((block: any, idx: number) => {
+          switch (block.type) {
+            case 'hero':
+              if (block.id === 'b-cta') {
+                return (
+                  <section key={block.id || idx} className="section" style={{ backgroundColor: 'var(--color-teal)', color: 'var(--color-white)', textAlign: 'center', padding: '4rem 1.5rem' }}>
+                    <div className="container" style={{ maxWidth: '800px', display: 'flex', flexDirection: 'column', gap: '1.25rem', alignItems: 'center' }}>
+                      {renderEditableText(block.id, language === 'vi' ? 'titleVi' : 'titleEn', language === 'vi' ? block.titleVi : block.titleEn, 'h2', { fontSize: '2rem', margin: 0, fontWeight: 700, color: 'var(--color-white)' })}
+                      {renderEditableText(block.id, language === 'vi' ? 'subtitleVi' : 'subtitleEn', language === 'vi' ? block.subtitleVi : block.subtitleEn, 'p', { opacity: 0.9, fontSize: '1.1rem', margin: 0 })}
+                      <button className="btn btn-primary" style={{ backgroundColor: 'var(--color-navy)', borderColor: 'var(--color-navy)', color: 'var(--color-white)', marginTop: '0.5rem' }} onClick={() => handleNav('contact')}>
+                        {renderEditableText(block.id, language === 'vi' ? 'ctaVi' : 'ctaEn', language === 'vi' ? block.ctaVi || 'Liên hệ' : block.ctaEn || 'Contact Us', 'span')}
+                      </button>
+                    </div>
+                  </section>
+                );
+              }
+              return (
+                <section key={block.id || idx} style={{ ...styles.hero, backgroundImage: block.image ? `url(${block.image})` : undefined, minHeight: '80vh', display: 'flex', alignItems: 'center', position: 'relative' }}>
+                  <div style={styles.heroOverlay}></div>
+                  {isVisualEditing && (
+                    <label style={{
+                      position: 'absolute', top: '1rem', right: '1rem', zIndex: 10,
+                      backgroundColor: 'rgba(0,0,0,0.7)', color: '#fff', padding: '0.4rem 0.8rem',
+                      borderRadius: '4px', cursor: 'pointer', fontSize: '0.75rem', border: '1px solid var(--color-teal)'
+                    }}>
+                      📷 Đổi ảnh nền Hero
+                      <input
+                        type="file"
+                        accept="image/*"
+                        style={{ display: 'none' }}
+                        onChange={(e) => {
+                          const file = e.target.files?.[0];
+                          if (file) {
+                            const reader = new FileReader();
+                            reader.onload = (event) => {
+                              const base64 = event.target?.result as string;
+                              if (setPages && pages) {
+                                const updated = pages.map((p: any) => {
+                                  if (p.id === 'p-1') {
+                                    return {
+                                      ...p,
+                                      blocks: p.blocks.map((b: any) => b.id === block.id ? { ...b, image: base64 } : b)
+                                    };
+                                  }
+                                  return p;
+                                });
+                                setPages(updated);
+                              }
+                            };
+                            reader.readAsDataURL(file);
+                          }
+                        }}
+                      />
+                    </label>
+                  )}
+                  <div className="container" style={styles.heroContainer}>
+                    <div style={styles.heroText}>
+                      <span style={styles.heroBadge}>
+                        🛡️ {language === 'vi' ? 'Tổng thầu EPC - Tiêu chuẩn ASME & EN' : 'EPC Contractor - ASME & EN Standards'}
+                      </span>
+                      {renderEditableText(block.id, language === 'vi' ? 'titleVi' : 'titleEn', language === 'vi' ? block.titleVi : block.titleEn, 'h1', { fontSize: '3rem', fontWeight: 800, color: 'var(--color-white)', marginBottom: '1.5rem' })}
+                      {renderEditableText(block.id, language === 'vi' ? 'subtitleVi' : 'subtitleEn', language === 'vi' ? block.subtitleVi : block.subtitleEn, 'p', { fontSize: '1.2rem', color: 'var(--color-white)', marginBottom: '2rem', opacity: 0.9 })}
+                      <div style={styles.heroButtons}>
+                        <button className="btn btn-primary" onClick={() => handleNav('contact')}>
+                          {renderEditableText(block.id, language === 'vi' ? 'ctaVi' : 'ctaEn', language === 'vi' ? block.ctaVi || 'Nhận tư vấn' : block.ctaEn || 'Get Consultation', 'span')} <ArrowRight size={18} style={{ display: 'inline', marginLeft: '0.25rem' }} />
+                        </button>
+                        <button className="btn btn-secondary" onClick={() => handleNav('lng-solution')}>
+                          {language === 'vi' ? 'Giải pháp khí' : 'Gas Solutions'}
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                </section>
+              );
+            case 'stats':
+              if (block.id === 'b-clients') {
+                return (
+                  <section key={block.id || idx} style={styles.clients}>
+                    <div className="container" style={styles.clientsContainer}>
+                      {renderEditableText(block.id, language === 'vi' ? 'titleVi' : 'titleEn', language === 'vi' ? block.titleVi : block.titleEn, 'span', { fontSize: '0.85rem', color: 'var(--color-text-muted)', letterSpacing: '2px', fontWeight: 700, display: 'block', marginBottom: '1rem', textAlign: 'center' })}
+                      
+                      {isVisualEditing ? (
+                        <div style={{ width: '100%' }}>
+                          <small style={{ color: 'var(--color-teal)', display: 'block', textAlign: 'center', marginBottom: '0.5rem' }}>[Sửa danh sách đối tác phân tách bằng dấu phẩy]</small>
+                          {renderEditableText(block.id, language === 'vi' ? 'itemsVi' : 'itemsEn', language === 'vi' ? block.itemsVi : block.itemsEn, 'div', { display: 'flex', justifyContent: 'center', padding: '0.5rem', border: '1px dashed var(--color-teal)', borderRadius: '4px', fontWeight: 'bold', color: 'var(--color-navy)' })}
+                        </div>
+                      ) : (
+                        <div style={styles.clientsGrid}>
+                          {(language === 'vi' ? block.itemsVi : block.itemsEn)?.split(',').map((partner: string, i: number) => (
+                            <span key={i}>{partner.trim()}</span>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  </section>
+                );
+              }
+              return (
+                <section key={block.id || idx} className="section" style={{ backgroundColor: 'var(--color-navy)', color: 'var(--color-white)' }}>
+                  <div className="container">
+                    <div className="section-title-wrap">
+                      {renderEditableText(block.id, language === 'vi' ? 'titleVi' : 'titleEn', language === 'vi' ? block.titleVi : block.titleEn, 'h2', { color: 'var(--color-white)', fontSize: '2rem', fontWeight: 800, textAlign: 'center' })}
+                    </div>
+                    {isVisualEditing ? (
+                      <div style={{ width: '100%', marginTop: '1.5rem' }}>
+                        <small style={{ color: 'var(--color-teal)', display: 'block', textAlign: 'center', marginBottom: '0.5rem' }}>[Sửa số liệu & nhãn cách nhau bằng dấu phẩy. Ví dụ: "85+ Dự-án, 100% PCCC"]</small>
+                        {renderEditableText(block.id, language === 'vi' ? 'itemsVi' : 'itemsEn', language === 'vi' ? block.itemsVi : block.itemsEn, 'div', { display: 'flex', justifyContent: 'center', padding: '0.5rem', border: '1px dashed var(--color-teal)', borderRadius: '4px', color: 'var(--color-white)' })}
+                      </div>
+                    ) : (
+                      <div style={{ display: 'flex', flexWrap: 'wrap', gap: '2.5rem', justifyContent: 'space-around', marginTop: '2rem' }}>
+                        {(language === 'vi' ? block.itemsVi : block.itemsEn)?.split(',').map((stat: string, i: number) => {
+                          const parts = stat.trim().split(' ');
+                          const val = parts[0];
+                          const label = parts.slice(1).join(' ');
+                          return (
+                            <div key={i} style={{ textAlign: 'center', minWidth: '180px' }}>
+                              <div style={{ fontSize: '3rem', fontWeight: 800, color: 'var(--color-teal)' }}>{val}</div>
+                              <div style={{ fontSize: '0.9rem', opacity: 0.8, marginTop: '0.5rem' }}>{label}</div>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    )}
+                  </div>
+                </section>
+              );
+            case 'features':
+              if (block.id === 'b-process') {
+                return (
+                  <section key={block.id || idx} className="section section-dark">
+                    <div className="container">
+                      <div className="section-title-wrap">
+                        {renderEditableText(block.id, language === 'vi' ? 'titleVi' : 'titleEn', language === 'vi' ? block.titleVi : block.titleEn, 'h2', { color: 'var(--color-white)', fontSize: '2rem', fontWeight: 800, textAlign: 'center' })}
+                      </div>
+                      
+                      {isVisualEditing ? (
+                        <div style={{ width: '100%', marginTop: '1.5rem' }}>
+                          <small style={{ color: 'var(--color-teal)', display: 'block', textAlign: 'center', marginBottom: '0.5rem' }}>[Sửa quy trình phân tách bằng dấu phẩy]</small>
+                          {renderEditableText(block.id, language === 'vi' ? 'itemsVi' : 'itemsEn', language === 'vi' ? block.itemsVi : block.itemsEn, 'div', { display: 'flex', justifyContent: 'center', padding: '0.5rem', border: '1px dashed var(--color-teal)', borderRadius: '4px', color: 'var(--color-white)' })}
+                        </div>
+                      ) : (
+                        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '1.5rem', marginTop: '2rem' }}>
+                          {(language === 'vi' ? block.itemsVi : block.itemsEn)?.split(',').map((step: string, i: number) => (
+                            <div key={i} style={{ backgroundColor: 'rgba(255,255,255,0.05)', padding: '1.5rem', borderRadius: 'var(--border-radius-md)', border: '1px solid rgba(255,255,255,0.1)' }}>
+                              <span style={{ fontSize: '0.8rem', color: 'var(--color-teal)', fontWeight: 800 }}>STEP 0{i + 1}</span>
+                              <h4 style={{ margin: '0.5rem 0 0 0', color: 'var(--color-white)', fontSize: '1rem' }}>{step.trim()}</h4>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  </section>
+                );
+              }
+              return (
+                <section key={block.id || idx} className="section" style={{ backgroundColor: 'var(--color-gray-bg)' }}>
+                  <div className="container">
+                    <div className="section-title-wrap">
+                      {renderEditableText(block.id, language === 'vi' ? 'titleVi' : 'titleEn', language === 'vi' ? block.titleVi : block.titleEn, 'h2', { fontSize: '2rem', fontWeight: 800, textAlign: 'center', color: 'var(--color-navy)' })}
+                    </div>
+                    {isVisualEditing ? (
+                      <div style={{ width: '100%', marginTop: '1.5rem' }}>
+                        <small style={{ color: 'var(--color-teal)', display: 'block', textAlign: 'center', marginBottom: '0.5rem' }}>[Sửa các mục cách nhau bằng dấu chấm phẩy, Tiêu đề:Mô tả cách nhau bằng dấu hai chấm. Ví dụ: "Dịch vụ:Thi công lắp đặt; Bảo dưỡng:Kiểm tra thiết bị"]</small>
+                        {renderEditableText(block.id, language === 'vi' ? 'itemsVi' : 'itemsEn', language === 'vi' ? block.itemsVi : block.itemsEn, 'div', { display: 'flex', justifyContent: 'center', padding: '0.5rem', border: '1px dashed var(--color-teal)', borderRadius: '4px', color: 'var(--color-navy)' })}
+                      </div>
+                    ) : (
+                      <div className="grid-2">
+                        {(language === 'vi' ? block.itemsVi : block.itemsEn)?.split(';').map((item: string, idx2: number) => {
+                          const parts = item.split(':');
+                          const title = parts[0];
+                          const desc = parts.slice(1).join(':');
+                          return (
+                            <div key={idx2} className="card" style={styles.divisionCard}>
+                              <h3 style={{ fontSize: '1.4rem', marginBottom: '1rem', color: 'var(--color-navy)' }}>{title?.trim()}</h3>
+                              <p style={{ color: 'var(--color-text-muted)', lineHeight: 1.6 }}>{desc?.trim()}</p>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    )}
+                  </div>
+                </section>
+              );
+            case 'text':
+              return (
+                <section key={block.id || idx} className="section">
+                  <div className="container" style={{ maxWidth: '800px' }}>
+                    {renderEditableText(block.id, language === 'vi' ? 'titleVi' : 'titleEn', language === 'vi' ? block.titleVi : block.titleEn, 'h2', { fontSize: '2.2rem', fontWeight: 800, textAlign: 'center', marginBottom: '1.5rem' })}
+                    <div style={{ color: 'var(--color-text-main)', fontSize: '1.05rem', lineHeight: 1.8, marginTop: '1.5rem', whiteSpace: 'pre-line' }}>
+                      {renderEditableText(block.id, language === 'vi' ? 'contentVi' : 'contentEn', language === 'vi' ? block.contentVi : block.contentEn, 'div')}
+                    </div>
+                  </div>
+                </section>
+              );
+            default:
+              return null;
+          }
+        })}
+      </div>
+    );
+  }
 
   return (
     <div style={{ width: '100%' }}>

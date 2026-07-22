@@ -5,7 +5,7 @@ import { Footer } from './components/Footer';
 import { QuoteDrawer } from './components/QuoteDrawer';
 import { Home } from './pages/Home';
 import { Solutions } from './pages/Solutions';
-import { Products } from './pages/Products';
+import { Products, PRODUCTS_DATA } from './pages/Products';
 import { Projects } from './pages/Projects';
 import type { ProjectItem } from './pages/Projects';
 import { FuelCalculator } from './components/FuelCalculator';
@@ -155,12 +155,139 @@ const initialProjects: ProjectItem[] = [
 
 export const AppContent: React.FC = () => {
   const [currentView, setView] = useState<string>('home');
+  const [isLoggedIn, setIsLoggedIn] = useState<boolean>(() => {
+    return sessionStorage.getItem('cms_logged_in') === 'true';
+  });
+  const [isVisualEditing, setIsVisualEditing] = useState<boolean>(false);
   const [cartItems, setCartItems] = useState<any[]>([]);
   const [cartOpen, setCartOpen] = useState<boolean>(false);
   const [leads, setLeads] = useState<LeadItem[]>(initialLeads);
   const [fuelSettings, setFuelSettings] = useState({ lngPrice: 18500, lpgPrice: 23000 });
   const [articles, setArticles] = useState<ArticleItem[]>(initialArticles);
   const [projects, setProjects] = useState<ProjectItem[]>(initialProjects);
+  const [products, setProducts] = useState<any[]>(() => {
+    const saved = localStorage.getItem('cms_products');
+    return saved ? JSON.parse(saved) : PRODUCTS_DATA;
+  });
+
+  React.useEffect(() => {
+    localStorage.setItem('cms_products', JSON.stringify(products));
+  }, [products]);
+
+  const [contactInfo, setContactInfo] = useState(() => {
+    const saved = localStorage.getItem('cms_contact_info');
+    return saved ? JSON.parse(saved) : {
+      addressVi: 'Lô CN-08, Khu Công Nghiệp Sóng Thần 3, Thủ Dầu Một, Bình Dương, Việt Nam',
+      addressEn: 'CN-08 Lot, Song Than 3 Industrial Park, Thu Dau Mot, Binh Duong, Vietnam',
+      phone: '+84 (0) 274 3801 888',
+      email: 'info@lnglpgkitchen-solutions.com',
+      hoursVi: 'Hỗ trợ kỹ thuật 24/7. Tiếp nhận khảo sát: 8:00 - 17:30 (Thứ 2 - Thứ 7)',
+      hoursEn: 'Technical dispatch 24/7. Site survey scheduling: 8:00 AM - 5:30 PM (Mon - Sat)'
+    };
+  });
+
+  React.useEffect(() => {
+    localStorage.setItem('cms_contact_info', JSON.stringify(contactInfo));
+  }, [contactInfo]);
+
+  const [pages, setPages] = useState<any[]>(() => {
+    const saved = localStorage.getItem('cms_pages');
+    if (saved) {
+      const parsed = JSON.parse(saved);
+      const home = parsed.find((p: any) => p.id === 'p-1');
+      if (!home || !home.blocks || home.blocks.length === 0 || home.blocks.some((b: any) => b.id === 'b-1') || parsed.some((p: any) => !p.title || typeof p.title.vi !== 'string')) {
+        localStorage.removeItem('cms_pages');
+      } else {
+        return parsed;
+      }
+    }
+    return [
+      {
+        id: 'p-1',
+        title: { vi: 'Trang chủ', en: 'Home' },
+        slug: 'home',
+        excerpt: { vi: 'Trang chủ website LNG79', en: 'Homepage of LNG79 website' },
+        status: 'published',
+        visible: true,
+        onMenu: true,
+        searchable: true,
+        blocks: [
+          {
+            id: 'b-hero',
+            type: 'hero',
+            titleVi: 'Tổng Thầu Thiết Kế Thi Công Trạm Khí LNG/LPG',
+            titleEn: 'EPC Turnkey LNG/LPG Terminal Station Contractor',
+            subtitleVi: 'Đảm bảo tiến độ thi công vượt trội, thiết bị nhập khẩu chính hãng, tiêu chuẩn an toàn PCCC.',
+            subtitleEn: 'Outstanding construction engineering, premium certified imported components, TCVN safety compliant.',
+            image: 'https://images.unsplash.com/photo-1605647540924-852290f6b0d5?q=80&w=800&auto=format&fit=crop',
+            ctaVi: 'Nhận Báo Giá Thiết Kế',
+            ctaEn: 'Request Engineering Estimate'
+          },
+          {
+            id: 'b-clients',
+            type: 'stats',
+            titleVi: 'ĐỐI TÁC CHIẾN LƯỢC & KHÁCH HÀNG',
+            titleEn: 'STRATEGIC PARTNERS & CLIENTS',
+            itemsVi: 'COCA-COLA VN, SABECO BREWERY, HYUNDAI STEEL, VINPEARL RESORTS, CJ FOODS, SAMSUNG ELECTRONICS',
+            itemsEn: 'COCA-COLA VN, SABECO BREWERY, HYUNDAI STEEL, VINPEARL RESORTS, CJ FOODS, SAMSUNG ELECTRONICS'
+          },
+          {
+            id: 'b-divisions',
+            type: 'features',
+            titleVi: 'Lĩnh Vực Hoạt Động Chính',
+            titleEn: 'Core Business Divisions',
+            itemsVi: 'Giải Pháp Năng Lượng Khí LNG/LPG: Cung cấp trạm hóa hơi và bồn chứa; Hệ Thống Bếp Công Nghiệp: Thiết kế bếp nhà hàng khách sạn một chiều',
+            itemsEn: 'LNG/LPG Gas Energy: regasification skids and storage tanks; Commercial Kitchen Systems: one-way food preparation flows'
+          },
+          {
+            id: 'b-process',
+            type: 'features',
+            titleVi: 'Quy Trình Thi Công Trọn Gói EPC',
+            titleEn: 'Turnkey EPC Workflow Steps',
+            itemsVi: 'Khảo sát hiện trạng, Thiết kế P&ID bản vẽ, Thi công lắp đặt thiết bị, Nghiệm thu PCCC an toàn, Chạy thử vận hành, Bàn giao kỹ thuật, Bảo dưỡng định kỳ',
+            itemsEn: 'Site survey, P&ID drawing design, Equipment installation, Safety approvals, Trial runs, Operations handover, Routine maintenance'
+          },
+          {
+            id: 'b-industries',
+            type: 'features',
+            titleVi: 'Ngành Nghề Phục Vụ',
+            titleEn: 'Industries We Serve',
+            itemsVi: 'Nhà máy sản xuất FDI: Trạm cấp gas trung tâm; Luyện kim & Gốm sứ: Năng lượng lò nung hiệu năng cao; Chuyển đổi lò hơi: Chuyển đổi từ dầu FO/than sang gas LNG sạch',
+            itemsEn: 'FDI Manufacturing: centralized gas infrastructure; Metallurgy & Ceramics: high-efficiency thermal kilns; Boiler Fuel Conversion: converting FO/coal to clean LNG'
+          },
+          {
+            id: 'b-stats',
+            type: 'stats',
+            titleVi: 'LNG79 Qua Những Con Số',
+            titleEn: 'LNG79 By The Numbers',
+            itemsVi: '85+ Dự án đã cấp khí, 100% Đạt kiểm định PCCC, 15+ Năm kinh nghiệm vận hành',
+            itemsEn: '85+ Gas stations running, 100% Certified safety audits, 15+ Years expert crew'
+          },
+          {
+            id: 'b-cta',
+            type: 'hero',
+            titleVi: 'Bạn Cần Tư Vấn Thiết Kế Hoặc Nhận Báo Giá?',
+            titleEn: 'Need Design Consultation or Custom Quote?',
+            subtitleVi: 'Chúng tôi sẵn sàng khảo sát thực tế và đưa ra bài toán kinh tế tiết kiệm nhất cho doanh nghiệp.',
+            subtitleEn: 'We offer free site survey audits and cost saving projections tailored for your facility.',
+            ctaVi: 'Gửi yêu cầu ngay',
+            ctaEn: 'Submit RFQ Now'
+          }
+        ]
+      },
+      { id: 'p-2', title: { vi: 'Giải pháp LNG', en: 'LNG Solutions' }, slug: 'lng-solution', excerpt: { vi: 'Hệ thống cấp khí và hóa lỏng', en: 'Gas supply and liquefaction systems' }, status: 'published', visible: true, onMenu: true, searchable: true },
+      { id: 'p-3', title: { vi: 'Giải pháp LPG', en: 'LPG Solutions' }, slug: 'lpg-solution', excerpt: { vi: 'Hệ thống cấp gas trung tâm', en: 'Centralized gas supply systems' }, status: 'published', visible: true, onMenu: true, searchable: true },
+      { id: 'p-4', title: { vi: 'Cải tạo đầu đốt', en: 'Boiler Conversion' }, slug: 'conversion', excerpt: { vi: 'Chuyển đổi sang nhiên liệu sạch', en: 'Conversion to clean fuel solutions' }, status: 'published', visible: true, onMenu: true, searchable: true },
+      { id: 'p-5', title: { vi: 'Thiết kế bếp và Central gas', en: 'Commercial Kitchen' }, slug: 'kitchen-solution', excerpt: { vi: 'Hệ thống bếp công nghiệp', en: 'Commercial kitchen systems' }, status: 'published', visible: true, onMenu: true, searchable: true },
+      { id: 'p-6', title: { vi: 'Sản phẩm', en: 'Products' }, slug: 'products', excerpt: { vi: 'Danh mục thiết bị ngành khí và bếp', en: 'Equipment inventory for gas & kitchen systems' }, status: 'published', visible: true, onMenu: true, searchable: true },
+      { id: 'p-7', title: { vi: 'Dự án', en: 'Projects' }, slug: 'projects', excerpt: { vi: 'Dự án đã làm', en: 'Projects completed' }, status: 'published', visible: true, onMenu: true, searchable: true },
+      { id: 'p-8', title: { vi: 'Thư viện', en: 'Knowledge' }, slug: 'knowledge', excerpt: { vi: 'Tài liệu kỹ thuật và an toàn', en: 'Technical and safety manuals' }, status: 'published', visible: true, onMenu: true, searchable: true }
+    ];
+  });
+
+  React.useEffect(() => {
+    localStorage.setItem('cms_pages', JSON.stringify(pages));
+  }, [pages]);
 
   const handleAddProduct = (product: any) => {
     setCartItems((prev) => {
@@ -204,6 +331,10 @@ export const AppContent: React.FC = () => {
 
   const handleDeleteLead = (id: string) => {
     setLeads((prev) => prev.filter((lead) => lead.id !== id));
+  };
+
+  const handleAddLead = (lead: LeadItem) => {
+    setLeads((prev) => [lead, ...prev]);
   };
 
   // Article handlers
@@ -252,19 +383,19 @@ export const AppContent: React.FC = () => {
   const renderView = () => {
     switch (currentView) {
       case 'home':
-        return <Home setView={setView} onAddProduct={handleAddProduct} cartItems={cartItems} />;
+        return <Home setView={setView} onAddProduct={handleAddProduct} cartItems={cartItems} pages={pages} setPages={setPages} isVisualEditing={isVisualEditing} />;
       case 'lng-solution':
-        return <Solutions subView="lng-solution" setView={setView} />;
+        return <Solutions subView="lng-solution" setView={setView} pages={pages} setPages={setPages} isVisualEditing={isVisualEditing} />;
       case 'lpg-solution':
-        return <Solutions subView="lpg-solution" setView={setView} />;
+        return <Solutions subView="lpg-solution" setView={setView} pages={pages} setPages={setPages} isVisualEditing={isVisualEditing} />;
       case 'conversion':
-        return <Solutions subView="conversion" setView={setView} />;
+        return <Solutions subView="conversion" setView={setView} pages={pages} setPages={setPages} isVisualEditing={isVisualEditing} />;
       case 'kitchen-solution':
-        return <Solutions subView="kitchen-solution" setView={setView} />;
+        return <Solutions subView="kitchen-solution" setView={setView} pages={pages} setPages={setPages} isVisualEditing={isVisualEditing} />;
       case 'products':
-        return <Products onAddProduct={handleAddProduct} cartItems={cartItems} />;
+        return <Products onAddProduct={handleAddProduct} cartItems={cartItems} products={products} setProducts={setProducts} isVisualEditing={isVisualEditing} />;
       case 'projects':
-        return <Projects projects={projects.filter((p) => p.visible !== false)} />;
+        return <Projects projects={projects} setProjects={setProjects} isVisualEditing={isVisualEditing} />;
       case 'calculator':
         return (
           <div className="container" style={{ padding: '4rem 1.5rem' }}>
@@ -272,15 +403,23 @@ export const AppContent: React.FC = () => {
           </div>
         );
       case 'knowledge':
-        return <Knowledge articles={articles.filter((a) => a.visible !== false)} />;
+        return <Knowledge articles={articles} setArticles={setArticles} isVisualEditing={isVisualEditing} />;
       case 'contact':
-        return <Contact onSubmitLead={(data: any) => handleCreateLead('wizard', data)} />;
+        return (
+          <Contact 
+            onSubmitLead={(data: any) => handleCreateLead('wizard', data)} 
+            contactInfo={contactInfo}
+            setContactInfo={setContactInfo}
+            isVisualEditing={isVisualEditing}
+          />
+        );
       case 'admin':
         return (
           <AdminDashboard 
             leads={leads}
             onUpdateStatus={handleUpdateLeadStatus}
             onDeleteLead={handleDeleteLead}
+            onAddLead={handleAddLead}
             fuelSettings={fuelSettings}
             onUpdateSettings={setFuelSettings}
             articles={articles}
@@ -293,15 +432,59 @@ export const AppContent: React.FC = () => {
             onDeleteProject={handleDeleteProject}
             onToggleProject={handleToggleProjectVisibility}
             onEditProject={handleEditProject}
+            pages={pages}
+            onUpdatePages={setPages}
+            isLoggedIn={isLoggedIn}
+            setIsLoggedIn={setIsLoggedIn}
           />
         );
       default:
-        return <Home setView={setView} onAddProduct={handleAddProduct} cartItems={cartItems} />;
+        return <Home setView={setView} onAddProduct={handleAddProduct} cartItems={cartItems} pages={pages} setPages={setPages} isVisualEditing={isVisualEditing} />;
     }
   };
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', minHeight: '100vh' }}>
+      {isLoggedIn && (
+        <div style={{
+          position: 'sticky', top: 0, zIndex: 1000, 
+          backgroundColor: '#0F172A', color: '#fff', 
+          padding: '0.75rem 1.5rem', display: 'flex', 
+          justifyContent: 'space-between', alignItems: 'center',
+          borderBottom: '2px solid var(--color-teal)',
+          fontFamily: 'Inter, sans-serif', boxShadow: '0 4px 6px -1px rgba(0,0,0,0.1)'
+        }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+            <span style={{ fontSize: '1rem', fontWeight: 800, color: 'var(--color-teal)' }}>🛠️ LNG79 Live Editor</span>
+            <span style={{ fontSize: '0.75rem', backgroundColor: 'rgba(255,255,255,0.1)', padding: '0.1rem 0.4rem', borderRadius: '3px' }}>
+              Logged in as Administrator
+            </span>
+          </div>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
+            <button
+              className="btn"
+              style={{
+                fontSize: '0.8rem', padding: '0.4rem 0.8rem', cursor: 'pointer',
+                backgroundColor: isVisualEditing ? 'var(--color-orange)' : 'var(--color-teal)',
+                color: 'var(--color-white)', border: 'none', borderRadius: '4px'
+              }}
+              onClick={() => setIsVisualEditing(!isVisualEditing)}
+            >
+              {isVisualEditing ? 'Tắt Chế Độ Sửa Trực Quan' : 'Bật Chế Độ Sửa Trực Quan'}
+            </button>
+            <button
+              className="btn btn-outline"
+              style={{ color: '#fff', borderColor: 'rgba(255,255,255,0.3)', fontSize: '0.8rem', padding: '0.4rem 0.8rem' }}
+              onClick={() => {
+                setView('admin');
+                setIsVisualEditing(false);
+              }}
+            >
+              Go to CMS Dashboard
+            </button>
+          </div>
+        </div>
+      )}
       <Navbar 
         currentView={currentView} 
         setView={setView} 

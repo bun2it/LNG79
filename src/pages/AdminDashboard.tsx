@@ -1,8 +1,8 @@
 import React, { useState } from 'react';
 import { useLanguage } from '../context/LanguageContext';
 import { 
-  Users, Layers, Settings, FileSpreadsheet, Check, 
-  Trash2, Plus, Edit, RefreshCw, TrendingUp, Flame, ChefHat, FileText, Briefcase 
+  Users, Layers, Settings, FileSpreadsheet, 
+  Trash2, Plus, Edit, RefreshCw, TrendingUp, Flame, ChefHat, FileText, Briefcase, History 
 } from 'lucide-react';
 import type { ArticleItem } from './Knowledge';
 import type { ProjectItem } from './Projects';
@@ -36,6 +36,11 @@ interface AdminDashboardProps {
   onToggleProject: (id: string) => void;
   onEditProject: (project: ProjectItem) => void;
   onEditArticle: (article: ArticleItem) => void;
+  onAddLead: (lead: LeadItem) => void;
+  pages: any[];
+  onUpdatePages: React.Dispatch<React.SetStateAction<any[]>>;
+  isLoggedIn: boolean;
+  setIsLoggedIn: React.Dispatch<React.SetStateAction<boolean>>;
 }
 
 const AUDIT_FUELS: { [key: string]: { name: { vi: string; en: string }; lhv: number; co2Factor: number; defaultPrice: number; defaultEff: number } } = {
@@ -46,23 +51,338 @@ const AUDIT_FUELS: { [key: string]: { name: { vi: string; en: string }; lhv: num
   ELEC: { name: { vi: 'Điện công nghiệp', en: 'Electricity' }, lhv: 3.6, co2Factor: 0.82, defaultPrice: 2200, defaultEff: 95 }
 };
 
+const TRANSLATION_DICT: { [key: string]: string } = {
+  "trạm khí": "gas station hub",
+  "trạm cấp khí": "central gas supply station",
+  "bồn chứa": "bulk storage tank",
+  "bồn cryogenic": "cryogenic storage tank",
+  "hóa hơi": "vaporizer regasification",
+  "thiết kế": "engineering design specs",
+  "thi công": "piping welding construction",
+  "đầu đốt": "combustion thermal burner",
+  "cải tạo lò hơi": "boiler conversion conversions",
+  "tiêu chuẩn": "TCVN compliance standard",
+  "an toàn": "operational safety regulations",
+  "bếp ăn công nghiệp": "commercial food kitchen layout",
+  "thiết bị nhập khẩu": "certified imported hardware equipment",
+  "năng lượng sạch": "clean alternative energy resource",
+  "tiết kiệm": "reduce annual energy cost",
+  "nghiệm thu": "fire department inspection approvals",
+  "đường ống": "gas supply logistics pipeline",
+  "vận hành": "engineering operations management",
+  "khảo sát": "engineering site survey inspection"
+};
+
+const translateViToEn = (text: string): string => {
+  if (!text) return "";
+  let translated = text.toLowerCase();
+  Object.entries(TRANSLATION_DICT).forEach(([vi, en]) => {
+    const regex = new RegExp(vi, 'g');
+    translated = translated.replace(regex, en);
+  });
+  return translated.charAt(0).toUpperCase() + translated.slice(1);
+};
+
+const translateEnToVi = (text: string): string => {
+  if (!text) return "";
+  let translated = text.toLowerCase();
+  Object.entries(TRANSLATION_DICT).forEach(([vi, en]) => {
+    const regex = new RegExp(en, 'g');
+    translated = translated.replace(regex, vi);
+  });
+  return translated.charAt(0).toUpperCase() + translated.slice(1);
+};
+
+const calculateSEOScore = (
+  title: string,
+  excerpt: string,
+  content: string,
+  image: string,
+  focusKeyword: string
+) => {
+  const rules = [
+    {
+      id: 'title-len',
+      labelVi: 'Độ dài tiêu đề (15 - 60 ký tự)',
+      labelEn: 'Title length (15 - 60 chars)',
+      passed: title.length >= 15 && title.length <= 60
+    },
+    {
+      id: 'excerpt-len',
+      labelVi: 'Độ dài mô tả ngắn (50 - 160 ký tự)',
+      labelEn: 'Excerpt length (50 - 160 chars)',
+      passed: excerpt.length >= 50 && excerpt.length <= 160
+    },
+    {
+      id: 'content-len',
+      labelVi: 'Nội dung bài viết tối thiểu 150 từ',
+      labelEn: 'Article body minimum 150 words',
+      passed: content.split(/\s+/).filter(Boolean).length >= 150
+    },
+    {
+      id: 'has-image',
+      labelVi: 'Có ảnh đại diện bài viết',
+      labelEn: 'Cover image is configured',
+      passed: !!image
+    },
+    {
+      id: 'keyword-in-title',
+      labelVi: 'Từ khóa xuất hiện trong tiêu đề',
+      labelEn: 'Target keyword in title',
+      passed: !!focusKeyword && title.toLowerCase().includes(focusKeyword.toLowerCase())
+    },
+    {
+      id: 'keyword-in-excerpt',
+      labelVi: 'Từ khóa xuất hiện trong mô tả ngắn',
+      labelEn: 'Target keyword in excerpt',
+      passed: !!focusKeyword && excerpt.toLowerCase().includes(focusKeyword.toLowerCase())
+    },
+    {
+      id: 'keyword-density',
+      labelVi: 'Từ khóa xuất hiện trong nội dung',
+      labelEn: 'Target keyword in body text',
+      passed: !!focusKeyword && content.toLowerCase().includes(focusKeyword.toLowerCase())
+    }
+  ];
+
+  const passedCount = rules.filter(r => r.passed).length;
+  const score = Math.round((passedCount / rules.length) * 100);
+
+  return { score, rules };
+};
+
 export const AdminDashboard: React.FC<AdminDashboardProps> = ({
-  leads, onUpdateStatus, onDeleteLead, fuelSettings, onUpdateSettings,
+  leads, onUpdateStatus, onDeleteLead, onAddLead, fuelSettings, onUpdateSettings,
   articles, onAddArticle, onDeleteArticle, onToggleArticle,
   projects, onAddProject, onDeleteProject, onToggleProject, onEditProject,
-  onEditArticle
+  onEditArticle, pages, onUpdatePages: setPages, isLoggedIn, setIsLoggedIn
 }) => {
   const { language } = useLanguage();
-  const [isLoggedIn, setIsLoggedIn] = useState<boolean>(() => {
-    return sessionStorage.getItem('cms_logged_in') === 'true';
-  });
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
   const [authError, setAuthError] = useState('');
-  const [activeTab, setActiveTab] = useState<'leads' | 'products' | 'settings' | 'articles' | 'projects'>('leads');
+  const [activeTab, setActiveTab] = useState<'overview' | 'pages' | 'navigation' | 'media' | 'leads' | 'products' | 'settings' | 'articles' | 'projects' | 'seo' | 'logs' | 'trash'>('overview');
   const [lngInput, setLngInput] = useState(fuelSettings.lngPrice);
   const [lpgInput, setLpgInput] = useState(fuelSettings.lpgPrice);
   const [selectedLead, setSelectedLead] = useState<LeadItem | null>(null);
+
+  const [loginAttempts, setLoginAttempts] = useState<number>(0);
+  const [lockoutTime, setLockoutTime] = useState<number | null>(null);
+
+  // Check lockout on render
+  React.useEffect(() => {
+    if (lockoutTime && Date.now() >= lockoutTime) {
+      setLockoutTime(null);
+      setLoginAttempts(0);
+      setAuthError('');
+    }
+  }, [lockoutTime]);
+
+  const [menuItems, setMenuItems] = useState<any[]>(() => {
+    const saved = localStorage.getItem('cms_menu');
+    if (saved) return JSON.parse(saved);
+    return [
+      { id: 'm-1', label: { vi: 'Trang chủ', en: 'Home' }, link: 'home', visible: true, target: '_self' },
+      { id: 'm-2', label: { vi: 'Giải pháp', en: 'Solutions' }, link: '#', visible: true, target: '_self', children: [
+        { id: 'm-2-1', label: { vi: 'Giải pháp LNG', en: 'LNG Solutions' }, link: 'lng-solution', visible: true, target: '_self' },
+        { id: 'm-2-2', label: { vi: 'Giải pháp LPG', en: 'LPG Solutions' }, link: 'lpg-solution', visible: true, target: '_self' },
+        { id: 'm-2-3', label: { vi: 'Cải tạo đầu đốt', en: 'Boiler Conversion' }, link: 'conversion', visible: true, target: '_self' },
+        { id: 'm-2-4', label: { vi: 'Thiết kế bếp & Central Gas', en: 'Commercial Kitchen' }, link: 'kitchen-solution', visible: true, target: '_self' }
+      ]},
+      { id: 'm-3', label: { vi: 'Sản phẩm', en: 'Products' }, link: 'products', visible: true, target: '_self' },
+      { id: 'm-4', label: { vi: 'Dự án', en: 'Projects' }, link: 'projects', visible: true, target: '_self' },
+      { id: 'm-5', label: { vi: 'Thư viện', en: 'Knowledge' }, link: 'knowledge', visible: true, target: '_self' },
+      { id: 'm-6', label: { vi: 'Liên hệ', en: 'Contact' }, link: 'contact', visible: true, target: '_self' }
+    ];
+  });
+
+  const [mediaAssets, setMediaAssets] = useState<any[]>(() => {
+    const saved = localStorage.getItem('cms_media');
+    if (saved) return JSON.parse(saved);
+    return [
+      { id: 'med-1', fileName: 'lng_vaporizer_station.jpg', title: 'LNG Vaporizer Station', altText: 'Trạm hóa hơi LNG công nghiệp', url: 'https://images.unsplash.com/photo-1605647540924-852290f6b0d5?q=80&w=800&auto=format&fit=crop', fileSize: 182400, fileType: 'image/jpeg', uploadedAt: '2026-07-15' },
+      { id: 'med-2', fileName: 'lpg_central_gas.jpg', title: 'LPG Central Gas Pipeline', altText: 'Đường ống dẫn LPG trung tâm', url: 'https://images.unsplash.com/photo-1541888946425-d81bb19240f5?q=80&w=800&auto=format&fit=crop', fileSize: 245100, fileType: 'image/jpeg', uploadedAt: '2026-07-16' },
+      { id: 'med-3', fileName: 'commercial_kitchen_cooking.jpg', title: 'Commercial Kitchen Gas Ranges', altText: 'Thiết bị bếp á bếp âu bếp ga', url: 'https://images.unsplash.com/photo-1556910103-1c02745aae4d?q=80&w=800&auto=format&fit=crop', fileSize: 312000, fileType: 'image/jpeg', uploadedAt: '2026-07-17' }
+    ];
+  });
+
+  const [auditLogs, setAuditLogs] = useState<any[]>(() => {
+    const saved = localStorage.getItem('cms_audit_logs');
+    if (saved) return JSON.parse(saved);
+    return [
+      { id: 'log-1', timestamp: '2026-07-19T08:12:00Z', user: 'admin', action: 'Published page: LNG Solutions', status: 'success' },
+      { id: 'log-2', timestamp: '2026-07-19T10:15:00Z', user: 'admin', action: 'Modified calculation price factors', status: 'success' },
+      { id: 'log-3', timestamp: '2026-07-19T10:30:00Z', user: 'admin', action: 'Added new case study project: LPG food factory', status: 'success' },
+      { id: 'log-4', timestamp: '2026-07-19T14:15:00Z', user: 'admin', action: 'Uploaded image assets to Media Vault', status: 'success' }
+    ];
+  });
+
+  const [redirects, setRedirects] = useState<any[]>(() => {
+    const saved = localStorage.getItem('cms_redirects');
+    if (saved) return JSON.parse(saved);
+    return [
+      { id: 'red-1', from: '/lng-old', to: '/solutions/lng', type: '301' },
+      { id: 'red-2', from: '/kitchen-old', to: '/solutions/kitchen', type: '301' }
+    ];
+  });
+
+  const [editingBlocksPageId, setEditingBlocksPageId] = useState<string | null>(null);
+  const [selectedBlockId, setSelectedBlockId] = useState<string | null>(null);
+  const [previewDevice, setPreviewDevice] = useState<'desktop' | 'tablet' | 'mobile'>('desktop');
+  const [showHistoryModal, setShowHistoryModal] = useState(false);
+  const [articleKeyword, setArticleKeyword] = useState('LNG');
+  const [projectKeyword, setProjectKeyword] = useState('LPG');
+  const [isTranslatingArticle, setIsTranslatingArticle] = useState(false);
+  const [isTranslatingProject, setIsTranslatingProject] = useState(false);
+
+  const [pageHistory, setPageHistory] = useState<any[]>(() => {
+    const saved = localStorage.getItem('cms_page_history');
+    if (saved) return JSON.parse(saved);
+    return [];
+  });
+
+  const [trashBin, setTrashBin] = useState<any[]>(() => {
+    const saved = localStorage.getItem('cms_trash_bin');
+    if (saved) return JSON.parse(saved);
+    return [];
+  });
+
+  // Keep localStorage updated on edits
+  React.useEffect(() => {
+    localStorage.setItem('cms_page_history', JSON.stringify(pageHistory));
+  }, [pageHistory]);
+
+  React.useEffect(() => {
+    localStorage.setItem('cms_trash_bin', JSON.stringify(trashBin));
+  }, [trashBin]);
+
+  React.useEffect(() => {
+    localStorage.setItem('cms_menu', JSON.stringify(menuItems));
+  }, [menuItems]);
+  React.useEffect(() => {
+    localStorage.setItem('cms_media', JSON.stringify(mediaAssets));
+  }, [mediaAssets]);
+  React.useEffect(() => {
+    localStorage.setItem('cms_audit_logs', JSON.stringify(auditLogs));
+  }, [auditLogs]);
+  React.useEffect(() => {
+    localStorage.setItem('cms_redirects', JSON.stringify(redirects));
+  }, [redirects]);
+
+  const logAction = (actionStr: string) => {
+    const newLog = {
+      id: 'log-' + Date.now(),
+      timestamp: new Date().toISOString(),
+      user: 'admin',
+      action: actionStr,
+      status: 'success'
+    };
+    setAuditLogs(prev => [newLog, ...prev]);
+  };
+
+  const getPageBlocks = (pageId: string) => {
+    const page = pages.find(p => p.id === pageId);
+    if (page && page.blocks) return page.blocks;
+
+    // Default blocks for each page
+    if (pageId === 'p-1') {
+      return [
+        {
+          id: 'b-hero',
+          type: 'hero',
+          titleVi: 'Tổng Thầu Thiết Kế Thi Công Trạm Khí LNG/LPG',
+          titleEn: 'EPC Turnkey LNG/LPG Terminal Station Contractor',
+          subtitleVi: 'Đảm bảo tiến độ thi công vượt trội, thiết bị nhập khẩu chính hãng, tiêu chuẩn an toàn PCCC.',
+          subtitleEn: 'Outstanding construction engineering, premium certified imported components, TCVN safety compliant.',
+          image: 'https://images.unsplash.com/photo-1605647540924-852290f6b0d5?q=80&w=800&auto=format&fit=crop',
+          ctaVi: 'Nhận Báo Giá Thiết Kế',
+          ctaEn: 'Request Engineering Estimate'
+        },
+        {
+          id: 'b-clients',
+          type: 'stats',
+          titleVi: 'ĐỐI TÁC CHIẾN LƯỢC & KHÁCH HÀNG',
+          titleEn: 'STRATEGIC PARTNERS & CLIENTS',
+          itemsVi: 'COCA-COLA VN, SABECO BREWERY, HYUNDAI STEEL, VINPEARL RESORTS, CJ FOODS, SAMSUNG ELECTRONICS',
+          itemsEn: 'COCA-COLA VN, SABECO BREWERY, HYUNDAI STEEL, VINPEARL RESORTS, CJ FOODS, SAMSUNG ELECTRONICS'
+        },
+        {
+          id: 'b-divisions',
+          type: 'features',
+          titleVi: 'Lĩnh Vực Hoạt Động Chính',
+          titleEn: 'Core Business Divisions',
+          itemsVi: 'Giải Pháp Năng Lượng Khí LNG/LPG: Cung cấp trạm hóa hơi và bồn chứa; Hệ Thống Bếp Công Nghiệp: Thiết kế bếp nhà hàng khách sạn một chiều',
+          itemsEn: 'LNG/LPG Gas Energy: regasification skids and storage tanks; Commercial Kitchen Systems: one-way food preparation flows'
+        },
+        {
+          id: 'b-process',
+          type: 'features',
+          titleVi: 'Quy Trình Thi Công Trọn Gói EPC',
+          titleEn: 'Turnkey EPC Workflow Steps',
+          itemsVi: 'Khảo sát hiện trạng, Thiết kế P&ID bản vẽ, Thi công lắp đặt thiết bị, Nghiệm thu PCCC an toàn, Chạy thử vận hành, Bàn giao kỹ thuật, Bảo dưỡng định kỳ',
+          itemsEn: 'Site survey, P&ID drawing design, Equipment installation, Safety approvals, Trial runs, Operations handover, Routine maintenance'
+        },
+        {
+          id: 'b-industries',
+          type: 'features',
+          titleVi: 'Ngành Nghề Phục Vụ',
+          titleEn: 'Industries We Serve',
+          itemsVi: 'Nhà máy sản xuất FDI: Trạm cấp gas trung tâm; Luyện kim & Gốm sứ: Năng lượng lò nung hiệu năng cao; Chuyển đổi lò hơi: Chuyển đổi từ dầu FO/than sang gas LNG sạch',
+          itemsEn: 'FDI Manufacturing: centralized gas infrastructure; Metallurgy & Ceramics: high-efficiency thermal kilns; Boiler Fuel Conversion: converting FO/coal to clean LNG'
+        },
+        {
+          id: 'b-stats',
+          type: 'stats',
+          titleVi: 'LNG79 Qua Những Con Số',
+          titleEn: 'LNG79 By The Numbers',
+          itemsVi: '85+ Dự án đã cấp khí, 100% Đạt kiểm định PCCC, 15+ Năm kinh nghiệm vận hành',
+          itemsEn: '85+ Gas stations running, 100% Certified safety audits, 15+ Years expert crew'
+        },
+        {
+          id: 'b-cta',
+          type: 'hero',
+          titleVi: 'Bạn Cần Tư Vấn Thiết Kế Hoặc Nhận Báo Giá?',
+          titleEn: 'Need Design Consultation or Custom Quote?',
+          subtitleVi: 'Chúng tôi sẵn sàng khảo sát thực tế và đưa ra bài toán kinh tế tiết kiệm nhất cho doanh nghiệp.',
+          subtitleEn: 'We offer free site survey audits and cost saving projections tailored for your facility.',
+          ctaVi: 'Gửi yêu cầu ngay',
+          ctaEn: 'Submit RFQ Now'
+        }
+      ];
+    }
+    
+    // Default fallback
+    return [
+      { id: 'b-1', type: 'hero', titleVi: 'Giải Pháp Năng Lượng Công Nghiệp Sạch', titleEn: 'Clean Industrial Energy Solutions', subtitleVi: 'Đơn vị uy tín hàng đầu cung cấp giải pháp trạm khí hóa lỏng và bếp ăn tập thể.', subtitleEn: 'Leading B2B turnkey provider for cryogenic stations and commercial kitchens.', image: 'https://images.unsplash.com/photo-1541888946425-d81bb19240f5?q=80&w=800&auto=format&fit=crop', ctaVi: 'Liên hệ tư vấn', ctaEn: 'Contact Us' }
+    ];
+  };
+
+  const handleSavePageBlocks = (pageId: string, blocksList: any[]) => {
+    setPages(prev => prev.map(p => p.id === pageId ? { ...p, blocks: blocksList } : p));
+    logAction(`Saved page blocks layout for page ID: ${pageId}`);
+  };
+
+  const handleRestoreFromTrash = (item: any) => {
+    if (item.type === 'article') {
+      onAddArticle(item.originalData);
+      logAction(`Restored technical article from Trash Bin: "${item.name}"`);
+    } else if (item.type === 'project') {
+      onAddProject(item.originalData);
+      logAction(`Restored project case study from Trash Bin: "${item.name}"`);
+    } else if (item.type === 'lead') {
+      onAddLead(item.originalData);
+      logAction(`Restored client lead from Trash Bin: "${item.name}"`);
+    }
+    setTrashBin(prev => prev.filter(i => i.id !== item.id));
+    alert(language === 'vi' ? 'Đã khôi phục mục này thành công!' : 'Item restored successfully!');
+  };
+
+  const handlePermanentDelete = (item: any) => {
+    if (confirm(language === 'vi' ? 'Bạn có muốn xoá vĩnh viễn mục này không? Thao tác này không thể khôi phục.' : 'Are you sure you want to permanently delete this item? This action cannot be undone.')) {
+      setTrashBin(prev => prev.filter(i => i.id !== item.id));
+      logAction(`Permanently deleted "${item.name}" (${item.type}) from Trash Bin`);
+    }
+  };
 
   const [auditFuel, setAuditFuel] = useState('DO');
   const [auditCons, setAuditCons] = useState(50000);
@@ -246,8 +566,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
   const lngSavings = annualOldCost - lngCost;
   const co2Saved = Math.max(0, oldCo2 - lngCo2);
 
-  const calcVapSize = Math.ceil(((lngNeeded / 12) / 250) * 1.5);
-  const calcTankSize = Math.ceil(((lngNeeded / 12) / 1000) * 0.4);
+
 
   const formatCurrency = (val: number) => {
     return new Intl.NumberFormat(language === 'vi' ? 'vi-VN' : 'en-US', {
@@ -263,12 +582,43 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
 
   const handleLogin = (e: React.FormEvent) => {
     e.preventDefault();
+    if (lockoutTime && Date.now() < lockoutTime) {
+      const remainingMins = Math.ceil((lockoutTime - Date.now()) / (60 * 1000));
+      setAuthError(
+        language === 'vi' 
+          ? `Tài khoản tạm thời bị khóa do đăng nhập sai nhiều lần. Vui lòng thử lại sau ${remainingMins} phút.` 
+          : `Account locked due to multiple failed attempts. Please try again in ${remainingMins} minutes.`
+      );
+      return;
+    }
+
     if (username === 'admin' && password === 'admin123') {
       setIsLoggedIn(true);
       sessionStorage.setItem('cms_logged_in', 'true');
       setAuthError('');
+      setLoginAttempts(0);
+      setLockoutTime(null);
+      logAction('Administrator logged in successfully');
     } else {
-      setAuthError(language === 'vi' ? 'Sai tài khoản hoặc mật khẩu!' : 'Invalid username or password!');
+      const newAttempts = loginAttempts + 1;
+      setLoginAttempts(newAttempts);
+      if (newAttempts >= 5) {
+        const lockDuration = 15 * 60 * 1000; // 15 mins
+        setLockoutTime(Date.now() + lockDuration);
+        setAuthError(
+          language === 'vi'
+            ? 'Đăng nhập sai quá 5 lần. Tài khoản bị khóa trong 15 phút!'
+            : 'Too many failed attempts. Account locked for 15 minutes!'
+        );
+        logAction('FAILED login limit reached: Admin account locked');
+      } else {
+        setAuthError(
+          language === 'vi' 
+            ? `Sai tài khoản hoặc mật khẩu! (Còn lại ${5 - newAttempts} lần thử)` 
+            : `Invalid credentials! (${5 - newAttempts} attempts remaining)`
+        );
+        logAction(`FAILED login attempt ${newAttempts}/5`);
+      }
     }
   };
 
@@ -279,8 +629,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
 
   // Statistics
   const newLeads = leads.filter(l => l.status === 'new').length;
-  const surveyLeads = leads.filter(l => l.status === 'survey').length;
-  const closedLeads = leads.filter(l => l.status === 'closed').length;
+
 
   const handleSaveSettings = (e: React.FormEvent) => {
     e.preventDefault();
@@ -358,96 +707,1114 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
   }
 
   return (
-    <div className="container" style={{ padding: '4rem 1.5rem', textAlign: 'left' }}>
-      <div style={styles.header}>
+    <div style={{ display: 'flex', minHeight: '90vh', backgroundColor: '#F8FAFC', borderRadius: 'var(--border-radius-lg)', overflow: 'hidden', boxShadow: 'var(--shadow-premium)', border: '1px solid var(--color-gray-border)', width: '100%', textAlign: 'left' }}>
+      
+      {/* LEFT SIDEBAR NAVIGATION */}
+      <div style={{ width: '280px', backgroundColor: 'var(--color-navy)', color: 'var(--color-white)', padding: '2rem 1.5rem', display: 'flex', flexDirection: 'column', justifyContent: 'space-between', borderRight: '1px solid rgba(255,255,255,0.1)' }}>
         <div>
-          <h2 style={{ fontSize: '2rem', color: 'var(--color-navy)' }}>
-            {language === 'vi' ? 'Hệ Thống Quản Trị Website (CMS)' : 'Website Administration Portal (CMS)'}
-          </h2>
-          <p style={{ color: 'var(--color-text-muted)', fontSize: '0.9rem' }}>
-            {language === 'vi' ? 'Quản lý thông tin yêu cầu, sản phẩm catalog và cấu hình hệ số máy tính.' : 'Manage client leads, catalog hardware, and adjust calculator pricing parameters.'}
-          </p>
+          {/* Brand branding */}
+          <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', marginBottom: '2rem', borderBottom: '1px solid rgba(255,255,255,0.1)', paddingBottom: '1.25rem' }}>
+            <Flame size={28} color="var(--color-orange)" style={{ flexShrink: 0 }} />
+            <div>
+              <h4 style={{ margin: 0, fontSize: '1.1rem', fontWeight: 800, color: 'var(--color-white)', lineHeight: 1.2 }}>LNG79 CMS</h4>
+              <span style={{ fontSize: '0.7rem', color: 'rgba(255,255,255,0.5)', fontWeight: 600, letterSpacing: '0.5px' }}>ADMIN CONTROL UNIT</span>
+            </div>
+          </div>
+
+          {/* Links list */}
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '0.35rem' }}>
+            {/* Overview */}
+            <button 
+              onClick={() => setActiveTab('overview')}
+              style={{
+                display: 'flex', alignItems: 'center', gap: '0.75rem', background: 'none', border: 'none', padding: '0.75rem 1rem', width: '100%', cursor: 'pointer', fontSize: '0.85rem', fontWeight: 600, textAlign: 'left', borderRadius: 'var(--border-radius-sm)', transition: 'var(--transition-fast)',
+                color: activeTab === 'overview' ? 'var(--color-white)' : 'rgba(255, 255, 255, 0.7)',
+                backgroundColor: activeTab === 'overview' ? 'var(--color-teal)' : 'transparent'
+              }}
+            >
+              <TrendingUp size={16} />
+              <span>{language === 'vi' ? 'Tổng quan' : 'Overview'}</span>
+            </button>
+
+            {/* Pages */}
+            <button 
+              onClick={() => setActiveTab('pages')}
+              style={{
+                display: 'flex', alignItems: 'center', gap: '0.75rem', background: 'none', border: 'none', padding: '0.75rem 1rem', width: '100%', cursor: 'pointer', fontSize: '0.85rem', fontWeight: 600, textAlign: 'left', borderRadius: 'var(--border-radius-sm)', transition: 'var(--transition-fast)',
+                color: activeTab === 'pages' ? 'var(--color-white)' : 'rgba(255, 255, 255, 0.7)',
+                backgroundColor: activeTab === 'pages' ? 'var(--color-teal)' : 'transparent'
+              }}
+            >
+              <FileText size={16} />
+              <span>{language === 'vi' ? 'Trang nội dung' : 'Pages Manager'}</span>
+            </button>
+
+            {/* Menus */}
+            <button 
+              onClick={() => setActiveTab('navigation')}
+              style={{
+                display: 'flex', alignItems: 'center', gap: '0.75rem', background: 'none', border: 'none', padding: '0.75rem 1rem', width: '100%', cursor: 'pointer', fontSize: '0.85rem', fontWeight: 600, textAlign: 'left', borderRadius: 'var(--border-radius-sm)', transition: 'var(--transition-fast)',
+                color: activeTab === 'navigation' ? 'var(--color-white)' : 'rgba(255, 255, 255, 0.7)',
+                backgroundColor: activeTab === 'navigation' ? 'var(--color-teal)' : 'transparent'
+              }}
+            >
+              <Layers size={16} />
+              <span>{language === 'vi' ? 'Thanh điều hướng' : 'Menus & Nav'}</span>
+            </button>
+
+            {/* Media */}
+            <button 
+              onClick={() => setActiveTab('media')}
+              style={{
+                display: 'flex', alignItems: 'center', gap: '0.75rem', background: 'none', border: 'none', padding: '0.75rem 1rem', width: '100%', cursor: 'pointer', fontSize: '0.85rem', fontWeight: 600, textAlign: 'left', borderRadius: 'var(--border-radius-sm)', transition: 'var(--transition-fast)',
+                color: activeTab === 'media' ? 'var(--color-white)' : 'rgba(255, 255, 255, 0.7)',
+                backgroundColor: activeTab === 'media' ? 'var(--color-teal)' : 'transparent'
+              }}
+            >
+              <Plus size={16} />
+              <span>{language === 'vi' ? 'Thư viện file' : 'Media Vault'}</span>
+            </button>
+
+            {/* Leads */}
+            <button 
+              onClick={() => setActiveTab('leads')}
+              style={{
+                display: 'flex', alignItems: 'center', gap: '0.75rem', background: 'none', border: 'none', padding: '0.75rem 1rem', width: '100%', cursor: 'pointer', fontSize: '0.85rem', fontWeight: 600, textAlign: 'left', borderRadius: 'var(--border-radius-sm)', transition: 'var(--transition-fast)',
+                color: activeTab === 'leads' ? 'var(--color-white)' : 'rgba(255, 255, 255, 0.7)',
+                backgroundColor: activeTab === 'leads' ? 'var(--color-teal)' : 'transparent'
+              }}
+            >
+              <Users size={16} />
+              <span>{language === 'vi' ? 'Yêu cầu tư vấn' : 'Leads CRM'}</span>
+            </button>
+
+            {/* Products */}
+            <button 
+              onClick={() => setActiveTab('products')}
+              style={{
+                display: 'flex', alignItems: 'center', gap: '0.75rem', background: 'none', border: 'none', padding: '0.75rem 1rem', width: '100%', cursor: 'pointer', fontSize: '0.85rem', fontWeight: 600, textAlign: 'left', borderRadius: 'var(--border-radius-sm)', transition: 'var(--transition-fast)',
+                color: activeTab === 'products' ? 'var(--color-white)' : 'rgba(255, 255, 255, 0.7)',
+                backgroundColor: activeTab === 'products' ? 'var(--color-teal)' : 'transparent'
+              }}
+            >
+              <Layers size={16} />
+              <span>{language === 'vi' ? 'Sản phẩm' : 'Products catalog'}</span>
+            </button>
+
+            {/* Projects */}
+            <button 
+              onClick={() => setActiveTab('projects')}
+              style={{
+                display: 'flex', alignItems: 'center', gap: '0.75rem', background: 'none', border: 'none', padding: '0.75rem 1rem', width: '100%', cursor: 'pointer', fontSize: '0.85rem', fontWeight: 600, textAlign: 'left', borderRadius: 'var(--border-radius-sm)', transition: 'var(--transition-fast)',
+                color: activeTab === 'projects' ? 'var(--color-white)' : 'rgba(255, 255, 255, 0.7)',
+                backgroundColor: activeTab === 'projects' ? 'var(--color-teal)' : 'transparent'
+              }}
+            >
+              <Briefcase size={16} />
+              <span>{language === 'vi' ? 'Dự án đã làm' : 'Projects Done'}</span>
+            </button>
+
+            {/* Articles */}
+            <button 
+              onClick={() => setActiveTab('articles')}
+              style={{
+                display: 'flex', alignItems: 'center', gap: '0.75rem', background: 'none', border: 'none', padding: '0.75rem 1rem', width: '100%', cursor: 'pointer', fontSize: '0.85rem', fontWeight: 600, textAlign: 'left', borderRadius: 'var(--border-radius-sm)', transition: 'var(--transition-fast)',
+                color: activeTab === 'articles' ? 'var(--color-white)' : 'rgba(255, 255, 255, 0.7)',
+                backgroundColor: activeTab === 'articles' ? 'var(--color-teal)' : 'transparent'
+              }}
+            >
+              <FileText size={16} />
+              <span>{language === 'vi' ? 'Thư viện bài viết' : 'Knowledge Manuals'}</span>
+            </button>
+
+            {/* Settings */}
+            <button 
+              onClick={() => setActiveTab('settings')}
+              style={{
+                display: 'flex', alignItems: 'center', gap: '0.75rem', background: 'none', border: 'none', padding: '0.75rem 1rem', width: '100%', cursor: 'pointer', fontSize: '0.85rem', fontWeight: 600, textAlign: 'left', borderRadius: 'var(--border-radius-sm)', transition: 'var(--transition-fast)',
+                color: activeTab === 'settings' ? 'var(--color-white)' : 'rgba(255, 255, 255, 0.7)',
+                backgroundColor: activeTab === 'settings' ? 'var(--color-teal)' : 'transparent'
+              }}
+            >
+              <Settings size={16} />
+              <span>{language === 'vi' ? 'Hệ số tính toán' : 'Calculator tuning'}</span>
+            </button>
+
+            {/* SEO */}
+            <button 
+              onClick={() => setActiveTab('seo')}
+              style={{
+                display: 'flex', alignItems: 'center', gap: '0.75rem', background: 'none', border: 'none', padding: '0.75rem 1rem', width: '100%', cursor: 'pointer', fontSize: '0.85rem', fontWeight: 600, textAlign: 'left', borderRadius: 'var(--border-radius-sm)', transition: 'var(--transition-fast)',
+                color: activeTab === 'seo' ? 'var(--color-white)' : 'rgba(255, 255, 255, 0.7)',
+                backgroundColor: activeTab === 'seo' ? 'var(--color-teal)' : 'transparent'
+              }}
+            >
+              <Settings size={16} />
+              <span>{language === 'vi' ? 'SEO & Redirects' : 'SEO & Redirects'}</span>
+            </button>
+
+            {/* Logs */}
+            <button 
+              onClick={() => setActiveTab('logs')}
+              style={{
+                display: 'flex', alignItems: 'center', gap: '0.75rem', background: 'none', border: 'none', padding: '0.75rem 1rem', width: '100%', cursor: 'pointer', fontSize: '0.85rem', fontWeight: 600, textAlign: 'left', borderRadius: 'var(--border-radius-sm)', transition: 'var(--transition-fast)',
+                color: activeTab === 'logs' ? 'var(--color-white)' : 'rgba(255, 255, 255, 0.7)',
+                backgroundColor: activeTab === 'logs' ? 'var(--color-teal)' : 'transparent'
+              }}
+            >
+              <RefreshCw size={16} />
+              <span>{language === 'vi' ? 'Nhật ký audit' : 'Security Logs'}</span>
+            </button>
+
+            {/* Trash Bin */}
+            <button 
+              onClick={() => setActiveTab('trash')}
+              style={{
+                display: 'flex', alignItems: 'center', gap: '0.75rem', background: 'none', border: 'none', padding: '0.75rem 1rem', width: '100%', cursor: 'pointer', fontSize: '0.85rem', fontWeight: 600, textAlign: 'left', borderRadius: 'var(--border-radius-sm)', transition: 'var(--transition-fast)',
+                color: activeTab === 'trash' ? 'var(--color-white)' : 'rgba(255, 255, 255, 0.7)',
+                backgroundColor: activeTab === 'trash' ? 'var(--color-teal)' : 'transparent'
+              }}
+            >
+              <Trash2 size={16} />
+              <span>{language === 'vi' ? 'Thùng rác' : 'Trash Bin'}</span>
+            </button>
+          </div>
         </div>
-        <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
-          <span style={styles.versionBadge}>Mock CMS v1.0</span>
+
+        {/* Sidebar Footer */}
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem', borderTop: '1px solid rgba(255,255,255,0.1)', paddingTop: '1.25rem' }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+            <span style={{ fontSize: '0.75rem', color: 'rgba(255,255,255,0.4)', fontWeight: 600 }}>v1.2 MVP Build</span>
+            <span style={{ fontSize: '0.7rem', color: 'var(--color-teal)', fontWeight: 700, backgroundColor: 'rgba(13,148,136,0.15)', padding: '0.1rem 0.4rem', borderRadius: 'var(--border-radius-sm)' }}>Active</span>
+          </div>
           <button 
-            className="btn btn-outline btn-sm" 
+            className="btn btn-outline" 
             onClick={handleLogout}
-            style={{ padding: '0.25rem 0.5rem', fontSize: '0.75rem', borderColor: 'var(--color-navy-accent)' }}
+            style={{ width: '100%', borderColor: 'rgba(255,255,255,0.2)', color: 'var(--color-white)', fontSize: '0.85rem' }}
           >
             {language === 'vi' ? 'Đăng xuất' : 'Sign Out'}
           </button>
         </div>
       </div>
 
-      {/* Stats row */}
-      <div style={styles.statsRow}>
-        <div style={styles.statCard}>
-          <TrendingUp size={24} color="var(--color-teal)" />
-          <div>
-            <span style={styles.statLabel}>{language === 'vi' ? 'Tổng Số Leads' : 'Total Leads'}</span>
-            <span style={styles.statValue}>{leads.length}</span>
-          </div>
-        </div>
-        <div style={styles.statCard}>
-          <Users size={24} color="#3B82F6" />
-          <div>
-            <span style={styles.statLabel}>{language === 'vi' ? 'Yêu cầu mới' : 'New Requests'}</span>
-            <span style={styles.statValue}>{newLeads}</span>
-          </div>
-        </div>
-        <div style={styles.statCard}>
-          <RefreshCw size={24} color="#8B5CF6" />
-          <div>
-            <span style={styles.statLabel}>{language === 'vi' ? 'Cần khảo sát' : 'Pending Survey'}</span>
-            <span style={styles.statValue}>{surveyLeads}</span>
-          </div>
-        </div>
-        <div style={styles.statCard}>
-          <Check size={24} color="#10B981" />
-          <div>
-            <span style={styles.statLabel}>{language === 'vi' ? 'Chốt thành công' : 'Deals Won'}</span>
-            <span style={styles.statValue}>{closedLeads}</span>
-          </div>
-        </div>
-      </div>
+      {/* RIGHT CONTENT PANEL */}
+      <div style={{ flex: 1, padding: '2.5rem', display: 'flex', flexDirection: 'column', gap: '2rem', overflowX: 'hidden' }}>
+        
+        {/* OVERVIEW TAB */}
+        {activeTab === 'overview' && (
+          <div className="animate-fade-in" style={{ display: 'flex', flexDirection: 'column', gap: '2rem' }}>
+            <div>
+              <h3 style={{ fontSize: '1.5rem', color: 'var(--color-navy)', margin: 0 }}>
+                {language === 'vi' ? 'Tổng Quan Hoạt Động Hệ Thống' : 'System Overview & Diagnostics'}
+              </h3>
+              <p style={{ margin: '0.25rem 0 0 0', fontSize: '0.85rem', color: 'var(--color-text-muted)' }}>
+                {language === 'vi' ? 'Cập nhật số liệu truy cập, trạng thái trang và cảnh báo nội dung.' : 'Real-time counters, publishing states, and SEO integrity audit alerts.'}
+              </p>
+            </div>
 
-      {/* Admin Tabs */}
-      <div style={styles.tabBar}>
-        <button 
-          onClick={() => setActiveTab('leads')} 
-          style={{...styles.tabBtn, ...(activeTab === 'leads' ? styles.tabBtnActive : {})}}
-        >
-          <Users size={16} /> {language === 'vi' ? 'Hộp thư Leads (Yêu cầu)' : 'Leads Inbox'}
-        </button>
-        <button 
-          onClick={() => setActiveTab('products')} 
-          style={{...styles.tabBtn, ...(activeTab === 'products' ? styles.tabBtnActive : {})}}
-        >
-          <Layers size={16} /> {language === 'vi' ? 'Danh mục sản phẩm' : 'Product Inventory'}
-        </button>
-        <button 
-          onClick={() => setActiveTab('settings')} 
-          style={{...styles.tabBtn, ...(activeTab === 'settings' ? styles.tabBtnActive : {})}}
-        >
-          <Settings size={16} /> {language === 'vi' ? 'Cấu hình hệ số' : 'Calculator Tuning'}
-        </button>
-        <button 
-          onClick={() => setActiveTab('articles')} 
-          style={{...styles.tabBtn, ...(activeTab === 'articles' ? styles.tabBtnActive : {})}}
-        >
-          <FileText size={16} /> {language === 'vi' ? 'Thư viện bài viết' : 'Knowledge Articles'}
-        </button>
-        <button 
-          onClick={() => setActiveTab('projects')} 
-          style={{...styles.tabBtn, ...(activeTab === 'projects' ? styles.tabBtnActive : {})}}
-        >
-          <Briefcase size={16} /> {language === 'vi' ? 'Dự án đã làm' : 'Projects Done'}
-        </button>
-      </div>
+            {/* Stats Row */}
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, minmax(0, 1fr))', gap: '1rem' }}>
+              <div style={styles.statCard}>
+                <TrendingUp size={24} color="var(--color-teal)" />
+                <div>
+                  <span style={styles.statLabel}>{language === 'vi' ? 'Tổng số trang' : 'Total Pages'}</span>
+                  <span style={styles.statValue}>{pages.length}</span>
+                </div>
+              </div>
+              <div style={styles.statCard}>
+                <Users size={24} color="#3B82F6" />
+                <div>
+                  <span style={styles.statLabel}>{language === 'vi' ? 'Yêu cầu Leads mới' : 'New Leads'}</span>
+                  <span style={styles.statValue}>{newLeads}</span>
+                </div>
+              </div>
+              <div style={styles.statCard}>
+                <FileText size={24} color="#8B5CF6" />
+                <div>
+                  <span style={styles.statLabel}>{language === 'vi' ? 'Bài viết thư viện' : 'Published Articles'}</span>
+                  <span style={styles.statValue}>{articles.length}</span>
+                </div>
+              </div>
+              <div style={styles.statCard}>
+                <Plus size={24} color="#10B981" />
+                <div>
+                  <span style={styles.statLabel}>{language === 'vi' ? 'Kho ảnh & file (Media)' : 'Media Vault Files'}</span>
+                  <span style={styles.statValue}>{mediaAssets.length}</span>
+                </div>
+              </div>
+            </div>
 
-      {/* Tab Contents */}
-      <div style={styles.tabContent}>
+            {/* Diagnostic split row */}
+            <div style={{ display: 'grid', gridTemplateColumns: '1.2fr 1fr', gap: '2rem' }}>
+              {/* Health checks */}
+              <div style={{ backgroundColor: 'var(--color-gray-card)', border: '1px solid var(--color-gray-border)', borderRadius: 'var(--border-radius-md)', padding: '1.5rem', display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+                <h4 style={{ margin: 0, fontSize: '1rem', color: 'var(--color-navy)', borderBottom: '1px solid var(--color-gray-border)', paddingBottom: '0.75rem' }}>
+                  ⚠️ {language === 'vi' ? 'Cảnh Báo Nội Dung (SEO / Hình Ảnh)' : 'SEO & Content Health Alerts'}
+                </h4>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
+                  <div style={{ display: 'flex', gap: '0.75rem', alignItems: 'center', backgroundColor: '#FEF3C7', color: '#B45309', padding: '0.75rem 1rem', borderRadius: 'var(--border-radius-sm)', fontSize: '0.85rem' }}>
+                    <span>💡</span>
+                    <span>{language === 'vi' ? 'Có 2 trang nội dung chưa điền thẻ Meta Description.' : '2 pages are missing custom SEO Meta Descriptions.'}</span>
+                  </div>
+                  <div style={{ display: 'flex', gap: '0.75rem', alignItems: 'center', backgroundColor: '#FEE2E2', color: '#991B1B', padding: '0.75rem 1rem', borderRadius: 'var(--border-radius-sm)', fontSize: '0.85rem' }}>
+                    <span>❌</span>
+                    <span>{language === 'vi' ? 'Bài viết "LPG Safety Guidelines" chưa cấu hình thẻ Alt Text cho ảnh bìa.' : 'Article "LPG Safety Guidelines" is missing descriptive Alt Text tags.'}</span>
+                  </div>
+                  <div style={{ display: 'flex', gap: '0.75rem', alignItems: 'center', backgroundColor: '#E0F2FE', color: '#0369A1', padding: '0.75rem 1rem', borderRadius: 'var(--border-radius-sm)', fontSize: '0.85rem' }}>
+                    <span>ℹ️</span>
+                    <span>{language === 'vi' ? 'Đã kích hoạt chế độ tự động tối ưu hóa nén ảnh WebP.' : 'Automatic WebP image compression engine is online.'}</span>
+                  </div>
+                </div>
+              </div>
+
+              {/* Quick info logs */}
+              <div style={{ backgroundColor: 'var(--color-gray-card)', border: '1px solid var(--color-gray-border)', borderRadius: 'var(--border-radius-md)', padding: '1.5rem', display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+                <h4 style={{ margin: 0, fontSize: '1rem', color: 'var(--color-navy)', borderBottom: '1px solid var(--color-gray-border)', paddingBottom: '0.75rem' }}>
+                  ⚡ {language === 'vi' ? 'Cập Nhật Gần Đây' : 'Recent Administrator Operations'}
+                </h4>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem', maxHeight: '180px', overflowY: 'auto' }}>
+                  {auditLogs.slice(0, 3).map((log) => (
+                    <div key={log.id} style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.8rem', borderBottom: '1px solid #F1F5F9', paddingBottom: '0.5rem' }}>
+                      <span style={{ color: 'var(--color-text-main)' }}>{log.action}</span>
+                      <span style={{ color: 'var(--color-text-muted)', fontSize: '0.75rem' }}>{log.timestamp.split('T')[0]}</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* PAGES MANAGER TAB */}
+        {activeTab === 'pages' && !editingBlocksPageId && (
+          <div className="animate-fade-in" style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
+            <div>
+              <h3 style={{ fontSize: '1.2rem', color: 'var(--color-navy)', margin: 0 }}>
+                {language === 'vi' ? 'Quản Lý Danh Sách Trang Nội Dung' : 'Manage Content Pages'}
+              </h3>
+              <p style={{ margin: '0.25rem 0 0 0', fontSize: '0.85rem', color: 'var(--color-text-muted)' }}>
+                {language === 'vi' ? 'Cấu hình tiêu đề, đường dẫn tĩnh (Slug), và trạng thái hiển thị của các trang chính.' : 'Configure route URLs, localized page content records, and index options.'}
+              </p>
+            </div>
+
+            <div style={styles.tableResponsive}>
+              <table style={styles.table}>
+                <thead>
+                  <tr style={styles.thRow}>
+                    <th style={styles.th}>{language === 'vi' ? 'Tên Trang (VI / EN)' : 'Page Title (VI / EN)'}</th>
+                    <th style={styles.th}>{language === 'vi' ? 'Đường Dẫn URL' : 'Slug / Route'}</th>
+                    <th style={styles.th}>{language === 'vi' ? 'Trạng Thái' : 'Status'}</th>
+                    <th style={styles.th}>{language === 'vi' ? 'Menu' : 'On Menu'}</th>
+                    <th style={styles.th}>{language === 'vi' ? 'Search Index' : 'Indexed'}</th>
+                    <th style={styles.th}>{language === 'vi' ? 'Thao Tác' : 'Action'}</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {pages.map((p) => {
+                    const titleVi = p.title?.vi || p.titleVi || p.name || '';
+                    const titleEn = p.title?.en || p.titleEn || p.name || '';
+                    return (
+                      <tr key={p.id} style={styles.tr}>
+                        <td style={styles.td}>
+                          <strong>{titleVi}</strong> / <span style={{ color: 'var(--color-text-muted)' }}>{titleEn}</span>
+                        </td>
+                        <td style={styles.td}>
+                          <code style={{ backgroundColor: '#F1F5F9', padding: '0.1rem 0.3rem', borderRadius: 'var(--border-radius-sm)', fontSize: '0.8rem' }}>/{p.slug}</code>
+                        </td>
+                        <td style={styles.td}>
+                          <select 
+                            value={p.status}
+                            onChange={(e) => {
+                              const newStatus = e.target.value;
+                              setPages(prev => prev.map(item => item.id === p.id ? { ...item, status: newStatus } : item));
+                              logAction(`Changed page "${titleVi}" status to ${newStatus}`);
+                            }}
+                            style={{ padding: '0.2rem 0.4rem', fontSize: '0.8rem', borderRadius: 'var(--border-radius-sm)', border: '1px solid var(--color-gray-border)' }}
+                          >
+                            <option value="published">Published</option>
+                            <option value="draft">Draft</option>
+                            <option value="hidden">Hidden</option>
+                          </select>
+                        </td>
+                        <td style={styles.td}>
+                          <input 
+                            type="checkbox" 
+                            checked={p.onMenu !== false}
+                            onChange={(e) => {
+                              const checked = e.target.checked;
+                              setPages(prev => prev.map(item => item.id === p.id ? { ...item, onMenu: checked } : item));
+                              logAction(`Changed page "${titleVi}" menu option to ${checked}`);
+                            }}
+                          />
+                        </td>
+                        <td style={styles.td}>
+                          <input 
+                            type="checkbox" 
+                            checked={p.searchable !== false}
+                            onChange={(e) => {
+                              const checked = e.target.checked;
+                              setPages(prev => prev.map(item => item.id === p.id ? { ...item, searchable: checked } : item));
+                              logAction(`Changed page "${titleVi}" search indexing to ${checked}`);
+                            }}
+                          />
+                        </td>
+                        <td style={styles.td}>
+                          <button 
+                            className="btn btn-outline btn-sm"
+                            style={{ padding: '0.2rem 0.4rem', fontSize: '0.75rem' }}
+                            onClick={() => {
+                              const newTitle = prompt('Nhập tên trang tiếng Việt:', titleVi);
+                              if (newTitle) {
+                                setPages(prev => prev.map(item => item.id === p.id ? { ...item, title: { ...(item.title || {}), vi: newTitle } } : item));
+                                logAction(`Renamed page to "${newTitle}"`);
+                              }
+                            }}
+                          >
+                            Sửa tên
+                          </button>
+                          <button 
+                            className="btn btn-teal btn-sm"
+                            style={{ padding: '0.2rem 0.4rem', fontSize: '0.75rem', marginLeft: '0.5rem' }}
+                            onClick={() => {
+                              setEditingBlocksPageId(p.id);
+                              const blocks = getPageBlocks(p.id);
+                              if (blocks.length > 0) {
+                                setSelectedBlockId(blocks[0].id);
+                              } else {
+                                setSelectedBlockId(null);
+                              }
+                            }}
+                          >
+                            {language === 'vi' ? 'Thiết kế block' : 'Page Blocks'}
+                          </button>
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        )}
+
+        {/* PAGES BLOCK BUILDER WORKSPACE */}
+        {activeTab === 'pages' && editingBlocksPageId && (() => {
+          const currentPage = pages.find(p => p.id === editingBlocksPageId);
+          const blocksList = getPageBlocks(editingBlocksPageId);
+          const selectedBlock = blocksList.find((b: any) => b.id === selectedBlockId) || blocksList[0];
+
+          return (
+            <div className="animate-fade-in" style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem', height: '100%' }}>
+              {/* Workspace Header */}
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px solid var(--color-gray-border)', paddingBottom: '1rem' }}>
+                <div>
+                  <button 
+                    className="btn btn-outline btn-sm"
+                    style={{ marginBottom: '0.5rem' }}
+                    onClick={() => {
+                      setEditingBlocksPageId(null);
+                      setSelectedBlockId(null);
+                    }}
+                  >
+                    ← {language === 'vi' ? 'Quay lại danh sách trang' : 'Back to Pages List'}
+                  </button>
+                  <h3 style={{ margin: 0, fontSize: '1.3rem', color: 'var(--color-navy)' }}>
+                    {language === 'vi' ? 'Thiết kế Block nội dung:' : 'Block Layout Architect:'} <span style={{ color: 'var(--color-teal)' }}>{currentPage?.title[language === 'vi' ? 'vi' : 'en']}</span>
+                  </h3>
+                </div>
+
+                {/* Device switches & Save */}
+                <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
+                  <div style={{ display: 'flex', backgroundColor: '#E2E8F0', padding: '0.2rem', borderRadius: 'var(--border-radius-sm)', gap: '0.2rem' }}>
+                    {(['desktop', 'tablet', 'mobile'] as const).map(device => (
+                      <button
+                        key={device}
+                        onClick={() => setPreviewDevice(device)}
+                        style={{
+                          border: 'none', background: previewDevice === device ? 'var(--color-white)' : 'transparent',
+                          padding: '0.35rem 0.6rem', fontSize: '0.75rem', fontWeight: 700, borderRadius: 'var(--border-radius-xs)',
+                          cursor: 'pointer', color: 'var(--color-navy)', display: 'flex', alignItems: 'center', gap: '0.25rem',
+                          boxShadow: previewDevice === device ? 'var(--shadow-sm)' : 'none'
+                        }}
+                      >
+                        {device.toUpperCase()}
+                      </button>
+                    ))}
+                  </div>
+
+                  <button
+                    className="btn btn-outline"
+                    style={{ borderColor: 'var(--color-teal)', color: 'var(--color-teal)', display: 'flex', alignItems: 'center', gap: '0.25rem', padding: '0.5rem 1rem' }}
+                    onClick={() => setShowHistoryModal(true)}
+                  >
+                    <History size={14} />
+                    <span>{language === 'vi' ? 'Lịch sử' : 'History'}</span>
+                  </button>
+
+                  <button 
+                    className="btn btn-teal"
+                    onClick={() => {
+                      if (editingBlocksPageId) {
+                        const pageObj = pages.find(p => p.id === editingBlocksPageId);
+                        const currentBlocks = getPageBlocks(editingBlocksPageId);
+                        const newCommit = {
+                          id: 'rev-' + Date.now(),
+                          pageId: editingBlocksPageId,
+                          timestamp: new Date().toISOString(),
+                          author: 'admin',
+                          blocks: currentBlocks
+                        };
+                        setPageHistory(prev => [newCommit, ...prev]);
+                        logAction(`Created page revision backup for: "${pageObj?.name || editingBlocksPageId}"`);
+                      }
+                      alert(language === 'vi' ? 'Đã lưu cấu trúc block trang vào lịch sử phiên bản!' : 'Saved page blocks layout to version history!');
+                    }}
+                  >
+                    {language === 'vi' ? 'Lưu thay đổi' : 'Save Blocks'}
+                  </button>
+                </div>
+              </div>
+
+              {/* Split screen content */}
+              <div style={{ display: 'flex', gap: '2rem', flex: 1, minHeight: '65vh' }}>
+                {/* Left panel: block editor */}
+                <div style={{ width: '450px', display: 'flex', flexDirection: 'column', gap: '1.5rem', backgroundColor: 'var(--color-gray-card)', border: '1px solid var(--color-gray-border)', borderRadius: 'var(--border-radius-md)', padding: '1.5rem', overflowY: 'auto', maxHeight: '70vh' }}>
+                  
+                  {/* Selector: Add new block */}
+                  <div>
+                    <h4 style={{ margin: '0 0 0.5rem 0', fontSize: '0.85rem', color: 'var(--color-navy)', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
+                      {language === 'vi' ? 'Thêm Block Mới' : 'Insert Content Block'}
+                    </h4>
+                    <div style={{ display: 'flex', gap: '0.5rem' }}>
+                      <select 
+                        id="newBlockTypeSelect"
+                        className="form-select" 
+                        style={{ padding: '0.35rem 0.5rem', fontSize: '0.85rem' }}
+                      >
+                        <option value="hero">Hero Banner Block</option>
+                        <option value="text">Text Column Block</option>
+                        <option value="stats">Hotspots Stats Row</option>
+                        <option value="features">Features Matrix Grid</option>
+                      </select>
+                      <button 
+                        className="btn btn-teal btn-sm"
+                        onClick={() => {
+                          const type = (document.getElementById('newBlockTypeSelect') as HTMLSelectElement).value;
+                          const newBlock = {
+                            id: 'b-' + Date.now(),
+                            type,
+                            titleVi: type === 'hero' ? 'Tiêu đề trạm khí sạch' : type === 'text' ? 'Giới thiệu giải pháp' : type === 'stats' ? '50+ Dự án, 100% Đạt PCCC' : 'Dịch vụ EPC',
+                            titleEn: type === 'hero' ? 'Clean Energy Headline' : type === 'text' ? 'Solutions Editorial' : type === 'stats' ? '50+ Projects, 100% Safety' : 'EPC Service List',
+                            subtitleVi: 'Mô tả tóm tắt nội dung block...',
+                            subtitleEn: 'Brief summary block description...',
+                            contentVi: 'Nội dung chi tiết...',
+                            contentEn: 'Detailed descriptions...',
+                            ctaVi: 'Xem thêm',
+                            ctaEn: 'Learn more',
+                            itemsVi: 'Linh kiện trạm gas, Cấp phép PCCC, Đầu đốt lò hơi',
+                            itemsEn: 'Gas pipeline hardware, Safety audits, Boiler retrofits',
+                            image: 'https://images.unsplash.com/photo-1581094128547-1388d1397865?q=80&w=600&auto=format&fit=crop'
+                          };
+                          const updated = [...blocksList, newBlock];
+                          handleSavePageBlocks(editingBlocksPageId, updated);
+                          setSelectedBlockId(newBlock.id);
+                        }}
+                      >
+                        +
+                      </button>
+                    </div>
+                  </div>
+
+                  {/* Block list order */}
+                  <div>
+                    <h4 style={{ margin: '0 0 0.75rem 0', fontSize: '0.85rem', color: 'var(--color-navy)', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
+                      {language === 'vi' ? 'Cấu trúc khối trang' : 'Page Outline Structure'}
+                    </h4>
+                    
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+                      {blocksList.map((block: any, idx: number) => (
+                        <div 
+                          key={block.id} 
+                          onClick={() => setSelectedBlockId(block.id)}
+                          style={{
+                            display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '0.75rem',
+                            backgroundColor: selectedBlockId === block.id ? 'var(--color-teal-glow)' : '#F8FAFC',
+                            border: selectedBlockId === block.id ? '1px solid var(--color-teal)' : '1px solid #E2E8F0',
+                            borderRadius: 'var(--border-radius-sm)', cursor: 'pointer', transition: 'var(--transition-fast)'
+                          }}
+                        >
+                          <div>
+                            <span style={{ fontSize: '0.7rem', fontWeight: 800, color: 'var(--color-teal)', textTransform: 'uppercase', backgroundColor: 'rgba(13,148,136,0.1)', padding: '0.1rem 0.3rem', borderRadius: 'var(--border-radius-xs)', marginRight: '0.5rem' }}>
+                              {block.type}
+                            </span>
+                            <span style={{ fontSize: '0.85rem', fontWeight: 600 }}>{block.titleVi || block.titleEn}</span>
+                          </div>
+                          
+                          <div style={{ display: 'flex', gap: '0.25rem' }} onClick={(e) => e.stopPropagation()}>
+                            <button 
+                              className="btn btn-outline btn-sm"
+                              style={{ padding: '0.15rem 0.3rem', fontSize: '0.7rem' }}
+                              onClick={() => {
+                                if (idx > 0) {
+                                  const list = [...blocksList];
+                                  const tmp = list[idx];
+                                  list[idx] = list[idx - 1];
+                                  list[idx - 1] = tmp;
+                                  handleSavePageBlocks(editingBlocksPageId, list);
+                                }
+                              }}
+                            >
+                              ▲
+                            </button>
+                            <button 
+                              className="btn btn-outline btn-sm"
+                              style={{ padding: '0.15rem 0.3rem', fontSize: '0.7rem' }}
+                              onClick={() => {
+                                if (idx < blocksList.length - 1) {
+                                  const list = [...blocksList];
+                                  const tmp = list[idx];
+                                  list[idx] = list[idx + 1];
+                                  list[idx + 1] = tmp;
+                                  handleSavePageBlocks(editingBlocksPageId, list);
+                                }
+                              }}
+                            >
+                              ▼
+                            </button>
+                            <button 
+                              className="btn btn-outline btn-sm"
+                              style={{ padding: '0.15rem 0.3rem', fontSize: '0.7rem', color: '#EF4444', borderColor: '#FCA5A5' }}
+                              onClick={() => {
+                                const list = blocksList.filter((b: any) => b.id !== block.id);
+                                handleSavePageBlocks(editingBlocksPageId, list);
+                                if (selectedBlockId === block.id) {
+                                  setSelectedBlockId(list.length > 0 ? list[0].id : null);
+                                }
+                              }}
+                            >
+                              ✕
+                            </button>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+
+                  {/* Active Editor form fields */}
+                  {selectedBlock && (
+                    <div style={{ borderTop: '1px solid var(--color-gray-border)', paddingTop: '1.25rem', display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+                      <h4 style={{ margin: 0, fontSize: '0.9rem', color: 'var(--color-navy)' }}>
+                        📝 {language === 'vi' ? `Chỉnh sửa Block: ${selectedBlock.type.toUpperCase()}` : `Edit Block fields: ${selectedBlock.type.toUpperCase()}`}
+                      </h4>
+
+                      {/* Title input */}
+                      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.5rem' }}>
+                        <div className="form-group" style={{ marginBottom: 0 }}>
+                          <label className="form-label">{language === 'vi' ? 'Tiêu đề (VI)' : 'Title (VI)'}</label>
+                          <input 
+                            type="text" 
+                            className="form-input" 
+                            value={selectedBlock.titleVi || ''}
+                            onChange={(e) => {
+                              const list = blocksList.map((b: any) => b.id === selectedBlock.id ? { ...b, titleVi: e.target.value } : b);
+                              handleSavePageBlocks(editingBlocksPageId, list);
+                            }}
+                          />
+                        </div>
+                        <div className="form-group" style={{ marginBottom: 0 }}>
+                          <label className="form-label">{language === 'vi' ? 'Tiêu đề (EN)' : 'Title (EN)'}</label>
+                          <input 
+                            type="text" 
+                            className="form-input" 
+                            value={selectedBlock.titleEn || ''}
+                            onChange={(e) => {
+                              const list = blocksList.map((b: any) => b.id === selectedBlock.id ? { ...b, titleEn: e.target.value } : b);
+                              handleSavePageBlocks(editingBlocksPageId, list);
+                            }}
+                          />
+                        </div>
+                      </div>
+
+                      {/* Subtitle / Excerpt inputs */}
+                      {selectedBlock.type === 'hero' && (
+                        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.5rem' }}>
+                          <div className="form-group" style={{ marginBottom: 0 }}>
+                            <label className="form-label">{language === 'vi' ? 'Mô tả ngắn (VI)' : 'Subtitle (VI)'}</label>
+                            <textarea 
+                              className="form-input" 
+                              style={{ height: '55px', resize: 'vertical' }}
+                              value={selectedBlock.subtitleVi || ''}
+                              onChange={(e) => {
+                                const list = blocksList.map((b: any) => b.id === selectedBlock.id ? { ...b, subtitleVi: e.target.value } : b);
+                                handleSavePageBlocks(editingBlocksPageId, list);
+                              }}
+                            />
+                          </div>
+                          <div className="form-group" style={{ marginBottom: 0 }}>
+                            <label className="form-label">{language === 'vi' ? 'Mô tả ngắn (EN)' : 'Subtitle (EN)'}</label>
+                            <textarea 
+                              className="form-input" 
+                              style={{ height: '55px', resize: 'vertical' }}
+                              value={selectedBlock.subtitleEn || ''}
+                              onChange={(e) => {
+                                const list = blocksList.map((b: any) => b.id === selectedBlock.id ? { ...b, subtitleEn: e.target.value } : b);
+                                handleSavePageBlocks(editingBlocksPageId, list);
+                              }}
+                            />
+                          </div>
+                        </div>
+                      )}
+
+                      {/* CTA Button Text inputs */}
+                      {selectedBlock.type === 'hero' && (
+                        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.5rem' }}>
+                          <div className="form-group" style={{ marginBottom: 0 }}>
+                            <label className="form-label">{language === 'vi' ? 'Nút bấm CTA (VI)' : 'CTA Button (VI)'}</label>
+                            <input 
+                              type="text" 
+                              className="form-input" 
+                              value={selectedBlock.ctaVi || ''}
+                              onChange={(e) => {
+                                const list = blocksList.map((b: any) => b.id === selectedBlock.id ? { ...b, ctaVi: e.target.value } : b);
+                                handleSavePageBlocks(editingBlocksPageId, list);
+                              }}
+                            />
+                          </div>
+                          <div className="form-group" style={{ marginBottom: 0 }}>
+                            <label className="form-label">{language === 'vi' ? 'Nút bấm CTA (EN)' : 'CTA Button (EN)'}</label>
+                            <input 
+                              type="text" 
+                              className="form-input" 
+                              value={selectedBlock.ctaEn || ''}
+                              onChange={(e) => {
+                                const list = blocksList.map((b: any) => b.id === selectedBlock.id ? { ...b, ctaEn: e.target.value } : b);
+                                handleSavePageBlocks(editingBlocksPageId, list);
+                              }}
+                            />
+                          </div>
+                        </div>
+                      )}
+
+                      {/* Content block inputs */}
+                      {selectedBlock.type === 'text' && (
+                        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.5rem' }}>
+                          <div className="form-group" style={{ marginBottom: 0 }}>
+                            <label className="form-label">{language === 'vi' ? 'Nội dung (VI)' : 'Content (VI)'}</label>
+                            <textarea 
+                              className="form-input" 
+                              style={{ height: '100px', resize: 'vertical' }}
+                              value={selectedBlock.contentVi || ''}
+                              onChange={(e) => {
+                                const list = blocksList.map((b: any) => b.id === selectedBlock.id ? { ...b, contentVi: e.target.value } : b);
+                                handleSavePageBlocks(editingBlocksPageId, list);
+                              }}
+                            />
+                          </div>
+                          <div className="form-group" style={{ marginBottom: 0 }}>
+                            <label className="form-label">{language === 'vi' ? 'Nội dung (EN)' : 'Content (EN)'}</label>
+                            <textarea 
+                              className="form-input" 
+                              style={{ height: '100px', resize: 'vertical' }}
+                              value={selectedBlock.contentEn || ''}
+                              onChange={(e) => {
+                                const list = blocksList.map((b: any) => b.id === selectedBlock.id ? { ...b, contentEn: e.target.value } : b);
+                                handleSavePageBlocks(editingBlocksPageId, list);
+                              }}
+                            />
+                          </div>
+                        </div>
+                      )}
+
+                      {/* Items (stats, features lists) */}
+                      {(selectedBlock.type === 'stats' || selectedBlock.type === 'features') && (
+                        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.5rem' }}>
+                          <div className="form-group" style={{ marginBottom: 0 }}>
+                            <label className="form-label">{language === 'vi' ? 'Danh sách mục (VI) [Dấu phẩy phân cách]' : 'Items List (VI) [Comma sep]'}</label>
+                            <input 
+                              type="text" 
+                              className="form-input" 
+                              value={selectedBlock.itemsVi || ''}
+                              onChange={(e) => {
+                                const list = blocksList.map((b: any) => b.id === selectedBlock.id ? { ...b, itemsVi: e.target.value } : b);
+                                handleSavePageBlocks(editingBlocksPageId, list);
+                              }}
+                            />
+                          </div>
+                          <div className="form-group" style={{ marginBottom: 0 }}>
+                            <label className="form-label">{language === 'vi' ? 'Danh sách mục (EN) [Dấu phẩy phân cách]' : 'Items List (EN) [Comma sep]'}</label>
+                            <input 
+                              type="text" 
+                              className="form-input" 
+                              value={selectedBlock.itemsEn || ''}
+                              onChange={(e) => {
+                                const list = blocksList.map((b: any) => b.id === selectedBlock.id ? { ...b, itemsEn: e.target.value } : b);
+                                handleSavePageBlocks(editingBlocksPageId, list);
+                              }}
+                            />
+                          </div>
+                        </div>
+                      )}
+
+                      {/* Hero Image Loader */}
+                      {selectedBlock.type === 'hero' && (
+                        <div className="form-group" style={{ marginBottom: 0 }}>
+                          <label className="form-label">{language === 'vi' ? 'Hình ảnh nền trạm khí' : 'Hero Background Image'}</label>
+                          <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
+                            <input 
+                              type="file" 
+                              accept="image/*" 
+                              className="form-input"
+                              onChange={(e) => handleImageFileChange(e, (base64) => {
+                                const list = blocksList.map((b: any) => b.id === selectedBlock.id ? { ...b, image: base64 } : b);
+                                handleSavePageBlocks(editingBlocksPageId, list);
+                              })}
+                            />
+                            {selectedBlock.image && (
+                              <img src={selectedBlock.image} alt="Thumbnail preview" style={{ width: '40px', height: '30px', objectFit: 'cover', borderRadius: 'var(--border-radius-xs)', border: '1px solid var(--color-gray-border)' }} />
+                            )}
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  )}
+                </div>
+
+                {/* Right panel: Visual interactive device previewer frame */}
+                <div style={{ flex: 1, display: 'flex', flexDirection: 'column', backgroundColor: '#E2E8F0', border: '1px solid var(--color-gray-border)', borderRadius: 'var(--border-radius-md)', padding: '1rem', overflowY: 'auto', maxHeight: '70vh' }}>
+                  <div style={{ display: 'flex', justifyContent: 'center', width: '100%', height: '100%' }}>
+                    
+                    {/* Centered Device Canvas */}
+                    <div 
+                      style={{
+                        width: previewDevice === 'desktop' ? '100%' : previewDevice === 'tablet' ? '768px' : '375px',
+                        backgroundColor: 'var(--color-white)', borderRadius: 'var(--border-radius-sm)', overflowY: 'auto',
+                        boxShadow: 'var(--shadow-md)', transition: 'width 0.3s cubic-bezier(0.4, 0, 0.2, 1)', border: '1px solid #CBD5E1',
+                        display: 'flex', flexDirection: 'column', minHeight: '100%'
+                      }}
+                    >
+                      {/* Simulated Page Header */}
+                      <div style={{ backgroundColor: 'var(--color-navy)', padding: '0.75rem 1rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                          <Flame size={18} color="var(--color-orange)" />
+                          <span style={{ fontSize: '0.8rem', color: 'var(--color-white)', fontWeight: 800 }}>LNG79</span>
+                        </div>
+                        <div style={{ display: 'flex', gap: '0.5rem', fontSize: '0.65rem', color: 'rgba(255,255,255,0.7)' }}>
+                          <span>{language === 'vi' ? 'Giải Pháp' : 'Solutions'}</span>
+                          <span>{language === 'vi' ? 'Sản Phẩm' : 'Products'}</span>
+                          <span>{language === 'vi' ? 'Dự Án' : 'Projects'}</span>
+                        </div>
+                      </div>
+
+                      {/* Blocks List Renderer inside Device */}
+                      <div style={{ flex: 1 }}>
+                        {blocksList.map((block: any) => {
+                          const title = language === 'vi' ? block.titleVi : block.titleEn;
+                          const subtitle = language === 'vi' ? block.subtitleVi : block.subtitleEn;
+                          const content = language === 'vi' ? block.contentVi : block.contentEn;
+                          const cta = language === 'vi' ? block.ctaVi : block.ctaEn;
+                          const rawItems = language === 'vi' ? block.itemsVi : block.itemsEn;
+                          const itemsList = rawItems ? rawItems.split(',').map((s: string) => s.trim()) : [];
+
+                          if (block.type === 'hero') {
+                            return (
+                              <div 
+                                key={block.id} 
+                                style={{
+                                  position: 'relative', height: '220px', background: `linear-gradient(rgba(15,23,42,0.8), rgba(15,23,42,0.75)), url(${block.image || 'https://images.unsplash.com/photo-1605647540924-852290f6b0d5?q=80&w=800&auto=format&fit=crop'})`,
+                                  backgroundSize: 'cover', backgroundPosition: 'center', display: 'flex', flexDirection: 'column',
+                                  justifyContent: 'center', alignItems: 'center', padding: '1.5rem', color: 'var(--color-white)', textAlign: 'center',
+                                  border: selectedBlockId === block.id ? '2px dashed var(--color-teal)' : 'none'
+                                }}
+                              >
+                                <h1 style={{ fontSize: previewDevice === 'mobile' ? '1.1rem' : '1.5rem', fontWeight: 800, margin: 0, color: 'var(--color-white)' }}>{title}</h1>
+                                <p style={{ fontSize: '0.75rem', color: '#94A3B8', marginTop: '0.5rem', maxWidth: '500px', lineHeight: 1.4 }}>{subtitle}</p>
+                                <button style={{ marginTop: '0.75rem', backgroundColor: 'var(--color-orange)', color: 'var(--color-white)', border: 'none', padding: '0.4rem 0.8rem', fontSize: '0.7rem', fontWeight: 700, borderRadius: 'var(--border-radius-xs)' }}>
+                                  {cta}
+                                </button>
+                              </div>
+                            );
+                          }
+
+                          if (block.type === 'text') {
+                            return (
+                              <div 
+                                key={block.id} 
+                                style={{
+                                  padding: '1.5rem', backgroundColor: 'var(--color-white)', borderBottom: '1px solid #E2E8F0',
+                                  border: selectedBlockId === block.id ? '2px dashed var(--color-teal)' : 'none'
+                                }}
+                              >
+                                <h3 style={{ fontSize: '1rem', color: 'var(--color-navy)', fontWeight: 700, margin: '0 0 0.5rem 0' }}>{title}</h3>
+                                <p style={{ fontSize: '0.75rem', color: 'var(--color-text-main)', margin: 0, lineHeight: 1.5, whiteSpace: 'pre-wrap' }}>{content}</p>
+                              </div>
+                            );
+                          }
+
+                          if (block.type === 'stats') {
+                            return (
+                              <div 
+                                key={block.id} 
+                                style={{
+                                  padding: '1.5rem', backgroundColor: '#F8FAFC', borderBottom: '1px solid #E2E8F0',
+                                  border: selectedBlockId === block.id ? '2px dashed var(--color-teal)' : 'none',
+                                  display: 'grid', gridTemplateColumns: previewDevice === 'mobile' ? '1fr' : `repeat(${itemsList.length || 1}, 1fr)`, gap: '1rem', textAlign: 'center'
+                                }}
+                              >
+                                {itemsList.map((stat: string, i: number) => {
+                                  const [val, ...lblParts] = stat.split(' ');
+                                  const lbl = lblParts.join(' ');
+                                  return (
+                                    <div key={i} style={{ backgroundColor: 'var(--color-white)', padding: '0.75rem', border: '1px solid #E2E8F0', borderRadius: 'var(--border-radius-sm)' }}>
+                                      <span style={{ display: 'block', fontSize: '1.1rem', fontWeight: 800, color: 'var(--color-teal)' }}>{val}</span>
+                                      <span style={{ display: 'block', fontSize: '0.65rem', color: 'var(--color-text-muted)', marginTop: '0.2rem' }}>{lbl}</span>
+                                    </div>
+                                  );
+                                })}
+                              </div>
+                            );
+                          }
+
+                          if (block.type === 'features') {
+                            return (
+                              <div 
+                                key={block.id} 
+                                style={{
+                                  padding: '1.5rem', backgroundColor: 'var(--color-white)', borderBottom: '1px solid #E2E8F0',
+                                  border: selectedBlockId === block.id ? '2px dashed var(--color-teal)' : 'none'
+                                }}
+                              >
+                                <h3 style={{ fontSize: '0.95rem', color: 'var(--color-navy)', fontWeight: 800, margin: '0 0 1rem 0', textAlign: 'center' }}>{title}</h3>
+                                <div style={{ display: 'grid', gridTemplateColumns: previewDevice === 'mobile' ? '1fr' : '1fr 1fr', gap: '0.75rem' }}>
+                                  {itemsList.map((feat: string, i: number) => (
+                                    <div key={i} style={{ display: 'flex', gap: '0.5rem', alignItems: 'flex-start', padding: '0.5rem', backgroundColor: '#F8FAFC', borderRadius: 'var(--border-radius-sm)', border: '1px solid #E2E8F0' }}>
+                                      <span style={{ color: 'var(--color-teal)', fontSize: '0.85rem' }}>✔</span>
+                                      <span style={{ fontSize: '0.75rem', fontWeight: 600, color: 'var(--color-text-main)' }}>{feat}</span>
+                                    </div>
+                                  ))}
+                                </div>
+                              </div>
+                            );
+                          }
+
+                          return null;
+                        })}
+                      </div>
+
+                      {/* Simulated Footer */}
+                      <div style={{ backgroundColor: '#1E293B', padding: '0.75rem 1rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: '0.6rem', color: '#94A3B8' }}>
+                        <span>© 2026 LNG79 Energy</span>
+                        <span>TCVN 7441</span>
+                      </div>
+                    </div>
+
+                  </div>
+                </div>
+              </div>
+            </div>
+          );
+        })()}
+
+        {/* MENUS & NAVIGATION TAB */}
+        {activeTab === 'navigation' && (
+          <div className="animate-fade-in" style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
+            <div>
+              <h3 style={{ fontSize: '1.2rem', color: 'var(--color-navy)', margin: 0 }}>
+                {language === 'vi' ? 'Quản Trị Hệ Thống Thanh Điều Hướng (Menu)' : 'Manage Navigation Menus'}
+              </h3>
+              <p style={{ margin: '0.25rem 0 0 0', fontSize: '0.85rem', color: 'var(--color-text-muted)' }}>
+                {language === 'vi' ? 'Tùy chỉnh các liên kết xuất hiện trên Header và Footer website.' : 'Reorganize link blocks and parent-child categories on navigation bars.'}
+              </p>
+            </div>
+
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '2rem' }}>
+              {/* Menu items list */}
+              <div style={{ backgroundColor: 'var(--color-gray-card)', border: '1px solid var(--color-gray-border)', borderRadius: 'var(--border-radius-md)', padding: '1.5rem' }}>
+                <h4 style={{ margin: '0 0 1rem 0', fontSize: '0.95rem', color: 'var(--color-navy)' }}>
+                  Header Menu Links
+                </h4>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+                  {menuItems.map((item, idx) => (
+                    <div key={item.id} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '0.75rem', backgroundColor: '#F8FAFC', border: '1px solid #E2E8F0', borderRadius: 'var(--border-radius-sm)' }}>
+                      <div>
+                        <strong>{item.label.vi}</strong> / <span style={{ color: 'var(--color-text-muted)', fontSize: '0.8rem' }}>{item.label.en}</span>
+                        <div style={{ fontSize: '0.75rem', color: 'var(--color-teal)', marginTop: '0.2rem' }}>Link: {item.link}</div>
+                      </div>
+                      <div style={{ display: 'flex', gap: '0.25rem' }}>
+                        <button 
+                          className="btn btn-outline btn-sm"
+                          style={{ padding: '0.15rem 0.3rem', fontSize: '0.7rem' }}
+                          onClick={() => {
+                            if (idx > 0) {
+                              const newMenu = [...menuItems];
+                              const temp = newMenu[idx];
+                              newMenu[idx] = newMenu[idx - 1];
+                              newMenu[idx - 1] = temp;
+                              setMenuItems(newMenu);
+                              logAction(`Shifted menu item "${temp.label.vi}" up`);
+                            }
+                          }}
+                        >
+                          ▲
+                        </button>
+                        <button 
+                          className="btn btn-outline btn-sm"
+                          style={{ padding: '0.15rem 0.3rem', fontSize: '0.7rem' }}
+                          onClick={() => {
+                            if (idx < menuItems.length - 1) {
+                              const newMenu = [...menuItems];
+                              const temp = newMenu[idx];
+                              newMenu[idx] = newMenu[idx + 1];
+                              newMenu[idx + 1] = temp;
+                              setMenuItems(newMenu);
+                              logAction(`Shifted menu item "${temp.label.vi}" down`);
+                            }
+                          }}
+                        >
+                          ▼
+                        </button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              {/* Add Menu Link form */}
+              <div style={{ backgroundColor: 'var(--color-gray-card)', border: '1px solid var(--color-gray-border)', borderRadius: 'var(--border-radius-md)', padding: '1.5rem', display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+                <h4 style={{ margin: 0, fontSize: '0.95rem', color: 'var(--color-navy)' }}>
+                  {language === 'vi' ? 'Thêm liên kết mới' : 'Add New Link'}
+                </h4>
+                <div className="form-group" style={{ marginBottom: 0 }}>
+                  <label className="form-label">{language === 'vi' ? 'Nhãn tiếng Việt *' : 'Label (VI) *'}</label>
+                  <input type="text" className="form-input" id="menuLabelVi" placeholder="Ví dụ: Dịch vụ" />
+                </div>
+                <div className="form-group" style={{ marginBottom: 0 }}>
+                  <label className="form-label">{language === 'vi' ? 'Nhãn tiếng Anh *' : 'Label (EN) *'}</label>
+                  <input type="text" className="form-input" id="menuLabelEn" placeholder="Example: Services" />
+                </div>
+                <div className="form-group" style={{ marginBottom: 0 }}>
+                  <label className="form-label">{language === 'vi' ? 'Đường dẫn liên kết *' : 'Destination URL *'}</label>
+                  <input type="text" className="form-input" id="menuLinkDest" placeholder="contact / solutions" />
+                </div>
+                <button 
+                  className="btn btn-teal"
+                  onClick={() => {
+                    const labelVi = (document.getElementById('menuLabelVi') as HTMLInputElement)?.value;
+                    const labelEn = (document.getElementById('menuLabelEn') as HTMLInputElement)?.value;
+                    const dest = (document.getElementById('menuLinkDest') as HTMLInputElement)?.value;
+                    if (labelVi && labelEn && dest) {
+                      setMenuItems(prev => [...prev, {
+                        id: 'm-' + Date.now(),
+                        label: { vi: labelVi, en: labelEn },
+                        link: dest,
+                        visible: true,
+                        target: '_self'
+                      }]);
+                      logAction(`Added new navigation link: "${labelVi}"`);
+                      alert('Đã thêm liên kết vào menu Header thành công!');
+                    } else {
+                      alert('Vui lòng điền đầy đủ các thông tin!');
+                    }
+                  }}
+                >
+                  {language === 'vi' ? 'Lưu liên kết' : 'Save Link'}
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* MEDIA VAULT TAB */}
+        {activeTab === 'media' && (
+          <div className="animate-fade-in" style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
+            <div>
+              <h3 style={{ fontSize: '1.2rem', color: 'var(--color-navy)', margin: 0 }}>
+                {language === 'vi' ? 'Thư Viện Ảnh & Tập Tin (Media Vault)' : 'Media Vault Asset Library'}
+              </h3>
+              <p style={{ margin: '0.25rem 0 0 0', fontSize: '0.85rem', color: 'var(--color-text-muted)' }}>
+                {language === 'vi' ? 'Tải lên hình ảnh trạm khí, thiết bị nhà bếp và tài liệu hướng dẫn kỹ thuật.' : 'Upload drawings, project screenshots, and PDF brochures.'}
+              </p>
+            </div>
+
+            {/* Upload Zone */}
+            <div style={{ border: '2px dashed var(--color-gray-border)', borderRadius: 'var(--border-radius-md)', padding: '2.5rem', textAlign: 'center', backgroundColor: '#F8FAFC' }}>
+              <input 
+                type="file" 
+                multiple 
+                accept="image/*,application/pdf"
+                id="mediaUploadInput"
+                style={{ display: 'none' }}
+                onChange={(e) => {
+                  const files = e.target.files;
+                  if (files && files.length > 0) {
+                    Array.from(files).forEach((file) => {
+                      const reader = new FileReader();
+                      reader.onloadend = () => {
+                        if (typeof reader.result === 'string') {
+                          setMediaAssets(prev => [
+                            {
+                              id: 'med-' + Date.now() + Math.random().toString(36).substr(2, 5),
+                              fileName: file.name,
+                              title: file.name.split('.')[0],
+                              altText: file.name.split('.')[0],
+                              url: reader.result,
+                              fileSize: file.size,
+                              fileType: file.type,
+                              uploadedAt: new Date().toISOString().split('T')[0]
+                            },
+                            ...prev
+                          ]);
+                        }
+                      };
+                      reader.readAsDataURL(file);
+                    });
+                    logAction(`Uploaded ${files.length} assets to Media Vault`);
+                  }
+                }}
+              />
+              <button 
+                className="btn btn-teal"
+                onClick={() => document.getElementById('mediaUploadInput')?.click()}
+              >
+                {language === 'vi' ? 'Chọn hình ảnh hoặc PDF để tải lên' : 'Select Files to Upload'}
+              </button>
+              <div style={{ fontSize: '0.8rem', color: 'var(--color-text-muted)', marginTop: '0.5rem' }}>
+                Hỗ trợ ảnh PNG, JPG, WebP và PDF kỹ thuật (tự động nén WebP)
+              </div>
+            </div>
+
+            {/* Assets Grid */}
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(5, minmax(0, 1fr))', gap: '1rem' }}>
+              {mediaAssets.map((asset) => (
+                <div key={asset.id} style={{ backgroundColor: 'var(--color-gray-card)', border: '1px solid var(--color-gray-border)', borderRadius: 'var(--border-radius-sm)', overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
+                  <div style={{ height: '110px', backgroundColor: '#F1F5F9', overflow: 'hidden', position: 'relative' }}>
+                    {asset.fileType.includes('image') ? (
+                      <img src={asset.url} alt={asset.altText} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                    ) : (
+                      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100%', fontWeight: 700, color: 'var(--color-navy)' }}>
+                        PDF
+                      </div>
+                    )}
+                  </div>
+                  <div style={{ padding: '0.75rem', display: 'flex', flexDirection: 'column', gap: '0.25rem', flex: 1 }}>
+                    <span style={{ fontSize: '0.8rem', fontWeight: 700, color: 'var(--color-navy)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', display: 'block' }}>{asset.fileName}</span>
+                    <span style={{ fontSize: '0.7rem', color: 'var(--color-text-muted)' }}>Size: {Math.round(asset.fileSize / 1024)} KB</span>
+                    <button 
+                      className="btn btn-outline btn-sm"
+                      style={{ padding: '0.1rem 0.25rem', fontSize: '0.7rem', color: '#EF4444', borderColor: '#FCA5A5', marginTop: 'auto' }}
+                      onClick={() => {
+                        setMediaAssets(prev => prev.filter(a => a.id !== asset.id));
+                        logAction(`Deleted media asset "${asset.fileName}"`);
+                      }}
+                    >
+                      Delete
+                    </button>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
         {/* LEADS TAB */}
         {activeTab === 'leads' && (
           <div className="animate-fade-in">
@@ -460,78 +1827,163 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                 <FileSpreadsheet size={16} /> {language === 'vi' ? 'Xuất Excel (CSV)' : 'Export CSV'}
               </button>
             </div>
+            
+            <div style={styles.tableResponsive}>
+              <table style={styles.table}>
+                <thead>
+                  <tr style={styles.thRow}>
+                    <th style={styles.th}>{language === 'vi' ? 'Khách hàng' : 'Customer'}</th>
+                    <th style={styles.th}>{language === 'vi' ? 'Loại' : 'Type'}</th>
+                    <th style={styles.th}>{language === 'vi' ? 'Thông tin liên lạc' : 'Contact'}</th>
+                    <th style={styles.th}>{language === 'vi' ? 'Ngày gửi' : 'Date'}</th>
+                    <th style={styles.th}>{language === 'vi' ? 'Trạng thái' : 'Status'}</th>
+                    <th style={styles.th}>{language === 'vi' ? 'Thao tác' : 'Actions'}</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {leads.map((lead) => {
+                    const status = getStatusLabel(lead.status);
+                    return (
+                      <tr key={lead.id} style={styles.tr}>
+                        <td style={styles.td}>
+                          <strong>{lead.name}</strong>
+                          <div style={{ fontSize: '0.75rem', color: 'var(--color-text-muted)', marginTop: '0.2rem' }}>
+                            {lead.company}
+                          </div>
+                        </td>
+                        <td style={styles.td}>
+                          <span style={{
+                            fontSize: '0.75rem', fontWeight: 600, padding: '0.1rem 0.4rem', borderRadius: 'var(--border-radius-sm)',
+                            backgroundColor: lead.type === 'calculator' ? '#FEF3C7' : lead.type === 'wizard' ? '#E0F2FE' : '#F5F3FF',
+                            color: lead.type === 'calculator' ? '#B45309' : lead.type === 'wizard' ? '#0369A1' : '#6D28D9'
+                          }}>
+                            {lead.type === 'calculator' ? 'CALC' : lead.type === 'wizard' ? 'WIZ' : 'QUOTE'}
+                          </span>
+                        </td>
+                        <td style={styles.td}>
+                          <div style={{ fontSize: '0.85rem' }}>📞 {lead.phone}</div>
+                          <div style={{ fontSize: '0.8rem', color: 'var(--color-text-muted)', marginTop: '0.1rem' }}>✉️ {lead.email}</div>
+                          <div style={{ fontSize: '0.75rem', color: 'var(--color-text-muted)' }}>📍 {lead.location}</div>
+                        </td>
+                        <td style={styles.td}>{lead.date}</td>
+                        <td style={styles.td}>
+                          <span style={{
+                            ...styles.badge,
+                            backgroundColor: status.bg,
+                            color: status.color
+                          }}>
+                            {status[language === 'vi' ? 'vi' : 'en']}
+                          </span>
+                        </td>
+                        <td style={styles.td}>
+                          <div style={{ display: 'flex', gap: '0.25rem' }}>
+                            <button 
+                              className="btn btn-outline btn-sm"
+                              style={{ padding: '0.2rem 0.4rem', fontSize: '0.75rem' }}
+                              onClick={() => setSelectedLead(lead)}
+                            >
+                              Chi tiết
+                            </button>
+                            <button 
+                              className="btn btn-outline btn-sm"
+                              style={{ color: '#EF4444', padding: '0.2rem 0.4rem', fontSize: '0.75rem', borderColor: '#FCA5A5' }}
+                              onClick={() => {
+                                if (confirm(language === 'vi' ? 'Bạn có muốn xoá lead này không?' : 'Do you want to delete this lead?')) {
+                                  const trashItem = {
+                                    id: 'trash-' + Date.now(),
+                                    type: 'lead',
+                                    name: lead.company + " (" + lead.name + ")",
+                                    deletedAt: new Date().toISOString(),
+                                    originalData: lead
+                                  };
+                                  setTrashBin(prev => [trashItem, ...prev]);
+                                  onDeleteLead(lead.id);
+                                  logAction(`Deleted client lead from ${lead.name}`);
+                                }
+                              }}
+                            >
+                              <Trash2 size={12} />
+                            </button>
+                          </div>
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
 
-            {leads.length === 0 ? (
-              <div style={styles.emptyBox}>
-                <p>{language === 'vi' ? 'Chưa có yêu cầu tư vấn nào được ghi nhận.' : 'No customer inquiries recorded yet.'}</p>
-              </div>
-            ) : (
-              <div style={styles.tableResponsive}>
-                <table style={styles.table}>
-                  <thead>
-                    <tr style={styles.thRow}>
-                      <th style={styles.th}>{language === 'vi' ? 'Thời gian' : 'Date'}</th>
-                      <th style={styles.th}>{language === 'vi' ? 'Nguồn' : 'Source'}</th>
-                      <th style={styles.th}>{language === 'vi' ? 'Doanh nghiệp' : 'Company'}</th>
-                      <th style={styles.th}>{language === 'vi' ? 'Đại diện' : 'Contact'}</th>
-                      <th style={styles.th}>{language === 'vi' ? 'Tỉnh thành' : 'Province'}</th>
-                      <th style={styles.th}>Status</th>
-                      <th style={styles.th}>{language === 'vi' ? 'Hành động' : 'Actions'}</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {leads.map((lead) => {
-                      const statusInfo = getStatusLabel(lead.status);
-                      return (
-                        <tr key={lead.id} style={styles.tr}>
-                          <td style={styles.td}>{lead.date}</td>
-                          <td style={styles.td}>
-                            <span style={{
-                              ...styles.badge,
-                              backgroundColor: lead.type === 'calculator' ? '#FEF3C7' : lead.type === 'wizard' ? '#E0F2FE' : '#D1FAE5',
-                              color: lead.type === 'calculator' ? '#B45309' : lead.type === 'wizard' ? '#0369A1' : '#047857'
-                            }}>
-                              {lead.type.toUpperCase()}
-                            </span>
-                          </td>
-                          <td style={styles.td}><strong>{lead.company}</strong></td>
-                          <td style={styles.td}>
-                            <div>{lead.name}</div>
-                            <div style={{ fontSize: '0.75rem', color: 'var(--color-text-muted)' }}>{lead.phone} | {lead.email}</div>
-                          </td>
-                          <td style={styles.td}>{lead.location}</td>
-                          <td style={styles.td}>
-                            <span style={{
-                              ...styles.statusBadge,
-                              backgroundColor: statusInfo.bg,
-                              color: statusInfo.color
-                            }}>
-                              {statusInfo[language === 'vi' ? 'vi' : 'en']}
-                            </span>
-                          </td>
-                          <td style={styles.td}>
-                            <div style={{ display: 'flex', gap: '0.25rem' }}>
-                              <button 
-                                className="btn btn-outline btn-sm"
-                                style={{ padding: '0.25rem 0.5rem', fontSize: '0.75rem' }}
-                                onClick={() => setSelectedLead(lead)}
-                              >
-                                {language === 'vi' ? 'Chi tiết' : 'View'}
-                              </button>
-                              <button 
-                                className="btn btn-outline btn-sm"
-                                style={{ padding: '0.25rem 0.5rem', fontSize: '0.75rem', color: '#EF4444' }}
-                                onClick={() => onDeleteLead(lead.id)}
-                              >
-                                <Trash2 size={12} />
-                              </button>
-                            </div>
-                          </td>
-                        </tr>
-                      );
-                    })}
-                  </tbody>
-                </table>
+            {/* Lead details Modal */}
+            {selectedLead && (
+              <div style={styles.modalOverlay}>
+                <div style={styles.modalCard} className="animate-fade-in">
+                  <div style={styles.modalHeader}>
+                    <h3 style={{ margin: 0, fontSize: '1.15rem', color: 'var(--color-white)' }}>
+                      {language === 'vi' ? 'Chi Tiết Yêu Cầu Tư Vấn' : 'Lead Enquiry Details'}
+                    </h3>
+                    <button onClick={() => setSelectedLead(null)} style={styles.closeBtn}>Close</button>
+                  </div>
+                  
+                  <div style={{ padding: '1.5rem' }}>
+                    <div style={styles.modalMetaGrid}>
+                      <div>
+                        <strong>{language === 'vi' ? 'Tên khách hàng' : 'Name'}:</strong>
+                        <div>{selectedLead.name}</div>
+                      </div>
+                      <div>
+                        <strong>{language === 'vi' ? 'Tên công ty' : 'Company'}:</strong>
+                        <div>{selectedLead.company}</div>
+                      </div>
+                      <div>
+                        <strong>Email:</strong>
+                        <div>{selectedLead.email}</div>
+                      </div>
+                      <div>
+                        <strong>{language === 'vi' ? 'Số điện thoại' : 'Phone'}:</strong>
+                        <div>{selectedLead.phone}</div>
+                      </div>
+                      <div>
+                        <strong>{language === 'vi' ? 'Địa điểm' : 'Location'}:</strong>
+                        <div>{selectedLead.location}</div>
+                      </div>
+                      <div>
+                        <strong>{language === 'vi' ? 'Ngày gửi' : 'Enquiry Date'}:</strong>
+                        <div>{selectedLead.date}</div>
+                      </div>
+                    </div>
+
+                    <div style={{ marginTop: '1.25rem', borderTop: '1px solid var(--color-gray-border)', paddingTop: '1rem' }}>
+                      <strong>{language === 'vi' ? 'Chi tiết yêu cầu kỹ thuật' : 'Technical Specifications / Details'}:</strong>
+                      <div style={{ backgroundColor: '#F8FAFC', border: '1px solid #E2E8F0', padding: '1rem', borderRadius: 'var(--border-radius-sm)', marginTop: '0.5rem', fontSize: '0.85rem', whiteSpace: 'pre-wrap' }}>
+                        {selectedLead.details}
+                      </div>
+                    </div>
+
+                    <div style={{ marginTop: '1.25rem', borderTop: '1px solid var(--color-gray-border)', paddingTop: '1rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                      <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
+                        <span style={{ fontSize: '0.85rem', fontWeight: 600 }}>{language === 'vi' ? 'Trạng thái xử lý' : 'Progress State'}:</span>
+                        <select 
+                          className="form-select"
+                          style={{ width: 'auto', padding: '0.25rem 0.5rem', fontSize: '0.85rem' }}
+                          value={selectedLead.status}
+                          onChange={(e) => {
+                            onUpdateStatus(selectedLead.id, e.target.value as any);
+                            setSelectedLead({ ...selectedLead, status: e.target.value as any });
+                            logAction(`Updated lead status for ${selectedLead.name} to ${e.target.value}`);
+                          }}
+                        >
+                          <option value="new">New Lead</option>
+                          <option value="contacted">Contacted</option>
+                          <option value="survey">Site Survey Scheduled</option>
+                          <option value="closed">Closed Won</option>
+                        </select>
+                      </div>
+                      <button className="btn btn-teal btn-sm" onClick={() => setSelectedLead(null)}>
+                        OK
+                      </button>
+                    </div>
+                  </div>
+                </div>
               </div>
             )}
           </div>
@@ -541,521 +1993,699 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
         {activeTab === 'products' && (
           <div className="animate-fade-in">
             <div style={styles.tableHeader}>
-              <h3 style={{ fontSize: '1.2rem' }}>{language === 'vi' ? 'Quản Lý Danh Mục Thiết Bị Bếp & Gas' : 'Manage Gas & Kitchen Equipment Catalog'}</h3>
+              <h3 style={{ fontSize: '1.2rem', color: 'var(--color-navy)' }}>
+                {language === 'vi' ? 'Hệ Thống Thiết Bị Vật Tư (Catalog)' : 'Products Catalog Inventory'}
+              </h3>
               <button 
                 className="btn btn-teal btn-sm"
-                onClick={() => alert(language === 'vi' ? 'Thêm mới thiết bị...' : 'Add new product...')}
+                onClick={() => alert(language === 'vi' ? 'Chức năng thêm thiết bị vào catalog sẽ cập nhật ở bản database tới!' : 'Add Product wizard will be enabled in database update phase')}
               >
-                <Plus size={16} /> {language === 'vi' ? 'Thêm sản phẩm mới' : 'Add New Product'}
+                <Plus size={16} /> {language === 'vi' ? 'Thêm thiết bị mới' : 'Add New Hardware'}
+              </button>
+            </div>
+            
+            <p style={{ fontSize: '0.85rem', color: 'var(--color-text-muted)', marginBottom: '1.5rem' }}>
+              {language === 'vi' 
+                ? 'Danh sách linh kiện trạm gas LNG/LPG và đầu đốt công nghiệp hiện thị ngoài trang Sản phẩm.' 
+                : 'Configure safety valves, vaporizers, and kitchen hardware lists visible on products page.'}
+            </p>
+
+            <div style={styles.tableResponsive}>
+              <table style={styles.table}>
+                <thead>
+                  <tr style={styles.thRow}>
+                    <th style={styles.th}>{language === 'vi' ? 'Tên thiết bị' : 'Hardware Name'}</th>
+                    <th style={styles.th}>{language === 'vi' ? 'Chuyên mục' : 'Category'}</th>
+                    <th style={styles.th}>{language === 'vi' ? 'Thông số tiêu chuẩn' : 'Key Specs'}</th>
+                    <th style={styles.th}>{language === 'vi' ? 'Trạng thái' : 'Availability'}</th>
+                    <th style={styles.th}>{language === 'vi' ? 'Thao tác' : 'Actions'}</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr style={styles.tr}>
+                    <td style={styles.td}><strong>Bồn chứa khí hóa lỏng Cryogenic LPG/LNG</strong></td>
+                    <td style={styles.td}><span style={{ ...styles.badge, backgroundColor: '#E0F2FE', color: '#0369A1' }}>GAS HARDWARE</span></td>
+                    <td style={styles.td}><small>Capacity: 5m³ to 100m³, ASME Section VIII Div 1</small></td>
+                    <td style={styles.td}><span style={{ ...styles.badge, backgroundColor: '#D1FAE5', color: '#047857' }}>In Stock</span></td>
+                    <td style={styles.td}>
+                      <button className="btn btn-outline btn-sm" style={{ color: '#EF4444', padding: '0.25rem' }} onClick={() => alert('Demo only')}>
+                        <Trash2 size={14} />
+                      </button>
+                    </td>
+                  </tr>
+                  <tr style={styles.tr}>
+                    <td style={styles.td}><strong>Dàn hóa hơi tự nhiên Ambient Air Vaporizer</strong></td>
+                    <td style={styles.td}><span style={{ ...styles.badge, backgroundColor: '#E0F2FE', color: '#0369A1' }}>GAS HARDWARE</span></td>
+                    <td style={styles.td}><small>Flow rate: 200 Nm³/h to 5000 Nm³/h, MAWP 40 bar</small></td>
+                    <td style={styles.td}><span style={{ ...styles.badge, backgroundColor: '#D1FAE5', color: '#047857' }}>In Stock</span></td>
+                    <td style={styles.td}>
+                      <button className="btn btn-outline btn-sm" style={{ color: '#EF4444', padding: '0.25rem' }} onClick={() => alert('Demo only')}>
+                        <Trash2 size={14} />
+                      </button>
+                    </td>
+                  </tr>
+                  <tr style={styles.tr}>
+                    <td style={styles.td}><strong>Bếp Á đôi công nghiệp có quạt thổi</strong></td>
+                    <td style={styles.td}><span style={{ ...styles.badge, backgroundColor: '#F5F3FF', color: '#6D28D9' }}>KITCHEN HARDWARE</span></td>
+                    <td style={styles.td}><small>2 burners, SUS304 Stainless steel, blower fan 220V</small></td>
+                    <td style={styles.td}><span style={{ ...styles.badge, backgroundColor: '#D1FAE5', color: '#047857' }}>In Stock</span></td>
+                    <td style={styles.td}>
+                      <button className="btn btn-outline btn-sm" style={{ color: '#EF4444', padding: '0.25rem' }} onClick={() => alert('Demo only')}>
+                        <Trash2 size={14} />
+                      </button>
+                    </td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+        )}
+
+        {/* SETTINGS TAB */}
+        {activeTab === 'settings' && (
+          <div className="animate-fade-in">
+            <h3 style={{ fontSize: '1.2rem', color: 'var(--color-navy)', marginBottom: '1.5rem' }}>
+              {language === 'vi' ? 'Điều Chỉnh Đơn Giá Nhiên Liệu (Calculator Tuning)' : 'Fuel Price Calculator Tuning'}
+            </h3>
+            
+            <div style={{ display: 'grid', gridTemplateColumns: '1.2fr 1fr', gap: '2.5rem' }} className="admin-settings-grid">
+              {/* Settings Form */}
+              <div style={{ backgroundColor: 'var(--color-gray-card)', border: '1px solid var(--color-gray-border)', borderRadius: 'var(--border-radius-md)', padding: '1.5rem' }}>
+                <h4 style={{ margin: '0 0 1rem 0', fontSize: '1rem', color: 'var(--color-navy)' }}>
+                  {language === 'vi' ? 'Đơn giá nhiên liệu bán ra' : 'Target LNG & LPG Prices'}
+                </h4>
+                <form onSubmit={handleSaveSettings}>
+                  <div className="form-group">
+                    <label className="form-label">{language === 'vi' ? 'Đơn giá LNG (VND/kg) *' : 'LNG Reference Price (VND/kg) *'}</label>
+                    <input 
+                      type="number" 
+                      className="form-input" 
+                      value={lngInput}
+                      onChange={(e) => setLngInput(Number(e.target.value))}
+                      required 
+                    />
+                  </div>
+                  <div className="form-group">
+                    <label className="form-label">{language === 'vi' ? 'Đơn giá LPG (VND/kg) *' : 'LPG Reference Price (VND/kg) *'}</label>
+                    <input 
+                      type="number" 
+                      className="form-input" 
+                      value={lpgInput}
+                      onChange={(e) => setLpgInput(Number(e.target.value))}
+                      required 
+                    />
+                  </div>
+                  <button type="submit" className="btn btn-teal" style={{ marginTop: '0.5rem' }}>
+                    {language === 'vi' ? 'Cập nhật hệ số' : 'Save Parameters'}
+                  </button>
+                </form>
+              </div>
+
+              {/* Reference details */}
+              <div>
+                <h4 style={{ margin: '0 0 0.75rem 0', fontSize: '1rem', color: 'var(--color-navy)' }}>
+                  {language === 'vi' ? 'Hệ số quy đổi nhiệt lượng cơ sở' : 'Base Lower Heating Values (LHV)'}
+                </h4>
+                <p style={{ fontSize: '0.85rem', color: 'var(--color-text-muted)', lineHeight: 1.5 }}>
+                  {language === 'vi' 
+                    ? 'Các hệ số nhiệt lượng dưới đây được cài đặt cứng dựa trên tiêu chuẩn khí đốt Việt Nam làm cơ sở tính toán so sánh:' 
+                    : 'The calculation conversion metrics are based on the standard Vietnam Ministry of Energy benchmarks:'}
+                </p>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem', marginTop: '1rem' }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.85rem', borderBottom: '1px solid var(--color-gray-border)', paddingBottom: '0.4rem' }}>
+                    <strong>LNG (Methane)</strong>
+                    <span>50.0 MJ/kg (Eff: 90%)</span>
+                  </div>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.85rem', borderBottom: '1px solid var(--color-gray-border)', paddingBottom: '0.4rem' }}>
+                    <strong>LPG (Propane/Butane)</strong>
+                    <span>46.1 MJ/kg (Eff: 88%)</span>
+                  </div>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.85rem', borderBottom: '1px solid var(--color-gray-border)', paddingBottom: '0.4rem' }}>
+                    <strong>Dầu DO (Diesel)</strong>
+                    <span>36.0 MJ/L (Eff: 82%)</span>
+                  </div>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.85rem', borderBottom: '1px solid var(--color-gray-border)', paddingBottom: '0.4rem' }}>
+                    <strong>Dầu FO (Fuel Oil)</strong>
+                    <span>40.0 MJ/kg (Eff: 80%)</span>
+                  </div>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.85rem', borderBottom: '1px solid var(--color-gray-border)', paddingBottom: '0.4rem' }}>
+                    <strong>Than đá (Coal)</strong>
+                    <span>20.0 MJ/kg (Eff: 68%)</span>
+                  </div>
+                </div>
+
+                <div style={{ marginTop: '2rem', padding: '1rem', backgroundColor: 'var(--color-teal-light)', border: '1px solid rgba(13,148,136,0.15)', borderRadius: 'var(--border-radius-sm)' }}>
+                  <h5 style={{ margin: '0 0 0.5rem 0', color: 'var(--color-teal)', fontSize: '0.85rem', fontWeight: 700 }}>
+                    🧪 {language === 'vi' ? 'Công Cụ Giả Lập & Kiểm Tra' : 'Calculator Formula Sandbox'}
+                  </h5>
+                  <p style={{ fontSize: '0.8rem', color: 'var(--color-text-main)', margin: '0 0 1rem 0', lineHeight: 1.4 }}>
+                    {language === 'vi' 
+                      ? 'Dùng bảng bên dưới để kiểm tra tính toán trước khi áp dụng hệ số giá.' 
+                      : 'Use this sandbox unit to simulate cost-benefits calculations before modifying parameters.'}
+                  </p>
+                  
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.5rem' }}>
+                      <div>
+                        <label style={{ fontSize: '0.75rem', fontWeight: 600 }}>{language === 'vi' ? 'Nhiên liệu gốc' : 'Base Fuel'}</label>
+                        <select className="form-select" style={{ padding: '0.2rem', fontSize: '0.8rem' }} value={auditFuel} onChange={(e) => {
+                          const f = e.target.value;
+                          setAuditFuel(f);
+                          setAuditEff(AUDIT_FUELS[f].defaultEff);
+                          setAuditPrice(AUDIT_FUELS[f].defaultPrice);
+                        }}>
+                          <option value="DO">Diesel Oil (DO)</option>
+                          <option value="FO">Fuel Oil (FO)</option>
+                          <option value="COAL">Coal (Than)</option>
+                          <option value="LPG_OLD">Current LPG</option>
+                          <option value="ELEC">Electricity</option>
+                        </select>
+                      </div>
+                      <div>
+                        <label style={{ fontSize: '0.75rem', fontWeight: 600 }}>{language === 'vi' ? 'Sản lượng/tháng' : 'Consumption'}</label>
+                        <input type="number" className="form-input" style={{ padding: '0.2rem', fontSize: '0.8rem' }} value={auditCons} onChange={(e) => setAuditCons(Number(e.target.value))} />
+                      </div>
+                    </div>
+
+                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.5rem' }}>
+                      <div>
+                        <label style={{ fontSize: '0.75rem', fontWeight: 600 }}>{language === 'vi' ? 'Hiệu suất (%)' : 'Efficiency (%)'}</label>
+                        <input type="number" className="form-input" style={{ padding: '0.2rem', fontSize: '0.8rem' }} value={auditEff} onChange={(e) => setAuditEff(Number(e.target.value))} />
+                      </div>
+                      <div>
+                        <label style={{ fontSize: '0.75rem', fontWeight: 600 }}>{language === 'vi' ? 'Giá hiện tại (đ)' : 'Price (VND)'}</label>
+                        <input type="number" className="form-input" style={{ padding: '0.2rem', fontSize: '0.8rem' }} value={auditPrice} onChange={(e) => setAuditPrice(Number(e.target.value))} />
+                      </div>
+                    </div>
+
+                    <div style={{ marginTop: '0.75rem', borderTop: '1px dashed rgba(13,148,136,0.2)', paddingTop: '0.75rem', fontSize: '0.8rem', display: 'flex', flexDirection: 'column', gap: '0.35rem' }}>
+                      <div>
+                        <strong>{language === 'vi' ? 'Nhu cầu nhiệt hữu ích:' : 'Effective Heat Needed:'}</strong> {formatNumber(monthlyEnergy)} MJ/tháng
+                      </div>
+                      <div style={{ color: 'var(--color-teal)' }}>
+                        <strong>{language === 'vi' ? 'Khối lượng LNG cần:' : 'LNG Needed:'}</strong> {formatNumber(lngNeeded / 12)} kg/tháng
+                      </div>
+                      <div style={{ color: 'var(--color-orange)' }}>
+                        <strong>{language === 'vi' ? 'Tiết kiệm ước tính:' : 'Estimated Savings:'}</strong> {formatCurrency(lngSavings / 12)} VND ({formatNumber((lngSavings / Math.max(1, annualOldCost)) * 100, 1)}%)
+                      </div>
+                      <div>
+                        <strong>{language === 'vi' ? 'Giảm phát thải CO2:' : 'CO2 Reduced:'}</strong> {formatNumber(co2Saved)} tấn/năm
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* ARTICLES TAB */}
+        {activeTab === 'articles' && (
+          <div className="animate-fade-in">
+            <div style={styles.tableHeader}>
+              <h3 style={{ fontSize: '1.2rem', color: 'var(--color-navy)' }}>
+                {language === 'vi' ? 'Quản Lý Bài Viết Thư Viện Kiến Thức' : 'Manage Knowledge Library Articles'}
+              </h3>
+              <button 
+                className="btn btn-teal btn-sm"
+                onClick={() => {
+                  setEditingArticle(null);
+                  setNewArt({
+                    titleVi: '',
+                    titleEn: '',
+                    category: 'energy',
+                    excerptVi: '',
+                    excerptEn: '',
+                    contentVi: '',
+                    contentEn: '',
+                    imageURL: ''
+                  });
+                  setShowAddArticleModal(true);
+                }}
+              >
+                <Plus size={16} /> {language === 'vi' ? 'Thêm bài viết mới' : 'Add New Article'}
               </button>
             </div>
 
             <p style={{ fontSize: '0.85rem', color: 'var(--color-text-muted)', marginBottom: '1.5rem' }}>
               {language === 'vi' 
-                ? 'Đây là danh sách thiết bị hiển thị ngoài trang Sản phẩm. Phiên bản chính sẽ đồng bộ qua API của cơ sở dữ liệu Strapi CMS.' 
-                : 'This inventory represents the external Product Center view. Production values sync dynamically over Strapi CMS APIs.'}
+                ? 'Thêm, xóa hoặc tắt/bật quyền hiển thị các bài viết kỹ thuật và tiêu chuẩn an toàn PCCC ngoài trang Thư viện.' 
+                : 'Add, delete, or enable/disable public visibility of safety and engineering articles in the Library.'}
             </p>
 
-            <table style={styles.table}>
-              <thead>
-                <tr style={styles.thRow}>
-                  <th style={styles.th}>ID</th>
-                  <th style={styles.th}>{language === 'vi' ? 'Tên thiết bị' : 'Equipment Name'}</th>
-                  <th style={styles.th}>{language === 'vi' ? 'Phân loại' : 'Category'}</th>
-                  <th style={styles.th}>{language === 'vi' ? 'Xuất xứ' : 'Origin'}</th>
-                  <th style={styles.th}>{language === 'vi' ? 'Thông số kỹ thuật' : 'Specifications'}</th>
-                  <th style={styles.th}>{language === 'vi' ? 'Thao tác' : 'Actions'}</th>
-                </tr>
-              </thead>
-              <tbody>
-                <tr style={styles.tr}>
-                  <td style={styles.td}>lng-tank-1</td>
-                  <td style={styles.td}><strong>Cryogenic LNG Storage Tank</strong></td>
-                  <td style={styles.td}>LNG</td>
-                  <td style={styles.td}>Korea / Japan</td>
-                  <td style={styles.td}>5m³ - 150m³, ASME Standard</td>
-                  <td style={styles.td}>
-                    <div style={{ display: 'flex', gap: '0.25rem' }}>
-                      <button className="btn btn-outline btn-sm" style={{ padding: '0.25rem' }}><Edit size={12} /></button>
-                      <button className="btn btn-outline btn-sm" style={{ padding: '0.25rem', color: '#EF4444' }}><Trash2 size={12} /></button>
-                    </div>
-                  </td>
-                </tr>
-                <tr style={styles.tr}>
-                  <td style={styles.td}>lpg-vap-1</td>
-                  <td style={styles.td}><strong>Electric LPG Vaporizer</strong></td>
-                  <td style={styles.td}>LPG</td>
-                  <td style={styles.td}>USA</td>
-                  <td style={styles.td}>30kg/h - 1000kg/h</td>
-                  <td style={styles.td}>
-                    <div style={{ display: 'flex', gap: '0.25rem' }}>
-                      <button className="btn btn-outline btn-sm" style={{ padding: '0.25rem' }}><Edit size={12} /></button>
-                      <button className="btn btn-outline btn-sm" style={{ padding: '0.25rem', color: '#EF4444' }}><Trash2 size={12} /></button>
-                    </div>
-                  </td>
-                </tr>
-                <tr style={styles.tr}>
-                  <td style={styles.td}>cooking-range-1</td>
-                  <td style={styles.td}><strong>3-Burner Wok Range with Blower</strong></td>
-                  <td style={styles.td}>Kitchen</td>
-                  <td style={styles.td}>Malaysia</td>
-                  <td style={styles.td}>SUS304, 3x48000 kcal/h</td>
-                  <td style={styles.td}>
-                    <div style={{ display: 'flex', gap: '0.25rem' }}>
-                      <button className="btn btn-outline btn-sm" style={{ padding: '0.25rem' }}><Edit size={12} /></button>
-                      <button className="btn btn-outline btn-sm" style={{ padding: '0.25rem', color: '#EF4444' }}><Trash2 size={12} /></button>
-                    </div>
-                  </td>
-                </tr>
-              </tbody>
-            </table>
+            <div style={styles.tableResponsive}>
+              <table style={styles.table}>
+                <thead>
+                  <tr style={styles.thRow}>
+                    <th style={styles.th}>{language === 'vi' ? 'Tiêu đề' : 'Title'}</th>
+                    <th style={styles.th}>{language === 'vi' ? 'Chuyên mục' : 'Category'}</th>
+                    <th style={styles.th}>{language === 'vi' ? 'Ngày đăng' : 'Date'}</th>
+                    <th style={styles.th}>{language === 'vi' ? 'Hiển thị' : 'Status'}</th>
+                    <th style={styles.th}>{language === 'vi' ? 'Thao tác' : 'Actions'}</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {articles.map((art) => (
+                    <tr key={art.id} style={styles.tr}>
+                      <td style={styles.td}>
+                        <strong>{art.title[language === 'vi' ? 'vi' : 'en']}</strong>
+                        <div style={{ fontSize: '0.75rem', color: 'var(--color-text-muted)', marginTop: '0.25rem' }}>
+                          {art.excerpt[language === 'vi' ? 'vi' : 'en']}
+                        </div>
+                      </td>
+                      <td style={styles.td}>
+                        <span style={{
+                          ...styles.badge,
+                          backgroundColor: art.category === 'energy' ? '#FFE4E6' : art.category === 'safety' ? '#FEF3C7' : '#E0F2FE',
+                          color: art.category === 'energy' ? '#9F1239' : art.category === 'safety' ? '#D97706' : '#0369A1'
+                        }}>
+                          {art.category.toUpperCase()}
+                        </span>
+                      </td>
+                      <td style={styles.td}>{art.date}</td>
+                      <td style={styles.td}>
+                        <button
+                          className={`btn btn-sm ${art.visible !== false ? 'btn-teal' : 'btn-outline'}`}
+                          style={{ padding: '0.2rem 0.5rem', fontSize: '0.75rem' }}
+                          onClick={() => onToggleArticle(art.id)}
+                        >
+                          {art.visible !== false 
+                            ? (language === 'vi' ? 'Đang hiện' : 'Visible') 
+                            : (language === 'vi' ? 'Đang ẩn' : 'Hidden')}
+                        </button>
+                      </td>
+                      <td style={styles.td}>
+                        <div style={{ display: 'flex', gap: '0.5rem' }}>
+                          <button 
+                            className="btn btn-outline btn-sm"
+                            style={{ color: 'var(--color-teal)', padding: '0.25rem' }}
+                            onClick={() => handleEditArticleClick(art)}
+                          >
+                            <Edit size={14} />
+                          </button>
+                          <button 
+                            className="btn btn-outline btn-sm"
+                            style={{ color: '#EF4444', padding: '0.25rem' }}
+                            onClick={() => {
+                              const trashItem = {
+                                id: 'trash-' + Date.now(),
+                                type: 'article',
+                                name: art.title.vi,
+                                deletedAt: new Date().toISOString(),
+                                originalData: art
+                              };
+                              setTrashBin(prev => [trashItem, ...prev]);
+                              onDeleteArticle(art.id);
+                              logAction(`Deleted technical manual: "${art.title.vi}"`);
+                            }}
+                          >
+                            <Trash2 size={14} />
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
           </div>
         )}
 
-        {/* SETTINGS ADJUSTER TAB */}
-        {activeTab === 'settings' && (
-          <div className="animate-fade-in admin-settings-grid">
-            {/* Left side: Config form */}
-            <div style={styles.configCol}>
-              <h3 style={{ fontSize: '1.2rem', marginBottom: '1.5rem', color: 'var(--color-navy)' }}>
-                {language === 'vi' ? 'Cấu Hình Giá Nhiên Liệu Mặc Định' : 'Tune Calculator Pricing Parameters'}
+        {/* PROJECTS TAB */}
+        {activeTab === 'projects' && (
+          <div className="animate-fade-in">
+            <div style={styles.tableHeader}>
+              <h3 style={{ fontSize: '1.2rem', color: 'var(--color-navy)' }}>
+                {language === 'vi' ? 'Quản Lý Danh Sách Dự Án Đã Làm' : 'Manage Case Studies & Projects'}
               </h3>
-
-              <form onSubmit={handleSaveSettings} style={styles.form}>
-                <div className="form-group">
-                  <label className="form-label">
-                    {language === 'vi' ? 'Giá bán LNG mặc định (VNĐ / kg) *' : 'Default LNG Price (VND / kg) *'}
-                  </label>
-                  <input 
-                    type="number" 
-                    className="form-input" 
-                    value={lngInput}
-                    onChange={(e) => setLngInput(parseFloat(e.target.value) || 0)}
-                    required
-                  />
-                  <span style={styles.inputHelp}>
-                    {language === 'vi' ? 'Giá LNG thị trường hiện giao động khoảng 17,000đ - 22,000đ/kg' : 'Market rates typically fluctuate around 17,000 - 22,000 VND/kg'}
-                  </span>
-                </div>
-
-                <div className="form-group">
-                  <label className="form-label">
-                    {language === 'vi' ? 'Giá bán LPG mặc định (VNĐ / kg) *' : 'Default LPG Price (VND / kg) *'}
-                  </label>
-                  <input 
-                    type="number" 
-                    className="form-input" 
-                    value={lpgInput}
-                    onChange={(e) => setLpgInput(parseFloat(e.target.value) || 0)}
-                    required
-                  />
-                  <span style={styles.inputHelp}>
-                    {language === 'vi' ? 'Giá LPG dân dụng và công nghiệp dao động 21,000đ - 26,000đ/kg' : 'Industrial LPG averages 21,000 - 26,000 VND/kg'}
-                  </span>
-                </div>
-
-                <button type="submit" className="btn btn-teal" style={{ marginTop: '1rem', width: '100%' }}>
-                  {language === 'vi' ? 'Lưu cấu hình mặc định' : 'Save Default Factors'}
-                </button>
-              </form>
+              <button 
+                className="btn btn-teal btn-sm"
+                onClick={() => {
+                  setEditingProject(null);
+                  setNewProj({
+                    nameVi: '',
+                    nameEn: '',
+                    category: 'lng',
+                    locationVi: '',
+                    locationEn: '',
+                    scopeVi: '',
+                    scopeEn: '',
+                    capacityVi: '',
+                    capacityEn: '',
+                    resultVi: '',
+                    resultEn: '',
+                    equipmentsInput: '',
+                    imageURL: ''
+                  });
+                  setShowAddProjectModal(true);
+                }}
+              >
+                <Plus size={16} /> {language === 'vi' ? 'Thêm dự án mới' : 'Add New Project'}
+              </button>
             </div>
 
-            {/* Right side: Calculator Auditor Simulator */}
-            <div style={styles.auditorCol}>
-              <h3 style={{ fontSize: '1.2rem', marginBottom: '1.5rem', color: 'var(--color-navy)' }}>
-                {language === 'vi' ? 'Trình Thẩm Định Công Thức & Giả Lập' : 'Calculator Formula Auditor & Simulator'}
+            <p style={{ fontSize: '0.85rem', color: 'var(--color-text-muted)', marginBottom: '1.5rem' }}>
+              {language === 'vi' 
+                ? 'Thêm, xóa hoặc tắt/bật quyền hiển thị các dự án cơ sở hạ tầng gas và bếp công nghiệp ngoài trang Dự án.' 
+                : 'Add, delete, or toggle public visibility of central gas and commercial kitchen projects.'}
+            </p>
+
+            <div style={styles.tableResponsive}>
+              <table style={styles.table}>
+                <thead>
+                  <tr style={styles.thRow}>
+                    <th style={styles.th}>{language === 'vi' ? 'Hình ảnh' : 'Image'}</th>
+                    <th style={styles.th}>{language === 'vi' ? 'Tên dự án' : 'Project Title'}</th>
+                    <th style={styles.th}>{language === 'vi' ? 'Phân loại' : 'Category'}</th>
+                    <th style={styles.th}>{language === 'vi' ? 'Địa điểm' : 'Location'}</th>
+                    <th style={styles.th}>{language === 'vi' ? 'Hiển thị' : 'Status'}</th>
+                    <th style={styles.th}>{language === 'vi' ? 'Thao tác' : 'Actions'}</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {projects.map((proj) => (
+                    <tr key={proj.id} style={styles.tr}>
+                      <td style={styles.td}>
+                        <img 
+                          src={proj.image || "https://images.unsplash.com/photo-1581094128547-1388d1397865?q=80&w=100&auto=format&fit=crop"} 
+                          alt="Project preview"
+                          style={{ width: '60px', height: '40px', objectFit: 'cover', borderRadius: 'var(--border-radius-sm)', border: '1px solid var(--color-gray-border)' }}
+                        />
+                      </td>
+                      <td style={styles.td}>
+                        <strong>{proj.name[language === 'vi' ? 'vi' : 'en']}</strong>
+                        <div style={{ fontSize: '0.75rem', color: 'var(--color-text-muted)', marginTop: '0.25rem' }}>
+                          {proj.scope[language === 'vi' ? 'vi' : 'en']}
+                        </div>
+                      </td>
+                      <td style={styles.td}>
+                        <span style={{
+                          ...styles.badge,
+                          backgroundColor: proj.category === 'lng' ? '#E0F2FE' : proj.category === 'lpg' ? '#D1FAE5' : proj.category === 'conversion' ? '#FEF3C7' : '#F5F3FF',
+                          color: proj.category === 'lng' ? '#0369A1' : proj.category === 'lpg' ? '#047857' : proj.category === 'conversion' ? '#B45309' : '#6D28D9'
+                        }}>
+                          {proj.category.toUpperCase()}
+                        </span>
+                      </td>
+                      <td style={styles.td}>{proj.location[language === 'vi' ? 'vi' : 'en']}</td>
+                      <td style={styles.td}>
+                        <button
+                          className={`btn btn-sm ${proj.visible !== false ? 'btn-teal' : 'btn-outline'}`}
+                          style={{ padding: '0.2rem 0.5rem', fontSize: '0.75rem' }}
+                          onClick={() => onToggleProject(proj.id)}
+                        >
+                          {proj.visible !== false 
+                            ? (language === 'vi' ? 'Đang hiện' : 'Visible') 
+                            : (language === 'vi' ? 'Đang ẩn' : 'Hidden')}
+                        </button>
+                      </td>
+                      <td style={styles.td}>
+                        <div style={{ display: 'flex', gap: '0.5rem' }}>
+                          <button 
+                            className="btn btn-outline btn-sm"
+                            style={{ color: 'var(--color-teal)', padding: '0.25rem' }}
+                            onClick={() => handleEditClick(proj)}
+                          >
+                            <Edit size={14} />
+                          </button>
+                          <button 
+                            className="btn btn-outline btn-sm"
+                            style={{ color: '#EF4444', padding: '0.25rem' }}
+                            onClick={() => {
+                              const trashItem = {
+                                id: 'trash-' + Date.now(),
+                                type: 'project',
+                                name: proj.name.vi,
+                                deletedAt: new Date().toISOString(),
+                                originalData: proj
+                              };
+                              setTrashBin(prev => [trashItem, ...prev]);
+                              onDeleteProject(proj.id);
+                              logAction(`Deleted project case study: "${proj.name.vi}"`);
+                            }}
+                          >
+                            <Trash2 size={14} />
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        )}
+
+        {/* SEO & REDIRECTS TAB */}
+        {activeTab === 'seo' && (
+          <div className="animate-fade-in" style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
+            <div>
+              <h3 style={{ fontSize: '1.2rem', color: 'var(--color-navy)', margin: 0 }}>
+                {language === 'vi' ? 'Cấu Hùi SEO & Bảng Chuyển Hướng Link (Redirects)' : 'SEO Metadata & URL Redirect Manager'}
               </h3>
-              
-              <div style={styles.auditorInputsRow}>
-                <div className="form-group" style={{ flex: 1, minWidth: '120px', marginBottom: 0 }}>
-                  <label className="form-label" style={{ fontSize: '0.75rem' }}>{language === 'vi' ? 'Nhiên liệu' : 'Fuel'}</label>
-                  <select 
-                    className="form-select" 
-                    style={{ padding: '0.4rem', fontSize: '0.8rem' }}
-                    value={auditFuel}
-                    onChange={(e) => {
-                      setAuditFuel(e.target.value);
-                      const f = AUDIT_FUELS[e.target.value];
-                      setAuditPrice(f.defaultPrice);
-                      setAuditEff(f.defaultEff);
-                      if (e.target.value === 'ELEC') setAuditCons(500000);
-                      else if (e.target.value === 'COAL') setAuditCons(150000);
-                      else setAuditCons(50000);
+              <p style={{ margin: '0.25rem 0 0 0', fontSize: '0.85rem', color: 'var(--color-text-muted)' }}>
+                {language === 'vi' ? 'Thiết lập thẻ Google Analytics ID và quản lý các liên kết chuyển hướng 301/302.' : 'Configure Google Analytics tags and setup permanent URL rewrites.'}
+              </p>
+            </div>
+
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1.2fr', gap: '2rem' }}>
+              {/* Global SEO form */}
+              <div style={{ backgroundColor: 'var(--color-gray-card)', border: '1px solid var(--color-gray-border)', borderRadius: 'var(--border-radius-md)', padding: '1.5rem', display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+                <h4 style={{ margin: 0, fontSize: '0.95rem', color: 'var(--color-navy)' }}>Global SEO Tags</h4>
+                <div className="form-group" style={{ marginBottom: 0 }}>
+                  <label className="form-label">Default SEO Title *</label>
+                  <input type="text" className="form-input" defaultValue="LNG79 - Industrial Energy & Kitchen Solutions" />
+                </div>
+                <div className="form-group" style={{ marginBottom: 0 }}>
+                  <label className="form-label">Google Analytics ID (G-XXXXXX)</label>
+                  <input type="text" className="form-input" placeholder="G-A1B2C3D4" />
+                </div>
+                <button 
+                  className="btn btn-teal"
+                  onClick={() => {
+                    logAction('Updated Google Analytics Tag and global SEO configurations');
+                    alert('Đã cập nhật SEO thành công!');
+                  }}
+                >
+                  Save Settings
+                </button>
+              </div>
+
+              {/* Redirect table */}
+              <div style={{ backgroundColor: 'var(--color-gray-card)', border: '1px solid var(--color-gray-border)', borderRadius: 'var(--border-radius-md)', padding: '1.5rem', display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+                <h4 style={{ margin: 0, fontSize: '0.95rem', color: 'var(--color-navy)' }}>URL Redirects List</h4>
+                <div style={styles.tableResponsive}>
+                  <table style={styles.table}>
+                    <thead>
+                      <tr style={styles.thRow}>
+                        <th style={styles.th}>From URL</th>
+                        <th style={styles.th}>To Destination</th>
+                        <th style={styles.th}>Type</th>
+                        <th style={styles.th}>Action</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {redirects.map((r) => (
+                        <tr key={r.id} style={styles.tr}>
+                          <td style={styles.td}><code>{r.from}</code></td>
+                          <td style={styles.td}><code>{r.to}</code></td>
+                          <td style={styles.td}><span style={{ backgroundColor: '#FEF3C7', color: '#B45309', padding: '0.1rem 0.3rem', borderRadius: 'var(--border-radius-sm)', fontSize: '0.75rem' }}>{r.type}</span></td>
+                          <td style={styles.td}>
+                            <button 
+                              className="btn btn-outline btn-sm"
+                              style={{ padding: '0.1rem 0.25rem', fontSize: '0.7rem', color: '#EF4444', borderColor: '#FCA5A5' }}
+                              onClick={() => {
+                                setRedirects(prev => prev.filter(item => item.id !== r.id));
+                                logAction(`Deleted redirect link "${r.from}"`);
+                              }}
+                            >
+                              Remove
+                            </button>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+
+                {/* Add redirect */}
+                <div style={{ display: 'flex', gap: '0.5rem', marginTop: '0.5rem' }}>
+                  <input type="text" id="newRedFrom" placeholder="/old-path" className="form-input" style={{ flex: 1 }} />
+                  <input type="text" id="newRedTo" placeholder="/new-destination" className="form-input" style={{ flex: 1 }} />
+                  <button 
+                    className="btn btn-teal"
+                    onClick={() => {
+                      const from = (document.getElementById('newRedFrom') as HTMLInputElement)?.value;
+                      const to = (document.getElementById('newRedTo') as HTMLInputElement)?.value;
+                      if (from && to) {
+                        setRedirects(prev => [...prev, { id: 'red-' + Date.now(), from, to, type: '301' }]);
+                        logAction(`Added redirect from "${from}" to "${to}"`);
+                        (document.getElementById('newRedFrom') as HTMLInputElement).value = '';
+                        (document.getElementById('newRedTo') as HTMLInputElement).value = '';
+                      }
                     }}
                   >
-                    {Object.keys(AUDIT_FUELS).map((k) => (
-                      <option key={k} value={k}>{AUDIT_FUELS[k].name[language === 'vi' ? 'vi' : 'en']}</option>
-                    ))}
-                  </select>
-                </div>
-
-                <div className="form-group" style={{ flex: 1, minWidth: '100px', marginBottom: 0 }}>
-                  <label className="form-label" style={{ fontSize: '0.75rem' }}>{language === 'vi' ? 'Lượng dùng / tháng' : 'Monthly Cons.'}</label>
-                  <input 
-                    type="number" 
-                    className="form-input"
-                    style={{ padding: '0.4rem', fontSize: '0.8rem' }}
-                    value={auditCons}
-                    onChange={(e) => setAuditCons(parseFloat(e.target.value) || 0)}
-                  />
-                </div>
-
-                <div className="form-group" style={{ flex: 1, minWidth: '80px', marginBottom: 0 }}>
-                  <label className="form-label" style={{ fontSize: '0.75rem' }}>{language === 'vi' ? 'Hiệu suất (%)' : 'Boiler Eff (%)'}</label>
-                  <input 
-                    type="number" 
-                    className="form-input"
-                    style={{ padding: '0.4rem', fontSize: '0.8rem' }}
-                    value={auditEff}
-                    onChange={(e) => setAuditEff(parseFloat(e.target.value) || 0)}
-                  />
-                </div>
-
-                <div className="form-group" style={{ flex: 1, minWidth: '100px', marginBottom: 0 }}>
-                  <label className="form-label" style={{ fontSize: '0.75rem' }}>{language === 'vi' ? 'Đơn giá cũ' : 'Old Unit Cost'}</label>
-                  <input 
-                    type="number" 
-                    className="form-input"
-                    style={{ padding: '0.4rem', fontSize: '0.8rem' }}
-                    value={auditPrice}
-                    onChange={(e) => setAuditPrice(parseFloat(e.target.value) || 0)}
-                  />
+                    Add
+                  </button>
                 </div>
               </div>
-
-              {/* Math Auditing Table */}
-              <div style={styles.mathAuditBox}>
-                <h4 style={{ fontSize: '0.85rem', color: 'var(--color-teal)', marginBottom: '0.75rem', borderBottom: '1px solid var(--color-teal-glow)', paddingBottom: '0.25rem' }}>
-                  {language === 'vi' ? 'Hệ thống tính toán chi tiết (Bước trung gian):' : 'Intermediate Variable Calculations (Auditing Sheet):'}
-                </h4>
-                
-                <div style={styles.mathLine}>
-                  <span><strong>1. Nhiệt lượng có ích / tháng:</strong></span>
-                  <span style={styles.mathFormula}>Q_use = Cons * LHV * Eff</span>
-                  <span style={styles.mathValue}>{formatNumber(monthlyEnergy)} MJ</span>
-                </div>
-
-                <div style={styles.mathLine}>
-                  <span><strong>2. Chi phí nhiên liệu cũ / năm:</strong></span>
-                  <span style={styles.mathFormula}>C_old = Cons * Price * 12</span>
-                  <span style={styles.mathValue}>{formatCurrency(annualOldCost)} VNĐ</span>
-                </div>
-
-                <div style={styles.mathLine}>
-                  <span><strong>3. LNG thay thế / năm:</strong></span>
-                  <span style={styles.mathFormula}>M_lng = Q_use * 12 / (50 * 0.92)</span>
-                  <span style={styles.mathValue}>{formatNumber(lngNeeded)} kg</span>
-                </div>
-
-                <div style={styles.mathLine}>
-                  <span><strong>4. Chi phí LNG mới / năm:</strong></span>
-                  <span style={styles.mathFormula}>C_lng = M_lng * {fuelSettings.lngPrice}đ</span>
-                  <span style={styles.mathValue}>{formatCurrency(lngCost)} VNĐ</span>
-                </div>
-
-                <div style={{ ...styles.mathLine, borderBottom: '1px dashed var(--color-gray-border)', paddingBottom: '0.5rem' }}>
-                  <span><strong>5. Tiết kiệm chi phí / năm:</strong></span>
-                  <span style={styles.mathFormula}>Savings = C_old - C_lng</span>
-                  <span style={{ ...styles.mathValue, color: lngSavings > 0 ? '#10B981' : '#EF4444', fontSize: '0.95rem' }}>
-                    {formatCurrency(lngSavings)} VNĐ
-                  </span>
-                </div>
-
-                <div style={{ ...styles.mathLine, paddingTop: '0.5rem' }}>
-                  <span><strong>6. Giảm phát thải CO2 / năm:</strong></span>
-                  <span style={styles.mathFormula}>CO2_saved = CO2_old - CO2_lng</span>
-                  <span style={styles.mathValue}>{formatNumber(co2Saved, 1)} Tấn</span>
-                </div>
-
-                <div style={styles.mathLine}>
-                  <span><strong>7. Công suất Dàn hóa hơi:</strong></span>
-                  <span style={styles.mathFormula}>Cap = Math.ceil(M_lng/12 / 250 * 1.5)</span>
-                  <span style={styles.mathValue}>{calcVapSize} Nm³/h</span>
-                </div>
-
-                <div style={styles.mathLine}>
-                  <span><strong>8. Dung tích bồn chứa gợi ý:</strong></span>
-                  <span style={styles.mathFormula}>Vol = Math.ceil(M_lng/12 / 1000 * 0.4)</span>
-                  <span style={styles.mathValue}>{calcTankSize} m³</span>
-                </div>
             </div>
           </div>
-        </div>
-      )}
+        )}
 
-      {/* ARTICLES MANAGEMENT TAB */}
-      {activeTab === 'articles' && (
-        <div className="animate-fade-in">
-          <div style={styles.tableHeader}>
-            <h3 style={{ fontSize: '1.2rem', color: 'var(--color-navy)' }}>
-              {language === 'vi' ? 'Quản Lý Bài Viết Thư Viện Kiến Thức' : 'Manage Knowledge Library Articles'}
-            </h3>
-            <button 
-              className="btn btn-teal btn-sm"
-              onClick={() => {
-                setEditingArticle(null);
-                setNewArt({
-                  titleVi: '',
-                  titleEn: '',
-                  category: 'energy',
-                  excerptVi: '',
-                  excerptEn: '',
-                  contentVi: '',
-                  contentEn: '',
-                  imageURL: ''
-                });
-                setShowAddArticleModal(true);
-              }}
-            >
-              <Plus size={16} /> {language === 'vi' ? 'Thêm bài viết mới' : 'Add New Article'}
-            </button>
-          </div>
-
-          <p style={{ fontSize: '0.85rem', color: 'var(--color-text-muted)', marginBottom: '1.5rem' }}>
-            {language === 'vi' 
-              ? 'Thêm, xóa hoặc tắt/bật quyền hiển thị các bài viết kỹ thuật và tiêu chuẩn an toàn PCCC ngoài trang Thư viện.' 
-              : 'Add, delete, or enable/disable public visibility of safety and engineering articles in the Library.'}
-          </p>
-
-          <div style={styles.tableResponsive}>
-            <table style={styles.table}>
-              <thead>
-                <tr style={styles.thRow}>
-                  <th style={styles.th}>{language === 'vi' ? 'Tiêu đề' : 'Title'}</th>
-                  <th style={styles.th}>{language === 'vi' ? 'Chuyên mục' : 'Category'}</th>
-                  <th style={styles.th}>{language === 'vi' ? 'Ngày đăng' : 'Date'}</th>
-                  <th style={styles.th}>{language === 'vi' ? 'Hiển thị' : 'Status'}</th>
-                  <th style={styles.th}>{language === 'vi' ? 'Thao tác' : 'Actions'}</th>
-                </tr>
-              </thead>
-              <tbody>
-                {articles.map((art) => (
-                  <tr key={art.id} style={styles.tr}>
-                    <td style={styles.td}>
-                      <strong>{art.title[language === 'vi' ? 'vi' : 'en']}</strong>
-                      <div style={{ fontSize: '0.75rem', color: 'var(--color-text-muted)', marginTop: '0.25rem' }}>
-                        {art.excerpt[language === 'vi' ? 'vi' : 'en']}
-                      </div>
-                    </td>
-                    <td style={styles.td}>
-                      <span style={{
-                        ...styles.badge,
-                        backgroundColor: art.category === 'energy' ? '#FFE4E6' : art.category === 'safety' ? '#FEF3C7' : '#E0F2FE',
-                        color: art.category === 'energy' ? '#9F1239' : art.category === 'safety' ? '#D97706' : '#0369A1'
-                      }}>
-                        {art.category.toUpperCase()}
-                      </span>
-                    </td>
-                    <td style={styles.td}>{art.date}</td>
-                    <td style={styles.td}>
-                      <button
-                        className={`btn btn-sm ${art.visible !== false ? 'btn-teal' : 'btn-outline'}`}
-                        style={{ padding: '0.2rem 0.5rem', fontSize: '0.75rem' }}
-                        onClick={() => onToggleArticle(art.id)}
-                      >
-                        {art.visible !== false 
-                          ? (language === 'vi' ? 'Đang hiện' : 'Visible') 
-                          : (language === 'vi' ? 'Đang ẩn' : 'Hidden')}
-                      </button>
-                    </td>
-                    <td style={styles.td}>
-                      <div style={{ display: 'flex', gap: '0.5rem' }}>
-                        <button 
-                          className="btn btn-outline btn-sm"
-                          style={{ color: 'var(--color-teal)', padding: '0.25rem' }}
-                          onClick={() => handleEditArticleClick(art)}
-                        >
-                          <Edit size={14} />
-                        </button>
-                        <button 
-                          className="btn btn-outline btn-sm"
-                          style={{ color: '#EF4444', padding: '0.25rem' }}
-                          onClick={() => onDeleteArticle(art.id)}
-                        >
-                          <Trash2 size={14} />
-                        </button>
-                      </div>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        </div>
-      )}
-
-      {/* PROJECTS MANAGEMENT TAB */}
-      {activeTab === 'projects' && (
-        <div className="animate-fade-in">
-          <div style={styles.tableHeader}>
-            <h3 style={{ fontSize: '1.2rem', color: 'var(--color-navy)' }}>
-              {language === 'vi' ? 'Quản Lý Danh Sách Dự Án Đã Làm' : 'Manage Case Studies & Projects'}
-            </h3>
-            <button 
-              className="btn btn-teal btn-sm"
-              onClick={() => {
-                setEditingProject(null);
-                setNewProj({
-                  nameVi: '',
-                  nameEn: '',
-                  category: 'lng',
-                  locationVi: '',
-                  locationEn: '',
-                  scopeVi: '',
-                  scopeEn: '',
-                  capacityVi: '',
-                  capacityEn: '',
-                  resultVi: '',
-                  resultEn: '',
-                  equipmentsInput: '',
-                  imageURL: ''
-                });
-                setShowAddProjectModal(true);
-              }}
-            >
-              <Plus size={16} /> {language === 'vi' ? 'Thêm dự án mới' : 'Add New Project'}
-            </button>
-          </div>
-
-          <p style={{ fontSize: '0.85rem', color: 'var(--color-text-muted)', marginBottom: '1.5rem' }}>
-            {language === 'vi' 
-              ? 'Thêm, xóa hoặc tắt/bật quyền hiển thị các dự án cơ sở hạ tầng gas và bếp công nghiệp ngoài trang Dự án.' 
-              : 'Add, delete, or toggle public visibility of central gas and commercial kitchen projects.'}
-          </p>
-
-          <div style={styles.tableResponsive}>
-            <table style={styles.table}>
-              <thead>
-                <tr style={styles.thRow}>
-                  <th style={styles.th}>{language === 'vi' ? 'Hình ảnh' : 'Image'}</th>
-                  <th style={styles.th}>{language === 'vi' ? 'Tên dự án' : 'Project Title'}</th>
-                  <th style={styles.th}>{language === 'vi' ? 'Phân loại' : 'Category'}</th>
-                  <th style={styles.th}>{language === 'vi' ? 'Địa điểm' : 'Location'}</th>
-                  <th style={styles.th}>{language === 'vi' ? 'Hiển thị' : 'Status'}</th>
-                  <th style={styles.th}>{language === 'vi' ? 'Thao tác' : 'Actions'}</th>
-                </tr>
-              </thead>
-              <tbody>
-                {projects.map((proj) => (
-                  <tr key={proj.id} style={styles.tr}>
-                    <td style={styles.td}>
-                      <img 
-                        src={proj.image || "https://images.unsplash.com/photo-1581094128547-1388d1397865?q=80&w=100&auto=format&fit=crop"} 
-                        alt="Project preview"
-                        style={{ width: '60px', height: '40px', objectFit: 'cover', borderRadius: 'var(--border-radius-sm)', border: '1px solid var(--color-gray-border)' }}
-                      />
-                    </td>
-                    <td style={styles.td}>
-                      <strong>{proj.name[language === 'vi' ? 'vi' : 'en']}</strong>
-                      <div style={{ fontSize: '0.75rem', color: 'var(--color-text-muted)', marginTop: '0.25rem' }}>
-                        {proj.scope[language === 'vi' ? 'vi' : 'en']}
-                      </div>
-                    </td>
-                    <td style={styles.td}>
-                      <span style={{
-                        ...styles.badge,
-                        backgroundColor: proj.category === 'lng' ? '#E0F2FE' : proj.category === 'lpg' ? '#D1FAE5' : proj.category === 'conversion' ? '#FEF3C7' : '#F5F3FF',
-                        color: proj.category === 'lng' ? '#0369A1' : proj.category === 'lpg' ? '#047857' : proj.category === 'conversion' ? '#B45309' : '#6D28D9'
-                      }}>
-                        {proj.category.toUpperCase()}
-                      </span>
-                    </td>
-                    <td style={styles.td}>{proj.location[language === 'vi' ? 'vi' : 'en']}</td>
-                    <td style={styles.td}>
-                      <button
-                        className={`btn btn-sm ${proj.visible !== false ? 'btn-teal' : 'btn-outline'}`}
-                        style={{ padding: '0.2rem 0.5rem', fontSize: '0.75rem' }}
-                        onClick={() => onToggleProject(proj.id)}
-                      >
-                        {proj.visible !== false 
-                          ? (language === 'vi' ? 'Đang hiện' : 'Visible') 
-                          : (language === 'vi' ? 'Đang ẩn' : 'Hidden')}
-                      </button>
-                    </td>
-                    <td style={styles.td}>
-                      <div style={{ display: 'flex', gap: '0.5rem' }}>
-                        <button 
-                          className="btn btn-outline btn-sm"
-                          style={{ color: 'var(--color-teal)', padding: '0.25rem' }}
-                          onClick={() => handleEditClick(proj)}
-                        >
-                          <Edit size={14} />
-                        </button>
-                        <button 
-                          className="btn btn-outline btn-sm"
-                          style={{ color: '#EF4444', padding: '0.25rem' }}
-                          onClick={() => onDeleteProject(proj.id)}
-                        >
-                          <Trash2 size={14} />
-                        </button>
-                      </div>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        </div>
-      )}
-    </div>
-
-      {/* Lead Detail Modal */}
-      {selectedLead && (
-        <div style={styles.modalOverlay}>
-          <div style={styles.modalCard} className="animate-fade-in">
-            <div style={styles.modalHeader}>
-              <h3 style={{ margin: 0, fontSize: '1.15rem', color: 'var(--color-white)' }}>
-                {language === 'vi' ? 'Chi Tiết Yêu Cầu Gửi Từ Website' : 'Website Lead Submission Details'}
+        {/* SECURITY & LOGS TAB */}
+        {activeTab === 'logs' && (
+          <div className="animate-fade-in" style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
+            <div>
+              <h3 style={{ fontSize: '1.2rem', color: 'var(--color-navy)', margin: 0 }}>
+                {language === 'vi' ? 'Nhật Ký Thao Tác Hệ Thống (Audit Logs)' : 'Security Audit Trail Logs'}
               </h3>
-              <button onClick={() => setSelectedLead(null)} style={styles.closeBtn}>Close</button>
+              <p style={{ margin: '0.25rem 0 0 0', fontSize: '0.85rem', color: 'var(--color-text-muted)' }}>
+                {language === 'vi' ? 'Xem lịch sử thao tác chỉnh sửa dữ liệu và đăng nhập của quản trị viên.' : 'Browse history logs of data mutations and administrator login states.'}
+              </p>
             </div>
-            <div style={styles.modalBody}>
-              <div style={styles.modalMetaGrid}>
-                <div><strong>{language === 'vi' ? 'Doanh nghiệp:' : 'Company:'}</strong> {selectedLead.company}</div>
-                <div><strong>{language === 'vi' ? 'Đại diện liên hệ:' : 'Contact Representative:'}</strong> {selectedLead.name}</div>
-                <div><strong>{language === 'vi' ? 'Số điện thoại:' : 'Phone Number:'}</strong> {selectedLead.phone}</div>
-                <div><strong>{language === 'vi' ? 'Địa chỉ Email:' : 'Email Address:'}</strong> {selectedLead.email}</div>
-                <div><strong>{language === 'vi' ? 'Tỉnh thành dự án:' : 'Project Location:'}</strong> {selectedLead.location}</div>
-                <div><strong>{language === 'vi' ? 'Ngày gửi:' : 'Date submitted:'}</strong> {selectedLead.date}</div>
-              </div>
 
-              <div style={{ marginTop: '1.5rem' }}>
-                <h4 style={{ fontSize: '0.95rem', color: 'var(--color-navy)', marginBottom: '0.5rem' }}>
-                  {language === 'vi' ? 'Nội dung chi tiết yêu cầu:' : 'Detailed parameters / message:'}
-                </h4>
-                <div style={styles.messageBox}>
-                  {selectedLead.details}
-                </div>
+            <div style={{ backgroundColor: 'var(--color-gray-card)', border: '1px solid var(--color-gray-border)', borderRadius: 'var(--border-radius-md)', padding: '1.5rem' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '1rem' }}>
+                <span style={{ fontSize: '0.85rem', fontWeight: 600 }}>Logs count: {auditLogs.length}</span>
+                <button 
+                  className="btn btn-outline btn-sm"
+                  onClick={() => {
+                    if (confirm('Bạn có chắc chắn muốn xoá toàn bộ lịch sử nhật ký?')) {
+                      setAuditLogs([]);
+                      localStorage.setItem('cms_audit_logs', JSON.stringify([]));
+                    }
+                  }}
+                >
+                  Clear Logs
+                </button>
               </div>
-
-              <div style={styles.statusUpdateBox}>
-                <span style={{ fontSize: '0.85rem', fontWeight: 6 }}>
-                  {language === 'vi' ? 'Cập nhật trạng thái xử lý:' : 'Update action status:'}
-                </span>
-                <div style={{ display: 'flex', gap: '0.5rem', marginTop: '0.5rem' }}>
-                  {(['new', 'contacted', 'survey', 'closed'] as const).map((status) => (
-                    <button
-                      key={status}
-                      className={`btn btn-sm ${selectedLead.status === status ? 'btn-teal' : 'btn-outline'}`}
-                      onClick={() => {
-                        onUpdateStatus(selectedLead.id, status);
-                        setSelectedLead({ ...selectedLead, status });
-                      }}
-                    >
-                      {getStatusLabel(status)[language === 'vi' ? 'vi' : 'en']}
-                    </button>
-                  ))}
-                </div>
+              <div style={styles.tableResponsive}>
+                <table style={styles.table}>
+                  <thead>
+                    <tr style={styles.thRow}>
+                      <th style={styles.th}>Timestamp</th>
+                      <th style={styles.th}>User</th>
+                      <th style={styles.th}>Operation Details</th>
+                      <th style={styles.th}>Status</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {auditLogs.map((log) => (
+                      <tr key={log.id} style={styles.tr}>
+                        <td style={styles.td}><small style={{ color: 'var(--color-text-muted)' }}>{log.timestamp}</small></td>
+                        <td style={styles.td}><strong>{log.user}</strong></td>
+                        <td style={styles.td}>{log.action}</td>
+                        <td style={styles.td}><span style={{ backgroundColor: '#D1FAE5', color: '#047857', padding: '0.1rem 0.3rem', borderRadius: 'var(--border-radius-sm)', fontSize: '0.75rem' }}>{log.status.toUpperCase()}</span></td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
               </div>
             </div>
           </div>
-        </div>
-      )}
+        )}
+
+        {/* TRASH BIN TAB */}
+        {activeTab === 'trash' && (
+          <div className="animate-fade-in" style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
+            <div>
+              <h3 style={{ fontSize: '1.2rem', color: 'var(--color-navy)', margin: 0 }}>
+                {language === 'vi' ? 'Thùng Rác Hệ Thống (Trash Bin)' : 'System Trash Bin'}
+              </h3>
+              <p style={{ margin: '0.25rem 0 0 0', fontSize: '0.85rem', color: 'var(--color-text-muted)' }}>
+                {language === 'vi' 
+                  ? 'Xem danh sách các mục đã xóa tạm thời. Khôi phục lại hoặc xóa vĩnh viễn chúng khỏi bộ nhớ.' 
+                  : 'Manage soft-deleted records. Restore them back or delete them permanently from database storage.'}
+              </p>
+            </div>
+
+            <div style={{ backgroundColor: 'var(--color-gray-card)', border: '1px solid var(--color-gray-border)', borderRadius: 'var(--border-radius-md)', padding: '1.5rem' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '1rem', alignItems: 'center' }}>
+                <span style={{ fontSize: '0.85rem', fontWeight: 600 }}>
+                  {language === 'vi' ? 'Tổng số mục:' : 'Total items:'} {trashBin.length}
+                </span>
+                {trashBin.length > 0 && (
+                  <button 
+                    className="btn btn-outline btn-sm"
+                    style={{ color: '#EF4444', borderColor: '#FCA5A5' }}
+                    onClick={() => {
+                      if (confirm(language === 'vi' ? 'Dọn sạch thùng rác? Thao tác này không thể khôi phục.' : 'Empty the trash bin? This cannot be undone.')) {
+                        setTrashBin([]);
+                        logAction('Emptied all items in system Trash Bin');
+                      }
+                    }}
+                  >
+                    {language === 'vi' ? 'Dọn sạch thùng rác' : 'Empty Trash Bin'}
+                  </button>
+                )}
+              </div>
+
+              {trashBin.length === 0 ? (
+                <div style={{ textAlign: 'center', padding: '4rem 2rem', color: 'var(--color-text-muted)', border: '1px dashed var(--color-gray-border)', borderRadius: 'var(--border-radius-md)', backgroundColor: 'var(--color-white)' }}>
+                  <Trash2 size={48} style={{ color: '#CBD5E1', marginBottom: '1rem' }} />
+                  <div>{language === 'vi' ? 'Thùng rác hiện đang trống.' : 'Trash bin is currently empty.'}</div>
+                </div>
+              ) : (
+                <div style={styles.tableResponsive}>
+                  <table style={styles.table}>
+                    <thead>
+                      <tr style={styles.thRow}>
+                        <th style={styles.th}>{language === 'vi' ? 'Tên Nội Dung' : 'Title / Record'}</th>
+                        <th style={styles.th}>{language === 'vi' ? 'Loại' : 'Type'}</th>
+                        <th style={styles.th}>{language === 'vi' ? 'Ngày Xóa' : 'Deleted Date'}</th>
+                        <th style={styles.th}>{language === 'vi' ? 'Thao Tác' : 'Actions'}</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {trashBin.map((item) => (
+                        <tr key={item.id} style={styles.tr}>
+                          <td style={styles.td}><strong>{item.name}</strong></td>
+                          <td style={styles.td}>
+                            <span style={{
+                              ...styles.badge,
+                              backgroundColor: item.type === 'article' ? '#E0F2FE' : item.type === 'project' ? '#FEF3C7' : '#D1FAE5',
+                              color: item.type === 'article' ? '#0369A1' : item.type === 'project' ? '#B45309' : '#047857'
+                            }}>
+                              {item.type.toUpperCase()}
+                            </span>
+                          </td>
+                          <td style={styles.td}><small style={{ color: 'var(--color-text-muted)' }}>{new Date(item.deletedAt).toLocaleString(language === 'vi' ? 'vi-VN' : 'en-US')}</small></td>
+                          <td style={styles.td}>
+                            <div style={{ display: 'flex', gap: '0.5rem' }}>
+                              <button
+                                type="button"
+                                className="btn btn-teal btn-sm"
+                                style={{ padding: '0.25rem 0.5rem', fontSize: '0.75rem' }}
+                                onClick={() => handleRestoreFromTrash(item)}
+                              >
+                                {language === 'vi' ? 'Khôi phục' : 'Restore'}
+                              </button>
+                              <button
+                                type="button"
+                                className="btn btn-outline btn-sm"
+                                style={{ color: '#EF4444', borderColor: '#FCA5A5', padding: '0.25rem 0.5rem', fontSize: '0.75rem' }}
+                                onClick={() => handlePermanentDelete(item)}
+                              >
+                                {language === 'vi' ? 'Xóa vĩnh viễn' : 'Xóa vĩnh viễn'}
+                              </button>
+                            </div>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+            </div>
+          </div>
+        )}
+      </div>
 
       {/* Add Article Modal */}
       {showAddArticleModal && (
         <div style={styles.modalOverlay}>
-          <div style={{ ...styles.modalCard, maxWidth: '1000px', width: '90%' }} className="animate-fade-in">
+          <div style={{ ...styles.modalCard, maxWidth: '1200px', width: '95%' }} className="animate-fade-in">
             <div style={styles.modalHeader}>
               <h3 style={{ margin: 0, fontSize: '1.15rem', color: 'var(--color-white)' }}>
                 {editingArticle 
@@ -1065,121 +2695,227 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
               <button onClick={() => setShowAddArticleModal(false)} style={styles.closeBtn}>Close</button>
             </div>
             <form onSubmit={handleArticleFormSubmit} style={{ padding: '1.5rem' }}>
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem', marginBottom: '1rem' }}>
-                <div className="form-group" style={{ marginBottom: 0 }}>
-                  <label className="form-label">{language === 'vi' ? 'Tiêu đề (Tiếng Việt) *' : 'Title (Vietnamese) *'}</label>
-                  <input 
-                    type="text" 
-                    className="form-input" 
-                    value={newArt.titleVi}
-                    onChange={(e) => setNewArt({ ...newArt, titleVi: e.target.value })}
-                    required
-                  />
-                </div>
-                <div className="form-group" style={{ marginBottom: 0 }}>
-                  <label className="form-label">{language === 'vi' ? 'Tiêu đề (Tiếng Anh) *' : 'Title (English) *'}</label>
-                  <input 
-                    type="text" 
-                    className="form-input" 
-                    value={newArt.titleEn}
-                    onChange={(e) => setNewArt({ ...newArt, titleEn: e.target.value })}
-                    required
-                  />
-                </div>
-              </div>
-
-              <div className="form-group" style={{ marginBottom: '1rem' }}>
-                <label className="form-label">{language === 'vi' ? 'Chuyên mục *' : 'Category *'}</label>
-                <select 
-                  className="form-select"
-                  value={newArt.category}
-                  onChange={(e) => setNewArt({ ...newArt, category: e.target.value as any })}
-                  required
-                >
-                  <option value="energy">{language === 'vi' ? 'Công nghệ Khí & Nhiệt' : 'Gas & Thermal Tech'}</option>
-                  <option value="safety">{language === 'vi' ? 'An toàn PCCC' : 'Fire & Safety'}</option>
-                  <option value="kitchen">{language === 'vi' ? 'Thiết kế Bếp công nghiệp' : 'Kitchen Design'}</option>
-                </select>
-              </div>
-
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem', marginBottom: '1rem' }}>
-                <div className="form-group" style={{ marginBottom: 0 }}>
-                  <label className="form-label">{language === 'vi' ? 'Tải lên hình ảnh' : 'Upload Image'}</label>
-                  <div style={{ display: 'flex', gap: '1rem', alignItems: 'center' }}>
-                    <input 
-                      type="file" 
-                      accept="image/*" 
-                      className="form-input" 
-                      onChange={(e) => handleImageFileChange(e, (base64) => setNewArt({ ...newArt, imageURL: base64 }))}
-                    />
-                    {newArt.imageURL && (
-                      <img 
-                        src={newArt.imageURL} 
-                        alt="Preview" 
-                        style={{ width: '50px', height: '35px', objectFit: 'cover', borderRadius: 'var(--border-radius-sm)', border: '1px solid var(--color-gray-border)' }} 
+              <div style={{ display: 'flex', gap: '2rem' }}>
+                {/* COLUMN LEFT: Form fields (65%) */}
+                <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
+                    <div className="form-group" style={{ marginBottom: 0 }}>
+                      <label className="form-label">{language === 'vi' ? 'Tiêu đề (Tiếng Việt) *' : 'Title (Vietnamese) *'}</label>
+                      <input 
+                        type="text" 
+                        className="form-input" 
+                        value={newArt.titleVi}
+                        onChange={(e) => setNewArt({ ...newArt, titleVi: e.target.value })}
+                        required
                       />
-                    )}
+                    </div>
+                    <div className="form-group" style={{ marginBottom: 0 }}>
+                      <label className="form-label">{language === 'vi' ? 'Tiêu đề (Tiếng Anh) *' : 'Title (English) *'}</label>
+                      <input 
+                        type="text" 
+                        className="form-input" 
+                        value={newArt.titleEn}
+                        onChange={(e) => setNewArt({ ...newArt, titleEn: e.target.value })}
+                        required
+                      />
+                    </div>
+                  </div>
+
+                  <div className="form-group" style={{ marginBottom: 0 }}>
+                    <label className="form-label">{language === 'vi' ? 'Chuyên mục *' : 'Category *'}</label>
+                    <select 
+                      className="form-select"
+                      value={newArt.category}
+                      onChange={(e) => setNewArt({ ...newArt, category: e.target.value as any })}
+                      required
+                    >
+                      <option value="energy">{language === 'vi' ? 'Công nghệ Khí & Nhiệt' : 'Gas & Thermal Tech'}</option>
+                      <option value="safety">{language === 'vi' ? 'An toàn PCCC' : 'Fire & Safety'}</option>
+                      <option value="kitchen">{language === 'vi' ? 'Thiết kế Bếp công nghiệp' : 'Kitchen Design'}</option>
+                    </select>
+                  </div>
+
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
+                    <div className="form-group" style={{ marginBottom: 0 }}>
+                      <label className="form-label">{language === 'vi' ? 'Tải lên hình ảnh' : 'Upload Image'}</label>
+                      <div style={{ display: 'flex', gap: '1rem', alignItems: 'center' }}>
+                        <input 
+                          type="file" 
+                          accept="image/*" 
+                          className="form-input" 
+                          onChange={(e) => handleImageFileChange(e, (base64) => setNewArt({ ...newArt, imageURL: base64 }))}
+                        />
+                        {newArt.imageURL && (
+                          <img 
+                            src={newArt.imageURL} 
+                            alt="Preview" 
+                            style={{ width: '50px', height: '35px', objectFit: 'cover', borderRadius: 'var(--border-radius-sm)', border: '1px solid var(--color-gray-border)' }} 
+                          />
+                        )}
+                      </div>
+                    </div>
+                    <div className="form-group" style={{ marginBottom: 0 }}>
+                      <label className="form-label">{language === 'vi' ? 'Đường dẫn hình ảnh (URL)' : 'Image URL'}</label>
+                      <input 
+                        type="text" 
+                        className="form-input" 
+                        placeholder="https://images.unsplash.com/..."
+                        value={newArt.imageURL}
+                        onChange={(e) => setNewArt({ ...newArt, imageURL: e.target.value })}
+                      />
+                    </div>
+                  </div>
+
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
+                    <div className="form-group" style={{ marginBottom: 0 }}>
+                      <label className="form-label">{language === 'vi' ? 'Mô tả ngắn (Tiếng Việt) *' : 'Excerpt (Vietnamese) *'}</label>
+                      <textarea 
+                        className="form-input" 
+                        style={{ height: '60px', resize: 'vertical' }}
+                        value={newArt.excerptVi}
+                        onChange={(e) => setNewArt({ ...newArt, excerptVi: e.target.value })}
+                        required
+                      />
+                    </div>
+                    <div className="form-group" style={{ marginBottom: 0 }}>
+                      <label className="form-label">{language === 'vi' ? 'Mô tả ngắn (Tiếng Anh) *' : 'Excerpt (English) *'}</label>
+                      <textarea 
+                        className="form-input" 
+                        style={{ height: '60px', resize: 'vertical' }}
+                        value={newArt.excerptEn}
+                        onChange={(e) => setNewArt({ ...newArt, excerptEn: e.target.value })}
+                        required
+                      />
+                    </div>
+                  </div>
+
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
+                    <div className="form-group" style={{ marginBottom: 0 }}>
+                      <label className="form-label">{language === 'vi' ? 'Nội dung chi tiết (Tiếng Việt) *' : 'Content (Vietnamese) *'}</label>
+                      <textarea 
+                        className="form-input" 
+                        style={{ height: '140px', resize: 'vertical' }}
+                        value={newArt.contentVi}
+                        onChange={(e) => setNewArt({ ...newArt, contentVi: e.target.value })}
+                        required
+                      />
+                    </div>
+                    <div className="form-group" style={{ marginBottom: 0 }}>
+                      <label className="form-label">{language === 'vi' ? 'Nội dung chi tiết (Tiếng Anh) *' : 'Content (English) *'}</label>
+                      <textarea 
+                        className="form-input" 
+                        style={{ height: '140px', resize: 'vertical' }}
+                        value={newArt.contentEn}
+                        onChange={(e) => setNewArt({ ...newArt, contentEn: e.target.value })}
+                        required
+                      />
+                    </div>
                   </div>
                 </div>
-                <div className="form-group" style={{ marginBottom: 0 }}>
-                  <label className="form-label">{language === 'vi' ? 'Đường dẫn hình ảnh (URL)' : 'Image URL'}</label>
-                  <input 
-                    type="text" 
-                    className="form-input" 
-                    placeholder="https://images.unsplash.com/..."
-                    value={newArt.imageURL}
-                    onChange={(e) => setNewArt({ ...newArt, imageURL: e.target.value })}
-                  />
+
+                {/* COLUMN RIGHT: AI Copywriter & SEO Auditor (35%) */}
+                <div style={{ width: '350px', display: 'flex', flexDirection: 'column', gap: '1.25rem', borderLeft: '1px solid var(--color-gray-border)', paddingLeft: '1.5rem' }}>
+                  {/* AI Copilot Panel */}
+                  <div style={{ backgroundColor: '#F0FDFA', border: '1px solid #99F6E4', borderRadius: 'var(--border-radius-md)', padding: '1rem' }}>
+                    <h4 style={{ margin: '0 0 0.5rem 0', fontSize: '0.85rem', color: '#0F766E', display: 'flex', alignItems: 'center', gap: '0.25rem' }}>
+                      ✨ AI Copilot Translation
+                    </h4>
+                    <p style={{ margin: '0 0 1rem 0', fontSize: '0.75rem', color: '#115E59' }}>
+                      {language === 'vi' 
+                        ? 'Tự động dịch tiêu đề, mô tả và nội dung giữa tiếng Việt và tiếng Anh.' 
+                        : 'Automatically translate title, excerpt, and content between Vietnamese and English.'}
+                    </p>
+                    <button
+                      type="button"
+                      className="btn btn-teal"
+                      style={{ width: '100%', fontSize: '0.8rem', padding: '0.5rem 1rem' }}
+                      disabled={isTranslatingArticle}
+                      onClick={() => {
+                        setIsTranslatingArticle(true);
+                        setTimeout(() => {
+                          setIsTranslatingArticle(false);
+                          if (newArt.titleVi && !newArt.titleEn) {
+                            setNewArt(prev => ({
+                              ...prev,
+                              titleEn: translateViToEn(prev.titleVi),
+                              excerptEn: translateViToEn(prev.excerptVi),
+                              contentEn: translateViToEn(prev.contentVi)
+                            }));
+                          } else if (newArt.titleEn && !newArt.titleVi) {
+                            setNewArt(prev => ({
+                              ...prev,
+                              titleVi: translateEnToVi(prev.titleEn),
+                              excerptVi: translateEnToVi(prev.excerptEn),
+                              contentVi: translateEnToVi(prev.contentEn)
+                            }));
+                          } else {
+                            setNewArt(prev => ({
+                              ...prev,
+                              titleEn: translateViToEn(prev.titleVi) || prev.titleEn,
+                              excerptEn: translateViToEn(prev.excerptVi) || prev.excerptEn,
+                              contentEn: translateViToEn(prev.contentVi) || prev.contentEn
+                            }));
+                          }
+                          logAction(`Triggered AI Translation for article: "${newArt.titleVi || 'New'}"`);
+                        }, 800);
+                      }}
+                    >
+                      {isTranslatingArticle 
+                        ? (language === 'vi' ? 'Đang dịch thuật AI...' : 'AI Translating...') 
+                        : (language === 'vi' ? 'Dịch Tự Động (AI Translate)' : 'AI Auto-Translate')}
+                    </button>
+                  </div>
+
+                  {/* SEO Auditor Panel */}
+                  {(() => {
+                    const seo = calculateSEOScore(newArt.titleVi, newArt.excerptVi, newArt.contentVi, newArt.imageURL, articleKeyword);
+                    const scoreColor = seo.score >= 80 ? '#10B981' : seo.score >= 50 ? '#F59E0B' : '#EF4444';
+                    const scoreBg = seo.score >= 80 ? '#ECFDF5' : seo.score >= 50 ? '#FFFBEB' : '#FEF2F2';
+                    return (
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+                        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                          <span style={{ fontSize: '0.85rem', fontWeight: 700, color: 'var(--color-navy)' }}>
+                            📊 Real-Time SEO Analyzer
+                          </span>
+                          <span style={{ 
+                            fontSize: '0.8rem', fontWeight: 800, color: scoreColor, 
+                            backgroundColor: scoreBg, padding: '0.2rem 0.6rem', 
+                            borderRadius: 'var(--border-radius-full)', border: `1px solid ${scoreColor}40`
+                          }}>
+                            {seo.score}/100
+                          </span>
+                        </div>
+
+                        <div className="form-group" style={{ marginBottom: 0 }}>
+                          <label className="form-label" style={{ fontSize: '0.75rem' }}>
+                            {language === 'vi' ? 'Từ khóa mục tiêu' : 'SEO Focus Keyword'}
+                          </label>
+                          <input 
+                            type="text" 
+                            className="form-input" 
+                            style={{ padding: '0.35rem 0.5rem', fontSize: '0.8rem' }}
+                            value={articleKeyword}
+                            onChange={(e) => setArticleKeyword(e.target.value)}
+                          />
+                        </div>
+
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: '0.4rem', borderTop: '1px solid var(--color-gray-border)', paddingTop: '0.75rem' }}>
+                          {seo.rules.map(rule => (
+                            <div key={rule.id} style={{ display: 'flex', alignItems: 'flex-start', gap: '0.4rem', fontSize: '0.75rem' }}>
+                              <span>{rule.passed ? '✅' : '❌'}</span>
+                              <span style={{ color: rule.passed ? 'var(--color-text-main)' : 'var(--color-text-muted)' }}>
+                                {language === 'vi' ? rule.labelVi : rule.labelEn}
+                              </span>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    );
+                  })()}
                 </div>
               </div>
 
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem', marginBottom: '1rem' }}>
-                <div className="form-group" style={{ marginBottom: 0 }}>
-                  <label className="form-label">{language === 'vi' ? 'Mô tả ngắn (Tiếng Việt) *' : 'Excerpt (Vietnamese) *'}</label>
-                  <textarea 
-                    className="form-input" 
-                    style={{ height: '60px', resize: 'vertical' }}
-                    value={newArt.excerptVi}
-                    onChange={(e) => setNewArt({ ...newArt, excerptVi: e.target.value })}
-                    required
-                  />
-                </div>
-                <div className="form-group" style={{ marginBottom: 0 }}>
-                  <label className="form-label">{language === 'vi' ? 'Mô tả ngắn (Tiếng Anh) *' : 'Excerpt (English) *'}</label>
-                  <textarea 
-                    className="form-input" 
-                    style={{ height: '60px', resize: 'vertical' }}
-                    value={newArt.excerptEn}
-                    onChange={(e) => setNewArt({ ...newArt, excerptEn: e.target.value })}
-                    required
-                  />
-                </div>
-              </div>
-
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem', marginBottom: '1.5rem' }}>
-                <div className="form-group" style={{ marginBottom: 0 }}>
-                  <label className="form-label">{language === 'vi' ? 'Nội dung chi tiết (Tiếng Việt) *' : 'Content (Vietnamese) *'}</label>
-                  <textarea 
-                    className="form-input" 
-                    style={{ height: '120px', resize: 'vertical' }}
-                    value={newArt.contentVi}
-                    onChange={(e) => setNewArt({ ...newArt, contentVi: e.target.value })}
-                    required
-                  />
-                </div>
-                <div className="form-group" style={{ marginBottom: 0 }}>
-                  <label className="form-label">{language === 'vi' ? 'Nội dung chi tiết (Tiếng Anh) *' : 'Content (English) *'}</label>
-                  <textarea 
-                    className="form-input" 
-                    style={{ height: '120px', resize: 'vertical' }}
-                    value={newArt.contentEn}
-                    onChange={(e) => setNewArt({ ...newArt, contentEn: e.target.value })}
-                    required
-                  />
-                </div>
-              </div>
-
-              <div style={{ display: 'flex', gap: '0.75rem', justifyContent: 'flex-end' }}>
+              <div style={{ display: 'flex', gap: '0.75rem', justifyContent: 'flex-end', borderTop: '1px solid var(--color-gray-border)', paddingTop: '1.25rem', marginTop: '1.5rem' }}>
                 <button 
                   type="button" 
                   className="btn btn-outline" 
@@ -1333,6 +3069,47 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                       />
                     </div>
                   </div>
+
+                  {/* AI Copilot Panel */}
+                  <div style={{ backgroundColor: '#F0FDFA', border: '1px solid #99F6E4', borderRadius: 'var(--border-radius-sm)', padding: '0.75rem 1rem', marginTop: '0.5rem' }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.5rem' }}>
+                      <span style={{ fontSize: '0.8rem', fontWeight: 700, color: '#0F766E' }}>✨ AI Translate Assistant</span>
+                      <button
+                        type="button"
+                        className="btn btn-teal btn-sm"
+                        style={{ fontSize: '0.75rem', padding: '0.2rem 0.5rem' }}
+                        disabled={isTranslatingProject}
+                        onClick={() => {
+                          setIsTranslatingProject(true);
+                          setTimeout(() => {
+                            setIsTranslatingProject(false);
+                            if (newProj.nameVi && !newProj.nameEn) {
+                              setNewProj(prev => ({
+                                ...prev,
+                                nameEn: translateViToEn(prev.nameVi),
+                                locationEn: translateViToEn(prev.locationVi),
+                                scopeEn: translateViToEn(prev.scopeVi),
+                                capacityEn: translateViToEn(prev.capacityVi),
+                                resultEn: translateViToEn(prev.resultVi)
+                              }));
+                            } else {
+                              setNewProj(prev => ({
+                                ...prev,
+                                nameEn: translateViToEn(prev.nameVi) || prev.nameEn,
+                                locationEn: translateViToEn(prev.locationVi) || prev.locationEn,
+                                scopeEn: translateViToEn(prev.scopeVi) || prev.scopeEn,
+                                capacityEn: translateViToEn(prev.capacityVi) || prev.capacityEn,
+                                resultEn: translateViToEn(prev.resultVi) || prev.resultEn
+                              }));
+                            }
+                            logAction(`Triggered AI Translation for project: "${newProj.nameVi || 'New'}"`);
+                          }, 800);
+                        }}
+                      >
+                        {isTranslatingProject ? 'Translating...' : 'Dịch tự động'}
+                      </button>
+                    </div>
+                  </div>
                 </div>
 
                 {/* Cột phải: Phạm vi, kết quả & thiết bị */}
@@ -1394,6 +3171,47 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                       required
                     />
                   </div>
+
+                  {/* SEO Analyzer Panel */}
+                  {(() => {
+                    const seo = calculateSEOScore(newProj.nameVi, newProj.scopeVi, newProj.resultVi, newProj.imageURL, projectKeyword);
+                    const scoreColor = seo.score >= 80 ? '#10B981' : seo.score >= 50 ? '#F59E0B' : '#EF4444';
+                    const scoreBg = seo.score >= 80 ? '#ECFDF5' : seo.score >= 50 ? '#FFFBEB' : '#FEF2F2';
+                    return (
+                      <div style={{ borderTop: '1px dashed var(--color-gray-border)', paddingTop: '0.75rem', marginTop: '0.5rem', display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                          <span style={{ fontSize: '0.8rem', fontWeight: 700, color: 'var(--color-navy)' }}>📊 Live SEO Score</span>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                            <input 
+                              type="text" 
+                              className="form-input" 
+                              style={{ width: '80px', padding: '0.2rem 0.4rem', fontSize: '0.7rem', height: '24px' }}
+                              placeholder="Keyword"
+                              value={projectKeyword}
+                              onChange={(e) => setProjectKeyword(e.target.value)}
+                            />
+                            <span style={{ 
+                              fontSize: '0.75rem', fontWeight: 800, color: scoreColor, 
+                              backgroundColor: scoreBg, padding: '0.1rem 0.4rem', 
+                              borderRadius: 'var(--border-radius-full)', border: `1px solid ${scoreColor}40`
+                            }}>
+                              {seo.score}/100
+                            </span>
+                          </div>
+                        </div>
+                        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.4rem' }}>
+                          {seo.rules.map(rule => (
+                            <div key={rule.id} style={{ display: 'flex', alignItems: 'center', gap: '0.25rem', fontSize: '0.7rem' }}>
+                              <span>{rule.passed ? '✅' : '❌'}</span>
+                              <span style={{ color: rule.passed ? 'var(--color-text-main)' : 'var(--color-text-muted)' }}>
+                                {language === 'vi' ? rule.labelVi : rule.labelEn}
+                              </span>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    );
+                  })()}
                 </div>
               </div>
 
@@ -1412,6 +3230,99 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                 </button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+
+      {/* REVISION HISTORY MODAL */}
+      {showHistoryModal && (
+        <div style={styles.modalOverlay}>
+          <div style={{ ...styles.modalCard, maxWidth: '600px', width: '90%' }} className="animate-fade-in">
+            <div style={styles.modalHeader}>
+              <h3 style={{ margin: 0, fontSize: '1.15rem', color: 'var(--color-white)' }}>
+                {language === 'vi' ? 'Lịch Sử Phiên Bản Block' : 'Page Revision History'}
+              </h3>
+              <button onClick={() => setShowHistoryModal(false)} style={styles.closeBtn}>Close</button>
+            </div>
+            
+            <div style={{ padding: '1.5rem', maxHeight: '60vh', overflowY: 'auto' }}>
+              <p style={{ fontSize: '0.85rem', color: 'var(--color-text-muted)', marginBottom: '1rem' }}>
+                {language === 'vi' 
+                  ? 'Chọn một phiên bản trước đó để khôi phục lại cấu trúc blocks của trang này.' 
+                  : 'Select a previous backup commit to rollback layout blocks for this page.'}
+              </p>
+
+              {pageHistory.filter(h => h.pageId === editingBlocksPageId).length === 0 ? (
+                <div style={{ textAlign: 'center', padding: '2rem', color: 'var(--color-text-muted)', fontSize: '0.9rem', border: '1px dashed var(--color-gray-border)', borderRadius: 'var(--border-radius-sm)' }}>
+                  {language === 'vi' ? 'Chưa có bản lưu lịch sử nào cho trang này.' : 'No backup versions saved for this page.'}
+                </div>
+              ) : (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
+                  {pageHistory.filter(h => h.pageId === editingBlocksPageId).map((rev) => (
+                    <div 
+                      key={rev.id} 
+                      style={{ 
+                        display: 'flex', justifyContent: 'space-between', alignItems: 'center', 
+                        padding: '0.75rem 1rem', border: '1px solid var(--color-gray-border)', 
+                        borderRadius: 'var(--border-radius-sm)', backgroundColor: 'var(--color-white)',
+                        boxShadow: 'var(--shadow-sm)'
+                      }}
+                    >
+                      <div>
+                        <div style={{ fontSize: '0.85rem', fontWeight: 700, color: 'var(--color-navy)' }}>
+                          {new Date(rev.timestamp).toLocaleString(language === 'vi' ? 'vi-VN' : 'en-US')}
+                        </div>
+                        <div style={{ fontSize: '0.75rem', color: 'var(--color-text-muted)', marginTop: '0.2rem' }}>
+                          ID: <code style={{ backgroundColor: '#F1F5F9', padding: '0.1rem 0.3rem', borderRadius: '3px' }}>{rev.id}</code> | {language === 'vi' ? 'Số blocks:' : 'Blocks count:'} {rev.blocks.length}
+                        </div>
+                      </div>
+                      
+                      <div style={{ display: 'flex', gap: '0.5rem' }}>
+                        <button
+                          type="button"
+                          className="btn btn-teal btn-sm"
+                          style={{ padding: '0.25rem 0.5rem', fontSize: '0.75rem' }}
+                          onClick={() => {
+                            if (confirm(language === 'vi' ? 'Bạn có muốn khôi phục bản lưu này không?' : 'Do you want to rollback to this version?')) {
+                              if (editingBlocksPageId) {
+                                handleSavePageBlocks(editingBlocksPageId, rev.blocks);
+                                logAction(`Restored page blocks layout to version from: ${new Date(rev.timestamp).toLocaleString()}`);
+                                setShowHistoryModal(false);
+                                alert(language === 'vi' ? 'Đã khôi phục phiên bản thành công!' : 'Version restored successfully!');
+                              }
+                            }
+                          }}
+                        >
+                          {language === 'vi' ? 'Khôi phục' : 'Rollback'}
+                        </button>
+                        <button
+                          type="button"
+                          className="btn btn-outline btn-sm"
+                          style={{ color: '#EF4444', borderColor: '#FCA5A5', padding: '0.25rem 0.5rem', fontSize: '0.75rem' }}
+                          onClick={() => {
+                            if (confirm(language === 'vi' ? 'Bạn có muốn xoá bản lưu này không?' : 'Delete this backup?')) {
+                              setPageHistory(prev => prev.filter(h => h.id !== rev.id));
+                            }
+                          }}
+                        >
+                          Xóa
+                        </button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+
+            <div style={{ display: 'flex', justifyContent: 'flex-end', padding: '1rem 1.5rem', borderTop: '1px solid var(--color-gray-border)' }}>
+              <button 
+                type="button" 
+                className="btn btn-outline" 
+                onClick={() => setShowHistoryModal(false)}
+              >
+                {language === 'vi' ? 'Đóng' : 'Close'}
+              </button>
+            </div>
           </div>
         </div>
       )}

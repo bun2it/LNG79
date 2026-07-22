@@ -15,9 +15,11 @@ export interface ArticleItem {
 
 interface KnowledgeProps {
   articles: ArticleItem[];
+  setArticles?: React.Dispatch<React.SetStateAction<ArticleItem[]>>;
+  isVisualEditing?: boolean;
 }
 
-export const Knowledge: React.FC<KnowledgeProps> = ({ articles }) => {
+export const Knowledge: React.FC<KnowledgeProps> = ({ articles, setArticles, isVisualEditing }) => {
   const { language } = useLanguage();
   const [activeCategory, setActiveCategory] = useState<string>('all');
   const [readingArticle, setReadingArticle] = useState<ArticleItem | null>(null);
@@ -73,12 +75,38 @@ export const Knowledge: React.FC<KnowledgeProps> = ({ articles }) => {
             {filteredArticles.map((art) => (
               <div key={art.id} className="card" style={{ ...styles.artCard, display: 'flex', flexDirection: 'column', overflow: 'hidden', padding: 0 }}>
                 {art.image && (
-                  <div style={{ width: '100%', height: '180px', overflow: 'hidden', borderBottom: '1px solid var(--color-gray-border)' }}>
+                  <div style={{ width: '100%', height: '180px', overflow: 'hidden', borderBottom: '1px solid var(--color-gray-border)', position: 'relative' }}>
                     <img 
                       src={art.image} 
                       alt={art.title[language]} 
                       style={{ width: '100%', height: '100%', objectFit: 'cover' }} 
                     />
+                    {isVisualEditing && setArticles && (
+                      <label style={{
+                        position: 'absolute', inset: 0, backgroundColor: 'rgba(0,0,0,0.5)',
+                        display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
+                        color: '#fff', cursor: 'pointer', fontSize: '0.8rem', opacity: 0.9, transition: 'var(--transition-fast)'
+                      }}>
+                        📷 Upload Banner
+                        <input
+                          type="file"
+                          accept="image/*"
+                          style={{ display: 'none' }}
+                          onChange={(e) => {
+                            const file = e.target.files?.[0];
+                            if (file) {
+                              const reader = new FileReader();
+                              reader.onload = (event) => {
+                                const base64 = event.target?.result as string;
+                                const list = articles.map((a) => a.id === art.id ? { ...a, image: base64 } : a);
+                                setArticles(list);
+                              };
+                              reader.readAsDataURL(file);
+                            }
+                          }}
+                        />
+                      </label>
+                    )}
                   </div>
                 )}
                 <div style={{ padding: '1.5rem', display: 'flex', flexDirection: 'column', flex: 1 }}>
@@ -90,8 +118,39 @@ export const Knowledge: React.FC<KnowledgeProps> = ({ articles }) => {
                     </div>
                   </div>
 
-                  <h3 style={styles.artTitle}>{art.title[language]}</h3>
-                  <p style={styles.artExcerpt}>{art.excerpt[language]}</p>
+                  {isVisualEditing && setArticles ? (
+                    <h3
+                      contentEditable={true}
+                      suppressContentEditableWarning={true}
+                      onBlur={(e) => {
+                        const text = e.currentTarget.innerText;
+                        const list = articles.map((a) => a.id === art.id ? { ...a, title: { ...a.title, [language]: text } } : a);
+                        setArticles(list);
+                      }}
+                      style={{ ...styles.artTitle, outline: 'none', border: '1px dashed var(--color-teal)', padding: '0.1rem 0.2rem', backgroundColor: 'rgba(13,148,136,0.05)', cursor: 'text' }}
+                    >
+                      {art.title[language]}
+                    </h3>
+                  ) : (
+                    <h3 style={styles.artTitle}>{art.title[language]}</h3>
+                  )}
+
+                  {isVisualEditing && setArticles ? (
+                    <p
+                      contentEditable={true}
+                      suppressContentEditableWarning={true}
+                      onBlur={(e) => {
+                        const text = e.currentTarget.innerText;
+                        const list = articles.map((a) => a.id === art.id ? { ...a, excerpt: { ...a.excerpt, [language]: text } } : a);
+                        setArticles(list);
+                      }}
+                      style={{ ...styles.artExcerpt, outline: 'none', border: '1px dashed var(--color-teal)', padding: '0.1rem 0.2rem', backgroundColor: 'rgba(13,148,136,0.05)', cursor: 'text' }}
+                    >
+                      {art.excerpt[language]}
+                    </p>
+                  ) : (
+                    <p style={styles.artExcerpt}>{art.excerpt[language]}</p>
+                  )}
 
                   <button 
                     onClick={() => setReadingArticle(art)} 
@@ -123,9 +182,25 @@ export const Knowledge: React.FC<KnowledgeProps> = ({ articles }) => {
                 <span style={{ fontSize: '0.8rem', color: 'var(--color-text-muted)' }}>Date: {readingArticle.date}</span>
               </div>
               
-              <div style={styles.contentParagraphs}>
-                {readingArticle.content[language]}
-              </div>
+              {isVisualEditing && setArticles ? (
+                <div
+                  contentEditable={true}
+                  suppressContentEditableWarning={true}
+                  onBlur={(e) => {
+                    const text = e.currentTarget.innerText;
+                    const list = articles.map((a) => a.id === readingArticle.id ? { ...a, content: { ...a.content, [language]: text } } : a);
+                    setArticles(list);
+                    setReadingArticle({ ...readingArticle, content: { ...readingArticle.content, [language]: text } });
+                  }}
+                  style={{ outline: 'none', border: '1px dashed var(--color-teal)', padding: '0.5rem', backgroundColor: 'rgba(13,148,136,0.05)', cursor: 'text', whiteSpace: 'pre-line', minHeight: '150px', marginBottom: '1.5rem', lineHeight: 1.6 }}
+                >
+                  {readingArticle.content[language]}
+                </div>
+              ) : (
+                <div style={styles.contentParagraphs}>
+                  {readingArticle.content[language]}
+                </div>
+              )}
 
               <div style={styles.safetyCallout}>
                 <ShieldCheck size={20} color="var(--color-teal)" style={{ flexShrink: 0 }} />

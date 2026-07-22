@@ -5,10 +5,31 @@ import { ProjectWizard } from '../components/ProjectWizard';
 
 interface ContactProps {
   onSubmitLead?: (data: any) => void;
+  contactInfo?: {
+    addressVi: string;
+    addressEn: string;
+    phone: string;
+    email: string;
+    hoursVi: string;
+    hoursEn: string;
+  };
+  setContactInfo?: React.Dispatch<React.SetStateAction<any>>;
+  isVisualEditing?: boolean;
 }
 
-export const Contact: React.FC<ContactProps> = ({ onSubmitLead }) => {
+export const Contact: React.FC<ContactProps> = ({ onSubmitLead, contactInfo, setContactInfo, isVisualEditing }) => {
   const { language, t } = useLanguage();
+
+  const defaultContact = {
+    addressVi: 'Lô CN-08, Khu Công Nghiệp Sóng Thần 3, Thủ Dầu Một, Bình Dương, Việt Nam',
+    addressEn: 'CN-08 Lot, Song Than 3 Industrial Park, Thu Dau Mot, Binh Duong, Vietnam',
+    phone: '+84 (0) 274 3801 888',
+    email: 'info@lnglpgkitchen-solutions.com',
+    hoursVi: 'Hỗ trợ kỹ thuật 24/7. Tiếp nhận khảo sát: 8:00 - 17:30 (Thứ 2 - Thứ 7)',
+    hoursEn: 'Technical dispatch 24/7. Site survey scheduling: 8:00 AM - 5:30 PM (Mon - Sat)'
+  };
+
+  const info = contactInfo || defaultContact;
 
   return (
     <div style={{ width: '100%' }}>
@@ -42,11 +63,23 @@ export const Contact: React.FC<ContactProps> = ({ onSubmitLead }) => {
                 <MapPin size={24} color="var(--color-teal)" style={{ flexShrink: 0, marginTop: 4 }} />
                 <div>
                   <h4 style={styles.itemTitle}>{language === 'vi' ? 'Văn Phòng & Nhà Xưởng' : 'HQ Office & Workshop'}</h4>
-                  <p style={styles.itemDesc}>
-                    {language === 'vi' 
-                      ? 'Lô CN-08, Khu Công Nghiệp Sóng Thần 3, Thủ Dầu Một, Bình Dương, Việt Nam'
-                      : 'CN-08 Lot, Song Than 3 Industrial Park, Thu Dau Mot, Binh Duong, Vietnam'}
-                  </p>
+                  {isVisualEditing && setContactInfo ? (
+                    <p
+                      contentEditable={true}
+                      suppressContentEditableWarning={true}
+                      onBlur={(e) => {
+                        const text = e.currentTarget.innerText;
+                        setContactInfo((prev: any) => ({ ...prev, [language === 'vi' ? 'addressVi' : 'addressEn']: text }));
+                      }}
+                      style={{ ...styles.itemDesc, outline: 'none', border: '1px dashed var(--color-teal)', padding: '0.1rem 0.2rem', backgroundColor: 'rgba(13,148,136,0.05)', cursor: 'text' }}
+                    >
+                      {language === 'vi' ? info.addressVi : info.addressEn}
+                    </p>
+                  ) : (
+                    <p style={styles.itemDesc}>
+                      {language === 'vi' ? info.addressVi : info.addressEn}
+                    </p>
+                  )}
                 </div>
               </div>
 
@@ -54,7 +87,21 @@ export const Contact: React.FC<ContactProps> = ({ onSubmitLead }) => {
                 <Phone size={24} color="var(--color-teal)" style={{ flexShrink: 0, marginTop: 2 }} />
                 <div>
                   <h4 style={styles.itemTitle}>{language === 'vi' ? 'Điện thoại đường dây nóng' : 'Telephone Hotline'}</h4>
-                  <p style={styles.itemDesc}>+84 (0) 274 3801 888</p>
+                  {isVisualEditing && setContactInfo ? (
+                    <p
+                      contentEditable={true}
+                      suppressContentEditableWarning={true}
+                      onBlur={(e) => {
+                        const text = e.currentTarget.innerText;
+                        setContactInfo((prev: any) => ({ ...prev, phone: text }));
+                      }}
+                      style={{ ...styles.itemDesc, outline: 'none', border: '1px dashed var(--color-teal)', padding: '0.1rem 0.2rem', backgroundColor: 'rgba(13,148,136,0.05)', cursor: 'text' }}
+                    >
+                      {info.phone}
+                    </p>
+                  ) : (
+                    <p style={styles.itemDesc}>{info.phone}</p>
+                  )}
                 </div>
               </div>
 
@@ -62,7 +109,21 @@ export const Contact: React.FC<ContactProps> = ({ onSubmitLead }) => {
                 <Mail size={24} color="var(--color-teal)" style={{ flexShrink: 0, marginTop: 2 }} />
                 <div>
                   <h4 style={styles.itemTitle}>{language === 'vi' ? 'Hộp thư điện tử' : 'Email Address'}</h4>
-                  <p style={styles.itemDesc}>info@lnglpgkitchen-solutions.com</p>
+                  {isVisualEditing && setContactInfo ? (
+                    <p
+                      contentEditable={true}
+                      suppressContentEditableWarning={true}
+                      onBlur={(e) => {
+                        const text = e.currentTarget.innerText;
+                        setContactInfo((prev: any) => ({ ...prev, email: text }));
+                      }}
+                      style={{ ...styles.itemDesc, outline: 'none', border: '1px dashed var(--color-teal)', padding: '0.1rem 0.2rem', backgroundColor: 'rgba(13,148,136,0.05)', cursor: 'text' }}
+                    >
+                      {info.email}
+                    </p>
+                  ) : (
+                    <p style={styles.itemDesc}>{info.email}</p>
+                  )}
                 </div>
               </div>
 
@@ -70,9 +131,23 @@ export const Contact: React.FC<ContactProps> = ({ onSubmitLead }) => {
                 <Clock size={24} color="var(--color-teal)" style={{ flexShrink: 0, marginTop: 2 }} />
                 <div>
                   <h4 style={styles.itemTitle}>{language === 'vi' ? 'Khảo Sát Khẩn Cấp' : 'Emergency & Survey Hours'}</h4>
-                  <p style={styles.itemDesc}>
-                    {language === 'vi' ? 'Hỗ trợ kỹ thuật 24/7. Tiếp nhận khảo sát: 8:00 - 17:30 (Thứ 2 - Thứ 7)' : 'Technical dispatch 24/7. Site survey scheduling: 8:00 AM - 5:30 PM (Mon - Sat)'}
-                  </p>
+                  {isVisualEditing && setContactInfo ? (
+                    <p
+                      contentEditable={true}
+                      suppressContentEditableWarning={true}
+                      onBlur={(e) => {
+                        const text = e.currentTarget.innerText;
+                        setContactInfo((prev: any) => ({ ...prev, [language === 'vi' ? 'hoursVi' : 'hoursEn']: text }));
+                      }}
+                      style={{ ...styles.itemDesc, outline: 'none', border: '1px dashed var(--color-teal)', padding: '0.1rem 0.2rem', backgroundColor: 'rgba(13,148,136,0.05)', cursor: 'text' }}
+                    >
+                      {language === 'vi' ? info.hoursVi : info.hoursEn}
+                    </p>
+                  ) : (
+                    <p style={styles.itemDesc}>
+                      {language === 'vi' ? info.hoursVi : info.hoursEn}
+                    </p>
+                  )}
                 </div>
               </div>
             </div>
