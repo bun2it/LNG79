@@ -11,6 +11,8 @@ export interface ArticleItem {
   date: string;
   visible?: boolean;
   image?: string;
+  images?: string[];
+  sortOrder?: number;
 }
 
 interface KnowledgeProps {
@@ -31,9 +33,10 @@ export const Knowledge: React.FC<KnowledgeProps> = ({ articles, setArticles, isV
     { id: 'kitchen', label: { vi: 'Thiết kế Bếp công nghiệp', en: 'Kitchen Design' }, icon: <ChefHat size={16} /> }
   ];
 
-  const filteredArticles = articles.filter((art) => 
-    activeCategory === 'all' || art.category === activeCategory
-  );
+  const filteredArticles = articles
+    .filter((art) => art.visible !== false)
+    .filter((art) => activeCategory === 'all' || art.category === activeCategory)
+    .sort((a, b) => (a.sortOrder ?? 0) - (b.sortOrder ?? 0));
 
   return (
     <div style={{ width: '100%' }}>
@@ -81,32 +84,7 @@ export const Knowledge: React.FC<KnowledgeProps> = ({ articles, setArticles, isV
                       alt={art.title[language]} 
                       style={{ width: '100%', height: '100%', objectFit: 'cover' }} 
                     />
-                    {isVisualEditing && setArticles && (
-                      <label style={{
-                        position: 'absolute', inset: 0, backgroundColor: 'rgba(0,0,0,0.5)',
-                        display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
-                        color: '#fff', cursor: 'pointer', fontSize: '0.8rem', opacity: 0.9, transition: 'var(--transition-fast)'
-                      }}>
-                        📷 Upload Banner
-                        <input
-                          type="file"
-                          accept="image/*"
-                          style={{ display: 'none' }}
-                          onChange={(e) => {
-                            const file = e.target.files?.[0];
-                            if (file) {
-                              const reader = new FileReader();
-                              reader.onload = (event) => {
-                                const base64 = event.target?.result as string;
-                                const list = articles.map((a) => a.id === art.id ? { ...a, image: base64 } : a);
-                                setArticles(list);
-                              };
-                              reader.readAsDataURL(file);
-                            }
-                          }}
-                        />
-                      </label>
-                    )}
+                    {(art.images?.length ?? 0) > 1 && <span className="knowledge-gallery-count">+{art.images!.length - 1}</span>}
                   </div>
                 )}
                 <div style={{ padding: '1.5rem', display: 'flex', flexDirection: 'column', flex: 1 }}>
@@ -181,6 +159,7 @@ export const Knowledge: React.FC<KnowledgeProps> = ({ articles, setArticles, isV
                 <span style={styles.artCat}>{readingArticle.category.toUpperCase()}</span>
                 <span style={{ fontSize: '0.8rem', color: 'var(--color-text-muted)' }}>Date: {readingArticle.date}</span>
               </div>
+              {(readingArticle.images?.length ?? 0) > 0 && <div className="knowledge-detail-gallery">{readingArticle.images!.map((url) => <img key={url} src={url} alt="" />)}</div>}
               
               {isVisualEditing && setArticles ? (
                 <div

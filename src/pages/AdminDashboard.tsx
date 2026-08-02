@@ -6,6 +6,11 @@ import {
 } from 'lucide-react';
 import type { ArticleItem } from './Knowledge';
 import type { ProjectItem } from './Projects';
+import type { ProductItem } from './Products';
+import { ArticleManager, ProductManager, ProjectManager } from '../components/admin/ContentManagers';
+import { MediaPickerDialog } from '../components/admin/MediaPickerDialog';
+import { createCmsBackup, downloadCmsBackup, restoreCmsBackup, validateCmsBackup } from '../features/cms/backup';
+import { authFetch } from '../features/auth/authFetch';
 
 interface LeadItem {
   id: string;
@@ -26,6 +31,12 @@ interface AdminDashboardProps {
   onDeleteLead: (id: string) => void;
   fuelSettings: { lngPrice: number; lpgPrice: number };
   onUpdateSettings: (settings: { lngPrice: number; lpgPrice: number }) => void;
+  products: ProductItem[];
+  onAddProduct: (product: ProductItem) => void;
+  onEditProduct: (product: ProductItem) => void;
+  onDeleteProduct: (id: string) => void;
+  onToggleProduct: (id: string) => void;
+  onTranslateAllContent: (onProgress: (done: number, total: number) => void) => Promise<void>;
   articles: ArticleItem[];
   onAddArticle: (article: ArticleItem) => void;
   onDeleteArticle: (id: string) => void;
@@ -153,6 +164,7 @@ const calculateSEOScore = (
 
 export const AdminDashboard: React.FC<AdminDashboardProps> = ({
   leads, onUpdateStatus, onDeleteLead, onAddLead, fuelSettings, onUpdateSettings,
+  products, onAddProduct, onEditProduct, onDeleteProduct, onToggleProduct, onTranslateAllContent,
   articles, onAddArticle, onDeleteArticle, onToggleArticle,
   projects, onAddProject, onDeleteProject, onToggleProject, onEditProject,
   onEditArticle, pages, onUpdatePages: setPages, isLoggedIn, setIsLoggedIn
@@ -161,10 +173,15 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
   const [authError, setAuthError] = useState('');
+  const [isAuthenticating, setIsAuthenticating] = useState(false);
   const [activeTab, setActiveTab] = useState<'overview' | 'pages' | 'navigation' | 'media' | 'leads' | 'products' | 'settings' | 'articles' | 'projects' | 'seo' | 'logs' | 'trash'>('overview');
+  const showLegacyManagers = sessionStorage.getItem('cms_debug_legacy_managers') === 'true';
   const [lngInput, setLngInput] = useState(fuelSettings.lngPrice);
   const [lpgInput, setLpgInput] = useState(fuelSettings.lpgPrice);
   const [selectedLead, setSelectedLead] = useState<LeadItem | null>(null);
+  const [translationProgress, setTranslationProgress] = useState<{ done: number; total: number } | null>(null);
+  const [translationMessage, setTranslationMessage] = useState('');
+  const [backupMessage, setBackupMessage] = useState('');
 
   const [loginAttempts, setLoginAttempts] = useState<number>(0);
   const [lockoutTime, setLockoutTime] = useState<number | null>(null);
@@ -205,15 +222,19 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
       { id: 'med-3', fileName: 'commercial_kitchen_cooking.jpg', title: 'Commercial Kitchen Gas Ranges', altText: 'Thiết bị bếp á bếp âu bếp ga', url: 'https://images.unsplash.com/photo-1556910103-1c02745aae4d?q=80&w=800&auto=format&fit=crop', fileSize: 312000, fileType: 'image/jpeg', uploadedAt: '2026-07-17' }
     ];
   });
+  const [mediaQuery, setMediaQuery] = useState('');
+  const [mediaTypeFilter, setMediaTypeFilter] = useState<'all' | 'image' | 'pdf'>('all');
+  const [editingMediaId, setEditingMediaId] = useState<string | null>(null);
 
   const fileTypeFromName = (name: string) => {
     const extension = name.split('.').pop()?.toLowerCase();
-    return extension === 'svg' ? 'image/svg+xml' : extension === 'png' ? 'image/png' : extension === 'webp' ? 'image/webp' : extension === 'gif' ? 'image/gif' : 'image/jpeg';
+    return extension === 'pdf' ? 'application/pdf' : extension === 'svg' ? 'image/svg+xml' : extension === 'png' ? 'image/png' : extension === 'webp' ? 'image/webp' : extension === 'gif' ? 'image/gif' : 'image/jpeg';
   };
 
   React.useEffect(() => {
+    if (!isLoggedIn) return;
     let cancelled = false;
-    fetch('/api/uploads')
+    authFetch('/api/uploads')
       .then((response) => response.ok ? response.json() : Promise.reject(new Error('Media API unavailable')))
       .then((hosted: Array<{ name: string; url: string; size?: number; uploadedAt?: string }>) => {
         if (cancelled) return;
@@ -236,20 +257,11 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
       })
       .catch(() => undefined);
     return () => { cancelled = true; };
-  }, []);
+  }, [isLoggedIn]);
 
   const uploadMediaFiles = async (files: FileList) => {
     const uploaded = await Promise.all(Array.from(files).map(async (file) => {
-      if (file.type === 'application/pdf') {
-        const url = await new Promise<string>((resolve, reject) => {
-          const reader = new FileReader();
-          reader.onload = () => typeof reader.result === 'string' ? resolve(reader.result) : reject(new Error('Invalid PDF'));
-          reader.onerror = () => reject(reader.error);
-          reader.readAsDataURL(file);
-        });
-        return { name: file.name, url, size: file.size, type: file.type, hosted: false };
-      }
-      const response = await fetch('/api/uploads', {
+      const response = await authFetch('/api/uploads', {
         method: 'POST',
         headers: { 'Content-Type': file.type, 'X-File-Name': encodeURIComponent(file.name) },
         body: file,
@@ -276,11 +288,27 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
   };
 
   const deleteMediaAsset = async (asset: any) => {
+    const usages = [...products.map((item) => item.image), ...projects.flatMap((item) => [item.image, ...(item.images || [])]), ...articles.flatMap((item) => [item.image, ...(item.images || [])])].filter((url) => url === asset.url).length;
+    const warning = usages > 0
+      ? `${language === 'vi' ? 'File đang được sử dụng tại' : 'This file is used in'} ${usages} ${language === 'vi' ? 'nội dung. Xóa vẫn tiếp tục?' : 'content items. Delete anyway?'}`
+      : (language === 'vi' ? 'Xóa file này khỏi Media Vault?' : 'Delete this file from Media Vault?');
+    if (!window.confirm(warning)) return;
     if (asset.url?.startsWith('/uploads/')) {
-      await fetch(`/api/uploads?name=${encodeURIComponent(asset.fileName)}`, { method: 'DELETE' });
+      const response = await authFetch(`/api/uploads?name=${encodeURIComponent(asset.fileName)}`, { method: 'DELETE' });
+      if (!response.ok) throw new Error(language === 'vi' ? 'Không thể xóa file trên host.' : 'Could not delete hosted file.');
     }
     setMediaAssets((current) => current.filter((item) => item.id !== asset.id));
     logAction(`Deleted media asset "${asset.fileName}"`);
+  };
+
+  const filteredMediaAssets = mediaAssets.filter((asset) => {
+    const matchesType = mediaTypeFilter === 'all' || (mediaTypeFilter === 'image' ? asset.fileType?.startsWith('image/') : asset.fileType === 'application/pdf');
+    const haystack = `${asset.fileName} ${asset.title || ''} ${asset.altText || ''}`.toLocaleLowerCase();
+    return matchesType && haystack.includes(mediaQuery.trim().toLocaleLowerCase());
+  });
+
+  const updateMediaMetadata = (id: string, field: 'title' | 'altText', value: string) => {
+    setMediaAssets((current) => current.map((asset) => asset.id === id ? { ...asset, [field]: value } : asset));
   };
 
   const [auditLogs, setAuditLogs] = useState<any[]>(() => {
@@ -449,6 +477,9 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
     } else if (item.type === 'lead') {
       onAddLead(item.originalData);
       logAction(`Restored client lead from Trash Bin: "${item.name}"`);
+    } else if (item.type === 'product') {
+      onAddProduct(item.originalData);
+      logAction(`Restored product from Trash Bin: "${item.name}"`);
     }
     setTrashBin(prev => prev.filter(i => i.id !== item.id));
     alert(language === 'vi' ? 'Đã khôi phục mục này thành công!' : 'Item restored successfully!');
@@ -482,6 +513,8 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
 
   // Articles management state
   const [showAddArticleModal, setShowAddArticleModal] = useState(false);
+  const [showArticleDraftPreview, setShowArticleDraftPreview] = useState(false);
+  const [articleMediaPickerOpen, setArticleMediaPickerOpen] = useState(false);
   const [editingArticle, setEditingArticle] = useState<ArticleItem | null>(null);
   const [newArt, setNewArt] = useState({
     titleVi: '',
@@ -491,7 +524,10 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
     excerptEn: '',
     contentVi: '',
     contentEn: '',
-    imageURL: ''
+    imageURL: '',
+    galleryImages: [] as string[],
+    publishDate: new Date().toISOString().split('T')[0],
+    sortOrder: 0
   });
 
   const handleEditArticleClick = (art: ArticleItem) => {
@@ -504,7 +540,10 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
       excerptEn: art.excerpt.en,
       contentVi: art.content.vi,
       contentEn: art.content.en,
-      imageURL: art.image || ''
+      imageURL: art.image || art.images?.[0] || '',
+      galleryImages: art.images || (art.image ? [art.image] : []),
+      publishDate: art.date,
+      sortOrder: art.sortOrder ?? 0
     });
     setShowAddArticleModal(true);
   };
@@ -517,6 +556,9 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
       excerpt: { vi: newArt.excerptVi, en: newArt.excerptEn },
       content: { vi: newArt.contentVi, en: newArt.contentEn },
       image: newArt.imageURL || undefined,
+      images: Array.from(new Set([newArt.imageURL, ...newArt.galleryImages].filter(Boolean))),
+      date: newArt.publishDate,
+      sortOrder: newArt.sortOrder,
       visible: editingArticle ? editingArticle.visible : true
     };
 
@@ -529,7 +571,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
       onAddArticle({
         id: 'art-' + Date.now(),
         ...artData,
-        date: new Date().toISOString().split('T')[0]
+        date: newArt.publishDate
       });
     }
     
@@ -543,12 +585,16 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
       excerptEn: '',
       contentVi: '',
       contentEn: '',
-      imageURL: ''
+      imageURL: '',
+      galleryImages: [],
+      publishDate: new Date().toISOString().split('T')[0],
+      sortOrder: 0
     });
   };
 
   // Projects management state
   const [showAddProjectModal, setShowAddProjectModal] = useState(false);
+  const [projectMediaPickerOpen, setProjectMediaPickerOpen] = useState(false);
   const [editingProject, setEditingProject] = useState<ProjectItem | null>(null);
   const [newProj, setNewProj] = useState({
     nameVi: '',
@@ -563,7 +609,9 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
     resultVi: '',
     resultEn: '',
     equipmentsInput: '',
-    imageURL: ''
+    imageURL: '',
+    galleryImages: [] as string[],
+    sortOrder: 0
   });
 
   const handleEditClick = (proj: ProjectItem) => {
@@ -581,7 +629,9 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
       resultVi: proj.result.vi,
       resultEn: proj.result.en,
       equipmentsInput: proj.equipments.join(', '),
-      imageURL: proj.image || ''
+      imageURL: proj.image || proj.images?.[0] || '',
+      galleryImages: proj.images || (proj.image ? [proj.image] : []),
+      sortOrder: proj.sortOrder ?? 0
     });
     setShowAddProjectModal(true);
   };
@@ -597,6 +647,8 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
       result: { vi: newProj.resultVi, en: newProj.resultEn },
       equipments: newProj.equipmentsInput.split(',').map(s => s.trim()).filter(Boolean),
       image: newProj.imageURL || 'https://images.unsplash.com/photo-1581094128547-1388d1397865?q=80&w=600&auto=format&fit=crop',
+      images: Array.from(new Set([newProj.imageURL, ...newProj.galleryImages].filter(Boolean))),
+      sortOrder: newProj.sortOrder,
       visible: editingProject ? editingProject.visible : true
     };
 
@@ -627,7 +679,9 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
       resultVi: '',
       resultEn: '',
       equipmentsInput: '',
-      imageURL: ''
+      imageURL: '',
+      galleryImages: [],
+      sortOrder: 0
     });
   };
 
@@ -657,7 +711,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
     }).format(val);
   };
 
-  const handleLogin = (e: React.FormEvent) => {
+  const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
     if (lockoutTime && Date.now() < lockoutTime) {
       const remainingMins = Math.ceil((lockoutTime - Date.now()) / (60 * 1000));
@@ -669,39 +723,37 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
       return;
     }
 
-    if (username === 'admin' && password === 'admin123') {
-      setIsLoggedIn(true);
-      sessionStorage.setItem('cms_logged_in', 'true');
-      setAuthError('');
-      setLoginAttempts(0);
-      setLockoutTime(null);
-      logAction('Administrator logged in successfully');
-    } else {
+    setIsAuthenticating(true);
+    try {
+      const response = await fetch('/api/auth/login', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ username, password }) });
+      const result = await response.json();
+      if (response.ok && result.authenticated) {
+        setIsLoggedIn(true);
+        setPassword('');
+        setAuthError('');
+        setLoginAttempts(0);
+        setLockoutTime(null);
+        logAction('Administrator logged in successfully');
+        return;
+      }
       const newAttempts = loginAttempts + 1;
       setLoginAttempts(newAttempts);
-      if (newAttempts >= 5) {
-        const lockDuration = 15 * 60 * 1000; // 15 mins
+      if (response.status === 429 || newAttempts >= 5) {
+        const lockDuration = 15 * 60 * 1000;
         setLockoutTime(Date.now() + lockDuration);
-        setAuthError(
-          language === 'vi'
-            ? 'Đăng nhập sai quá 5 lần. Tài khoản bị khóa trong 15 phút!'
-            : 'Too many failed attempts. Account locked for 15 minutes!'
-        );
-        logAction('FAILED login limit reached: Admin account locked');
-      } else {
-        setAuthError(
-          language === 'vi' 
-            ? `Sai tài khoản hoặc mật khẩu! (Còn lại ${5 - newAttempts} lần thử)` 
-            : `Invalid credentials! (${5 - newAttempts} attempts remaining)`
-        );
-        logAction(`FAILED login attempt ${newAttempts}/5`);
       }
+      setAuthError(result.error || (language === 'vi' ? 'Sai tài khoản hoặc mật khẩu.' : 'Invalid credentials.'));
+      logAction(`FAILED login attempt ${newAttempts}/5`);
+    } catch {
+      setAuthError(language === 'vi' ? 'Không thể kết nối máy chủ đăng nhập.' : 'Could not connect to the authentication server.');
+    } finally {
+      setIsAuthenticating(false);
     }
   };
 
-  const handleLogout = () => {
+  const handleLogout = async () => {
+    await fetch('/api/auth/logout', { method: 'POST' }).catch(() => undefined);
     setIsLoggedIn(false);
-    sessionStorage.removeItem('cms_logged_in');
   };
 
   // Statistics
@@ -712,6 +764,29 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
     e.preventDefault();
     onUpdateSettings({ lngPrice: lngInput, lpgPrice: lpgInput });
     alert(language === 'vi' ? 'Đã cập nhật hệ số giá nhiên liệu thành công!' : 'Fuel calculator settings updated successfully!');
+  };
+
+  const handleExportBackup = () => {
+    const backup = createCmsBackup();
+    downloadCmsBackup(backup);
+    setBackupMessage(language === 'vi' ? `Đã xuất ${Object.keys(backup.data).length} nhóm dữ liệu lúc ${new Date(backup.exportedAt).toLocaleString('vi-VN')}.` : `Exported ${Object.keys(backup.data).length} data groups.`);
+    logAction('Exported a full CMS JSON backup');
+  };
+
+  const handleImportBackup = async (file?: File) => {
+    if (!file) return;
+    setBackupMessage('');
+    try {
+      if (file.size > 20 * 1024 * 1024) throw new Error(language === 'vi' ? 'File backup không được vượt quá 20 MB.' : 'Backup file must not exceed 20 MB.');
+      const backup = validateCmsBackup(JSON.parse(await file.text()));
+      const summary = `${Object.keys(backup.data).length} ${language === 'vi' ? 'nhóm dữ liệu, tạo lúc' : 'data groups, created at'} ${new Date(backup.exportedAt).toLocaleString(language === 'vi' ? 'vi-VN' : 'en-US')}`;
+      if (!window.confirm(`${language === 'vi' ? 'Khôi phục backup này?' : 'Restore this backup?'}\n${summary}\n${language === 'vi' ? 'Hệ thống sẽ tự tải một bản sao lưu hiện tại trước khi thay thế.' : 'The current state will be downloaded before replacement.'}`)) return;
+      downloadCmsBackup(createCmsBackup(), 'lng79-before-restore');
+      restoreCmsBackup(backup);
+      window.location.reload();
+    } catch (reason) {
+      setBackupMessage(reason instanceof Error ? reason.message : (language === 'vi' ? 'Không thể đọc file backup.' : 'Could not read backup file.'));
+    }
   };
 
   const getStatusLabel = (status: LeadItem['status']) => {
@@ -770,13 +845,9 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
               />
             </div>
             
-            <button type="submit" className="btn btn-teal" style={{ width: '100%', marginTop: '0.5rem' }}>
-              {language === 'vi' ? 'Đăng Nhập' : 'Sign In'}
+            <button type="submit" disabled={isAuthenticating} className="btn btn-teal" style={{ width: '100%', marginTop: '0.5rem' }}>
+              {isAuthenticating ? (language === 'vi' ? 'Đang xác thực…' : 'Authenticating…') : (language === 'vi' ? 'Đăng Nhập' : 'Sign In')}
             </button>
-
-            <div style={styles.credentialsHint}>
-              <span>💡 {language === 'vi' ? 'Tài khoản demo: admin / mật khẩu: admin123' : 'Demo account: admin / password: admin123'}</span>
-            </div>
           </form>
         </div>
       </div>
@@ -989,6 +1060,36 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
               </p>
             </div>
 
+            <div className="cms-ai-translate-card">
+              <div>
+                <span className="cms-ai-translate-card__eyebrow">GROQ AI</span>
+                <h4>{language === 'vi' ? 'Dịch toàn bộ nội dung VI → EN' : 'Translate all VI content to EN'}</h4>
+                <p>{language === 'vi' ? 'Dịch Pages, Catalog, Dự án, Kiến thức và thông tin liên hệ. Nội dung tiếng Việt được giữ nguyên.' : 'Translate Pages, Catalog, Projects, Articles, and contact details. Vietnamese source text is preserved.'}</p>
+                {translationProgress && <div className="cms-translation-progress"><span style={{ width: `${translationProgress.total ? (translationProgress.done / translationProgress.total) * 100 : 0}%` }} /></div>}
+                {translationMessage && <small className="cms-translation-message">{translationMessage}</small>}
+              </div>
+              <button
+                className="btn btn-primary"
+                disabled={Boolean(translationProgress)}
+                onClick={async () => {
+                  if (!confirm(language === 'vi' ? 'AI sẽ ghi đè toàn bộ nội dung tiếng Anh hiện tại. Tiếp tục?' : 'AI will overwrite all current English content. Continue?')) return;
+                  setTranslationMessage('');
+                  setTranslationProgress({ done: 0, total: 1 });
+                  try {
+                    await onTranslateAllContent((done, total) => setTranslationProgress({ done, total }));
+                    setTranslationMessage(language === 'vi' ? 'Đã dịch và lưu toàn bộ nội dung.' : 'All content translated and saved.');
+                    logAction('Translated all website content from VI to EN with Groq AI');
+                  } catch (error) {
+                    setTranslationMessage(error instanceof Error ? error.message : 'Groq translation failed');
+                  } finally {
+                    setTranslationProgress(null);
+                  }
+                }}
+              >
+                {translationProgress ? (language === 'vi' ? 'Đang dịch…' : 'Translating…') : (language === 'vi' ? 'Dịch toàn bộ bằng AI' : 'Translate all with AI')}
+              </button>
+            </div>
+
             {/* Stats Row */}
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, minmax(0, 1fr))', gap: '1rem' }}>
               <div style={styles.statCard}>
@@ -1059,6 +1160,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                 </div>
               </div>
             </div>
+
           </div>
         )}
 
@@ -1813,11 +1915,11 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
             </div>
 
             {/* Upload Zone */}
-            <div style={{ border: '2px dashed var(--color-gray-border)', borderRadius: 'var(--border-radius-md)', padding: '2.5rem', textAlign: 'center', backgroundColor: '#F8FAFC' }}>
+            <div style={{ border: '2px dashed var(--color-gray-border)', borderRadius: 'var(--border-radius-md)', padding: '2.5rem', textAlign: 'center', backgroundColor: 'var(--color-gray-bg)' }}>
               <input 
                 type="file" 
                 multiple 
-                accept="image/jpeg,image/png,image/webp,image/gif,image/svg+xml,application/pdf"
+                accept="image/jpeg,image/png,image/webp,image/gif,application/pdf"
                 id="mediaUploadInput"
                 style={{ display: 'none' }}
                 onChange={(e) => {
@@ -1835,14 +1937,16 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                 {language === 'vi' ? 'Chọn hình ảnh hoặc PDF để tải lên' : 'Select Files to Upload'}
               </button>
               <div style={{ fontSize: '0.8rem', color: 'var(--color-text-muted)', marginTop: '0.5rem' }}>
-                Hỗ trợ JPG, PNG, WebP, GIF, SVG (lưu trên host) và PDF kỹ thuật (lưu metadata CMS)
+                {language === 'vi' ? 'Hỗ trợ JPG, PNG, WebP, GIF và PDF tối đa 10 MB; tất cả được lưu trong public/uploads trên host.' : 'Supports JPG, PNG, WebP, GIF and PDF up to 10 MB; all files are stored in public/uploads on the host.'}
               </div>
             </div>
 
+            <div className="cms-manager-toolbar cms-media-toolbar"><label><input className="form-input" placeholder={language === 'vi' ? 'Tìm tên file, tiêu đề hoặc alt text...' : 'Search filename, title, or alt text...'} value={mediaQuery} onChange={(event) => setMediaQuery(event.target.value)} /></label><select className="form-select" value={mediaTypeFilter} onChange={(event) => setMediaTypeFilter(event.target.value as 'all' | 'image' | 'pdf')}><option value="all">{language === 'vi' ? 'Tất cả file' : 'All files'}</option><option value="image">{language === 'vi' ? 'Hình ảnh' : 'Images'}</option><option value="pdf">PDF</option></select><small>{filteredMediaAssets.length}/{mediaAssets.length} file</small></div>
+
             {/* Assets Grid */}
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(5, minmax(0, 1fr))', gap: '1rem' }}>
-              {mediaAssets.map((asset) => (
-                <div key={asset.id} style={{ backgroundColor: 'var(--color-gray-card)', border: '1px solid var(--color-gray-border)', borderRadius: 'var(--border-radius-sm)', overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
+            <div className="cms-media-assets-grid">
+              {filteredMediaAssets.map((asset) => (
+                <div key={asset.id} className="cms-media-asset-card">
                   <div style={{ height: '110px', backgroundColor: '#F1F5F9', overflow: 'hidden', position: 'relative' }}>
                     {asset.fileType.includes('image') ? (
                       <img src={asset.url} alt={asset.altText} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
@@ -1854,17 +1958,13 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                   </div>
                   <div style={{ padding: '0.75rem', display: 'flex', flexDirection: 'column', gap: '0.25rem', flex: 1 }}>
                     <span style={{ fontSize: '0.8rem', fontWeight: 700, color: 'var(--color-navy)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', display: 'block' }}>{asset.fileName}</span>
-                    <span style={{ fontSize: '0.7rem', color: 'var(--color-text-muted)' }}>Size: {Math.round(asset.fileSize / 1024)} KB</span>
-                    <button 
-                      className="btn btn-outline btn-sm"
-                      style={{ padding: '0.1rem 0.25rem', fontSize: '0.7rem', color: '#EF4444', borderColor: '#FCA5A5', marginTop: 'auto' }}
-                      onClick={() => void deleteMediaAsset(asset)}
-                    >
-                      Delete
-                    </button>
+                    <span style={{ fontSize: '0.7rem', color: 'var(--color-text-muted)' }}>{Math.round(asset.fileSize / 1024)} KB · {asset.uploadedAt}</span>
+                    {editingMediaId === asset.id ? <><input className="form-input cms-media-meta-input" value={asset.title || ''} placeholder={language === 'vi' ? 'Tiêu đề' : 'Title'} onChange={(event) => updateMediaMetadata(asset.id, 'title', event.target.value)} /><input className="form-input cms-media-meta-input" value={asset.altText || ''} placeholder="Alt text" onChange={(event) => updateMediaMetadata(asset.id, 'altText', event.target.value)} /></> : <small className="cms-media-alt" title={asset.altText}>{asset.altText || (language === 'vi' ? 'Chưa có alt text' : 'No alt text')}</small>}
+                    <div className="cms-media-card-actions"><button type="button" onClick={() => setEditingMediaId(editingMediaId === asset.id ? null : asset.id)}>{editingMediaId === asset.id ? (language === 'vi' ? 'Xong' : 'Done') : (language === 'vi' ? 'Sửa' : 'Edit')}</button><button type="button" onClick={() => void navigator.clipboard.writeText(asset.url)}>{language === 'vi' ? 'Sao chép URL' : 'Copy URL'}</button><button type="button" className="is-delete" onClick={() => void deleteMediaAsset(asset).catch((error) => alert(error instanceof Error ? error.message : 'Delete failed'))}>{language === 'vi' ? 'Xóa' : 'Delete'}</button></div>
                   </div>
                 </div>
               ))}
+              {filteredMediaAssets.length === 0 && <div className="image-library-empty">{language === 'vi' ? 'Không tìm thấy file phù hợp.' : 'No matching files.'}</div>}
             </div>
           </div>
         )}
@@ -2043,8 +2143,23 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
           </div>
         )}
 
-        {/* PRODUCTS INVENTORY TAB */}
         {activeTab === 'products' && (
+          <ProductManager
+            language={language}
+            products={products}
+            onAdd={onAddProduct}
+            onEdit={onEditProduct}
+            onToggle={onToggleProduct}
+            onDelete={(product) => {
+              setTrashBin((current) => [{ id: `trash-${Date.now()}`, type: 'product', name: product.name.vi, deletedAt: new Date().toISOString(), originalData: product }, ...current]);
+              onDeleteProduct(product.id);
+              logAction(`Deleted product: "${product.name.vi}"`);
+            }}
+          />
+        )}
+
+        {/* Legacy product table retained temporarily for Phase 2 field migration. */}
+        {showLegacyManagers && activeTab === 'products' && (
           <div className="animate-fade-in">
             <div style={styles.tableHeader}>
               <h3 style={{ fontSize: '1.2rem', color: 'var(--color-navy)' }}>
@@ -2253,8 +2368,29 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
           </div>
         )}
 
-        {/* ARTICLES TAB */}
+        {activeTab === 'settings' && <section className="cms-backup-panel"><div><span className="cms-ai-translate-card__eyebrow">BACKUP & RESTORE</span><h4>{language === 'vi' ? 'Sao lưu và khôi phục dữ liệu CMS' : 'CMS backup and restore'}</h4><p>{language === 'vi' ? 'Xuất nội dung, menu, Media Vault metadata, lịch sử, cấu hình, lead và các chỉnh sửa trực quan thành một file JSON.' : 'Export content, menus, Media Vault metadata, history, settings, leads, and visual edits to one JSON file.'}</p><small>{language === 'vi' ? 'Lưu ý: ảnh/PDF trong public/uploads không được nhúng vào JSON; hãy sao lưu thư mục này khi chuyển host.' : 'Note: public/uploads files are not embedded; copy that folder when moving hosts.'}</small></div><div className="cms-backup-actions"><button type="button" className="btn btn-teal" onClick={handleExportBackup}>{language === 'vi' ? 'Tải file sao lưu' : 'Download backup'}</button><label className="btn btn-outline">{language === 'vi' ? 'Chọn file để khôi phục' : 'Choose backup to restore'}<input type="file" accept="application/json,.json" hidden onChange={(event) => { void handleImportBackup(event.target.files?.[0]); event.target.value = ''; }} /></label></div>{backupMessage && <p className="cms-backup-message">{backupMessage}</p>}</section>}
+
         {activeTab === 'articles' && (
+          <ArticleManager
+            language={language}
+            articles={articles}
+            onAdd={() => {
+              setEditingArticle(null);
+              setNewArt({ titleVi: '', titleEn: '', category: 'energy', excerptVi: '', excerptEn: '', contentVi: '', contentEn: '', imageURL: '', galleryImages: [], publishDate: new Date().toISOString().split('T')[0], sortOrder: articles.length + 1 });
+              setShowAddArticleModal(true);
+            }}
+            onEdit={handleEditArticleClick}
+            onToggle={onToggleArticle}
+            onDelete={(article) => {
+              setTrashBin((current) => [{ id: `trash-${Date.now()}`, type: 'article', name: article.title.vi, deletedAt: new Date().toISOString(), originalData: article }, ...current]);
+              onDeleteArticle(article.id);
+              logAction(`Deleted technical manual: "${article.title.vi}"`);
+            }}
+          />
+        )}
+
+        {/* Legacy article list retained temporarily while its modal is migrated. */}
+        {showLegacyManagers && activeTab === 'articles' && (
           <div className="animate-fade-in">
             <div style={styles.tableHeader}>
               <h3 style={{ fontSize: '1.2rem', color: 'var(--color-navy)' }}>
@@ -2272,7 +2408,10 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                     excerptEn: '',
                     contentVi: '',
                     contentEn: '',
-                    imageURL: ''
+                    imageURL: '',
+                    galleryImages: [],
+                    publishDate: new Date().toISOString().split('T')[0],
+                    sortOrder: articles.length + 1
                   });
                   setShowAddArticleModal(true);
                 }}
@@ -2365,8 +2504,27 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
           </div>
         )}
 
-        {/* PROJECTS TAB */}
         {activeTab === 'projects' && (
+          <ProjectManager
+            language={language}
+            projects={projects}
+            onAdd={() => {
+              setEditingProject(null);
+              setNewProj({ nameVi: '', nameEn: '', category: 'lng', locationVi: '', locationEn: '', scopeVi: '', scopeEn: '', capacityVi: '', capacityEn: '', resultVi: '', resultEn: '', equipmentsInput: '', imageURL: '', galleryImages: [], sortOrder: projects.length + 1 });
+              setShowAddProjectModal(true);
+            }}
+            onEdit={handleEditClick}
+            onToggle={onToggleProject}
+            onDelete={(project) => {
+              setTrashBin((current) => [{ id: `trash-${Date.now()}`, type: 'project', name: project.name.vi, deletedAt: new Date().toISOString(), originalData: project }, ...current]);
+              onDeleteProject(project.id);
+              logAction(`Deleted project: "${project.name.vi}"`);
+            }}
+          />
+        )}
+
+        {/* Legacy project list retained temporarily while its modal is migrated. */}
+        {showLegacyManagers && activeTab === 'projects' && (
           <div className="animate-fade-in">
             <div style={styles.tableHeader}>
               <h3 style={{ fontSize: '1.2rem', color: 'var(--color-navy)' }}>
@@ -2389,7 +2547,9 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                     resultVi: '',
                     resultEn: '',
                     equipmentsInput: '',
-                    imageURL: ''
+                    imageURL: '',
+                    galleryImages: [],
+                    sortOrder: projects.length + 1
                   });
                   setShowAddProjectModal(true);
                 }}
@@ -2789,24 +2949,12 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                     </select>
                   </div>
 
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}><div className="form-group" style={{ marginBottom: 0 }}><label className="form-label">{language === 'vi' ? 'Ngày xuất bản' : 'Publish date'}</label><input type="date" className="form-input" value={newArt.publishDate} onChange={(event) => setNewArt({ ...newArt, publishDate: event.target.value })} required /></div><div className="form-group" style={{ marginBottom: 0 }}><label className="form-label">{language === 'vi' ? 'Thứ tự hiển thị' : 'Display order'}</label><input type="number" min="0" className="form-input" value={newArt.sortOrder} onChange={(event) => setNewArt({ ...newArt, sortOrder: Number(event.target.value) })} /></div></div>
+
                   <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
                     <div className="form-group" style={{ marginBottom: 0 }}>
-                      <label className="form-label">{language === 'vi' ? 'Tải lên hình ảnh' : 'Upload Image'}</label>
-                      <div style={{ display: 'flex', gap: '1rem', alignItems: 'center' }}>
-                        <input 
-                          type="file" 
-                          accept="image/*" 
-                          className="form-input" 
-                          onChange={(e) => handleImageFileChange(e, (base64) => setNewArt({ ...newArt, imageURL: base64 }))}
-                        />
-                        {newArt.imageURL && (
-                          <img 
-                            src={newArt.imageURL} 
-                            alt="Preview" 
-                            style={{ width: '50px', height: '35px', objectFit: 'cover', borderRadius: 'var(--border-radius-sm)', border: '1px solid var(--color-gray-border)' }} 
-                          />
-                        )}
-                      </div>
+                      <label className="form-label">{language === 'vi' ? 'Ảnh đại diện' : 'Cover image'}</label>
+                      <div className="cms-media-field">{newArt.imageURL ? <img src={newArt.imageURL} alt="" /> : <div className="cms-media-field__empty">{language === 'vi' ? 'Chưa có ảnh' : 'No image'}</div>}<button type="button" className="btn btn-outline" onClick={() => setArticleMediaPickerOpen(true)}>{language === 'vi' ? 'Chọn từ Media Vault' : 'Choose from Media Vault'}</button></div>
                     </div>
                     <div className="form-group" style={{ marginBottom: 0 }}>
                       <label className="form-label">{language === 'vi' ? 'Đường dẫn hình ảnh (URL)' : 'Image URL'}</label>
@@ -2819,6 +2967,8 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                       />
                     </div>
                   </div>
+
+                  {newArt.galleryImages.length > 0 && <div className="cms-project-gallery-editor">{newArt.galleryImages.map((url) => <div key={url} className={url === newArt.imageURL ? 'is-cover' : ''}><img src={url} alt="" /><div><button type="button" onClick={() => setNewArt((current) => ({ ...current, imageURL: url }))}>{language === 'vi' ? 'Đặt ảnh bìa' : 'Set cover'}</button><button type="button" onClick={() => setNewArt((current) => { const galleryImages = current.galleryImages.filter((item) => item !== url); return { ...current, galleryImages, imageURL: current.imageURL === url ? (galleryImages[0] || '') : current.imageURL }; })}>×</button></div></div>)}</div>}
 
                   <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
                     <div className="form-group" style={{ marginBottom: 0 }}>
@@ -2970,6 +3120,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
               </div>
 
               <div style={{ display: 'flex', gap: '0.75rem', justifyContent: 'flex-end', borderTop: '1px solid var(--color-gray-border)', paddingTop: '1.25rem', marginTop: '1.5rem' }}>
+                <button type="button" className="btn btn-outline" onClick={() => setShowArticleDraftPreview(true)}>{language === 'vi' ? 'Xem trước' : 'Preview'}</button>
                 <button 
                   type="button" 
                   className="btn btn-outline" 
@@ -2987,6 +3138,8 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
           </div>
         </div>
       )}
+
+      {showArticleDraftPreview && <div className="cms-confirm-backdrop" style={{ zIndex: 2300 }} onMouseDown={() => setShowArticleDraftPreview(false)}><article className="cms-article-preview" onMouseDown={(event) => event.stopPropagation()}><button type="button" className="image-library-close" aria-label="Close" onClick={() => setShowArticleDraftPreview(false)}>×</button>{newArt.imageURL && <img className="cms-article-preview__cover" src={newArt.imageURL} alt="" />}<div><span className={`cms-badge cms-badge--${newArt.category}`}>{newArt.category.toUpperCase()}</span> <small>{newArt.publishDate}</small></div><h2>{language === 'vi' ? newArt.titleVi : newArt.titleEn}</h2><strong>{language === 'vi' ? newArt.excerptVi : newArt.excerptEn}</strong><div className="cms-article-preview__content">{language === 'vi' ? newArt.contentVi : newArt.contentEn}</div></article></div>}
 
       {/* Add Project Modal */}
       {showAddProjectModal && (
@@ -3044,24 +3197,14 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                       </select>
                     </div>
                     <div className="form-group" style={{ marginBottom: 0 }}>
-                      <label className="form-label">{language === 'vi' ? 'Tải lên hình ảnh' : 'Upload Image'}</label>
-                      <div style={{ display: 'flex', gap: '1rem', alignItems: 'center' }}>
-                        <input 
-                          type="file" 
-                          accept="image/*" 
-                          className="form-input" 
-                          onChange={(e) => handleImageFileChange(e, (base64) => setNewProj({ ...newProj, imageURL: base64 }))}
-                        />
-                        {newProj.imageURL && (
-                          <img 
-                            src={newProj.imageURL} 
-                            alt="Preview" 
-                            style={{ width: '50px', height: '35px', objectFit: 'cover', borderRadius: 'var(--border-radius-sm)', border: '1px solid var(--color-gray-border)' }} 
-                          />
-                        )}
-                      </div>
+                      <label className="form-label">{language === 'vi' ? 'Thư viện ảnh dự án' : 'Project gallery'}</label>
+                      <div className="cms-media-field">{newProj.imageURL ? <img src={newProj.imageURL} alt="" /> : <div className="cms-media-field__empty">{language === 'vi' ? 'Chưa có ảnh' : 'No image'}</div>}<button type="button" className="btn btn-outline" onClick={() => setProjectMediaPickerOpen(true)}>{language === 'vi' ? 'Thêm từ Media Vault' : 'Add from Media Vault'}</button></div>
                     </div>
                   </div>
+
+                  {newProj.galleryImages.length > 0 && <div className="cms-project-gallery-editor">{newProj.galleryImages.map((url) => <div key={url} className={url === newProj.imageURL ? 'is-cover' : ''}><img src={url} alt="" /><div><button type="button" onClick={() => setNewProj((current) => ({ ...current, imageURL: url }))}>{language === 'vi' ? 'Đặt ảnh bìa' : 'Set cover'}</button><button type="button" onClick={() => setNewProj((current) => { const galleryImages = current.galleryImages.filter((item) => item !== url); return { ...current, galleryImages, imageURL: current.imageURL === url ? (galleryImages[0] || '') : current.imageURL }; })}>×</button></div></div>)}</div>}
+
+                  <div className="form-group" style={{ marginBottom: 0 }}><label className="form-label">{language === 'vi' ? 'Thứ tự hiển thị' : 'Display order'}</label><input type="number" min="0" className="form-input" value={newProj.sortOrder} onChange={(event) => setNewProj({ ...newProj, sortOrder: Number(event.target.value) })} /></div>
 
                   <div className="form-group" style={{ marginBottom: 0 }}>
                     <label className="form-label">{language === 'vi' ? 'Đường dẫn hình ảnh (URL)' : 'Project Image URL'}</label>
@@ -3380,6 +3523,8 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
           </div>
         </div>
       )}
+      <MediaPickerDialog open={articleMediaPickerOpen} value={newArt.imageURL} language={language} onClose={() => setArticleMediaPickerOpen(false)} onSelect={(url) => setNewArt((current) => ({ ...current, imageURL: current.imageURL || url, galleryImages: Array.from(new Set([...current.galleryImages, url])) }))} />
+      <MediaPickerDialog open={projectMediaPickerOpen} value={newProj.imageURL} language={language} onClose={() => setProjectMediaPickerOpen(false)} onSelect={(url) => setNewProj((current) => ({ ...current, imageURL: current.imageURL || url, galleryImages: Array.from(new Set([...current.galleryImages, url])) }))} />
     </div>
   );
 };

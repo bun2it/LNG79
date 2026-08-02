@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { useLanguage } from '../context/LanguageContext';
 import { Search, Plus, Check, FileDown, Eye, ShieldAlert } from 'lucide-react';
 
-interface ProductItem {
+export interface ProductItem {
   id: string;
   name: { vi: string; en: string };
   category: string;
@@ -10,6 +10,9 @@ interface ProductItem {
   origin: string;
   details: { vi: string; en: string };
   techParams: { label: { vi: string; en: string }; value: string }[];
+  image?: string;
+  visible?: boolean;
+  sortOrder?: number;
 }
 
 interface ProductsProps {
@@ -152,12 +155,13 @@ export const Products: React.FC<ProductsProps> = ({ onAddProduct, cartItems, pro
   ];
 
   const listData = products && products.length > 0 ? products : PRODUCTS_DATA;
-  const filteredProducts = listData.filter((prod) => {
+  const filteredProducts = [...listData].filter((prod) => {
+    if (prod.visible === false) return false;
     const matchesTab = activeTab === 'all' || prod.category === activeTab;
     const matchesSearch = prod.name[language].toLowerCase().includes(searchQuery.toLowerCase()) || 
                           prod.specs[language].toLowerCase().includes(searchQuery.toLowerCase());
     return matchesTab && matchesSearch;
-  });
+  }).sort((a, b) => (a.sortOrder ?? 999) - (b.sortOrder ?? 999));
 
   return (
     <div style={{ width: '100%' }}>
@@ -210,6 +214,7 @@ export const Products: React.FC<ProductsProps> = ({ onAddProduct, cartItems, pro
               const inCart = cartItems.some(i => i.id === prod.id);
               return (
                 <div key={prod.id} className="card" style={styles.productCard}>
+                  {prod.image && <img src={prod.image} alt={prod.name[language]} style={styles.productImage} />}
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.75rem' }}>
                     <span style={styles.prodCat}>{prod.category.toUpperCase()}</span>
                     {isVisualEditing && setProducts ? (
@@ -449,6 +454,14 @@ const styles: { [key: string]: React.CSSProperties } = {
     flexDirection: 'column',
     textAlign: 'left',
     padding: '1.5rem',
+  },
+  productImage: {
+    width: '100%',
+    height: '180px',
+    objectFit: 'cover',
+    borderRadius: 'var(--border-radius-sm)',
+    marginBottom: '1rem',
+    border: '1px solid var(--color-gray-border)',
   },
   prodCat: {
     fontSize: '0.65rem',

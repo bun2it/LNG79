@@ -12,7 +12,9 @@ export interface ProjectItem {
   result: { vi: string; en: string };
   equipments: string[];
   image?: string;
+  images?: string[];
   visible?: boolean;
+  sortOrder?: number;
 }
 
 interface ProjectsProps {
@@ -33,9 +35,10 @@ export const Projects: React.FC<ProjectsProps> = ({ projects, setProjects, isVis
     { id: 'kitchen', label: t('commKitchen') }
   ];
 
-  const filteredProjects = projects.filter(proj => 
-    activeFilter === 'all' || proj.category === activeFilter
-  );
+  const filteredProjects = projects
+    .filter((proj) => proj.visible !== false)
+    .filter((proj) => activeFilter === 'all' || proj.category === activeFilter)
+    .sort((a, b) => (a.sortOrder ?? 0) - (b.sortOrder ?? 0));
 
   return (
     <div style={{ width: '100%' }}>
@@ -197,32 +200,7 @@ export const Projects: React.FC<ProjectsProps> = ({ projects, setProjects, isVis
                       (e.target as HTMLImageElement).src = "https://images.unsplash.com/photo-1581094128547-1388d1397865?q=80&w=600&auto=format&fit=crop";
                     }}
                   />
-                  {isVisualEditing && setProjects && (
-                    <label style={{
-                      position: 'absolute', inset: 0, backgroundColor: 'rgba(0,0,0,0.5)',
-                      display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
-                      color: '#fff', cursor: 'pointer', fontSize: '0.8rem', opacity: 0.9, transition: 'var(--transition-fast)'
-                    }}>
-                      📷 Upload Project Cover
-                      <input
-                        type="file"
-                        accept="image/*"
-                        style={{ display: 'none' }}
-                        onChange={(e) => {
-                          const file = e.target.files?.[0];
-                          if (file) {
-                            const reader = new FileReader();
-                            reader.onload = (event) => {
-                              const base64 = event.target?.result as string;
-                              const list = projects.map((p) => p.id === proj.id ? { ...p, image: base64 } : p);
-                              setProjects(list);
-                            };
-                            reader.readAsDataURL(file);
-                          }
-                        }}
-                      />
-                    </label>
-                  )}
+                  {(proj.images?.length ?? 0) > 1 && <div className="project-gallery-strip">{proj.images!.slice(1, 5).map((url) => <img key={url} src={url} alt="" />)}</div>}
                 </div>
               </div>
             ))}

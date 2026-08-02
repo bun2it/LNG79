@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { Suspense, useState } from 'react';
 import { LanguageProvider, useLanguage } from './context/LanguageContext';
 import { Navbar } from './components/Navbar';
 import { Footer } from './components/Footer';
@@ -12,10 +12,13 @@ import { FuelCalculator } from './components/FuelCalculator';
 import { Knowledge } from './pages/Knowledge';
 import type { ArticleItem } from './pages/Knowledge';
 import { Contact } from './pages/Contact';
-import { AdminDashboard } from './pages/AdminDashboard';
 import { VisualTextEditor } from './components/VisualTextEditor';
 import type { VisualTextEditorHandle } from './components/VisualTextEditor';
 import { VisualImageEditor } from './components/VisualImageEditor';
+import { translateWebsiteContent } from './features/ai/bulkTranslate';
+import { CMS_AUTH_EXPIRED_EVENT } from './features/auth/authFetch';
+
+const AdminDashboard = React.lazy(() => import('./pages/AdminDashboard').then((module) => ({ default: module.AdminDashboard })));
 
 interface LeadItem {
   id: string;
@@ -166,16 +169,20 @@ export const AppContent: React.FC = () => {
   const [theme, setTheme] = useState<'light' | 'dark'>(() => {
     return localStorage.getItem('lng79_theme') === 'light' ? 'light' : 'dark';
   });
-  const [isLoggedIn, setIsLoggedIn] = useState<boolean>(() => {
-    return sessionStorage.getItem('cms_logged_in') === 'true';
-  });
+  const [isLoggedIn, setIsLoggedIn] = useState(false);
   const [isVisualEditing, setIsVisualEditing] = useState<boolean>(false);
   const [hasVisualDraft, setHasVisualDraft] = useState<boolean>(false);
   const [visualSaveNotice, setVisualSaveNotice] = useState<boolean>(false);
   const [cartItems, setCartItems] = useState<any[]>([]);
   const [cartOpen, setCartOpen] = useState<boolean>(false);
-  const [leads, setLeads] = useState<LeadItem[]>(initialLeads);
-  const [fuelSettings, setFuelSettings] = useState({ lngPrice: 18500, lpgPrice: 23000 });
+  const [leads, setLeads] = useState<LeadItem[]>(() => {
+    const saved = localStorage.getItem('cms_leads');
+    return saved ? JSON.parse(saved) : initialLeads;
+  });
+  const [fuelSettings, setFuelSettings] = useState(() => {
+    const saved = localStorage.getItem('cms_fuel_settings');
+    return saved ? JSON.parse(saved) : { lngPrice: 18500, lpgPrice: 23000 };
+  });
   const [articles, setArticles] = useState<ArticleItem[]>(() => {
     const saved = localStorage.getItem('cms_articles');
     return saved ? JSON.parse(saved) : initialArticles;
@@ -208,6 +215,14 @@ export const AppContent: React.FC = () => {
   }, []);
 
   React.useEffect(() => {
+    let cancelled = false;
+    fetch('/api/auth/status').then((response) => response.json()).then((result) => { if (!cancelled) setIsLoggedIn(Boolean(result.authenticated)); }).catch(() => undefined);
+    const handleExpiredSession = () => setIsLoggedIn(false);
+    window.addEventListener(CMS_AUTH_EXPIRED_EVENT, handleExpiredSession);
+    return () => { cancelled = true; window.removeEventListener(CMS_AUTH_EXPIRED_EVENT, handleExpiredSession); };
+  }, []);
+
+  React.useEffect(() => {
     localStorage.setItem('cms_products', JSON.stringify(products));
   }, [products]);
 
@@ -218,6 +233,9 @@ export const AppContent: React.FC = () => {
   React.useEffect(() => {
     localStorage.setItem('cms_projects', JSON.stringify(projects));
   }, [projects]);
+
+  React.useEffect(() => { localStorage.setItem('cms_leads', JSON.stringify(leads)); }, [leads]);
+  React.useEffect(() => { localStorage.setItem('cms_fuel_settings', JSON.stringify(fuelSettings)); }, [fuelSettings]);
 
   React.useEffect(() => {
     document.documentElement.dataset.theme = theme;
@@ -354,6 +372,34 @@ export const AppContent: React.FC = () => {
     setCartItems((prev) => prev.filter((item) => item.id !== id));
   };
 
+  const handleCreateProduct = (product: any) => {
+    setProducts((current) => [product, ...current]);
+  };
+
+  const handleUpdateProduct = (product: any) => {
+    setProducts((current) => current.map((item) => item.id === product.id ? product : item));
+  };
+
+  const handleDeleteProduct = (id: string) => {
+    setProducts((current) => current.filter((item) => item.id !== id));
+  };
+
+  const handleToggleProduct = (id: string) => {
+    setProducts((current) => current.map((item) => item.id === id ? { ...item, visible: item.visible === false } : item));
+  };
+
+  const handleTranslateAllContent = async (onProgress: (done: number, total: number) => void) => {
+    const translated = await translateWebsiteContent(
+      { pages, products, projects, articles, contactInfo },
+      onProgress,
+    );
+    setPages(translated.pages);
+    setProducts(translated.products);
+    setProjects(translated.projects);
+    setArticles(translated.articles);
+    setContactInfo(translated.contactInfo);
+  };
+
   const handleClearCart = () => {
     setCartItems([]);
   };
@@ -466,13 +512,19 @@ export const AppContent: React.FC = () => {
         );
       case 'admin':
         return (
-          <AdminDashboard 
+          <Suspense fallback={<div className="cms-route-loading"><span /><strong>{language === 'vi' ? 'Đang tải trang quản trị…' : 'Loading CMS…'}</strong></div>}><AdminDashboard
             leads={leads}
             onUpdateStatus={handleUpdateLeadStatus}
             onDeleteLead={handleDeleteLead}
             onAddLead={handleAddLead}
             fuelSettings={fuelSettings}
             onUpdateSettings={setFuelSettings}
+            products={products}
+            onAddProduct={handleCreateProduct}
+            onEditProduct={handleUpdateProduct}
+            onDeleteProduct={handleDeleteProduct}
+            onToggleProduct={handleToggleProduct}
+            onTranslateAllContent={handleTranslateAllContent}
             articles={articles}
             onAddArticle={handleAddArticle}
             onDeleteArticle={handleDeleteArticle}
@@ -487,7 +539,7 @@ export const AppContent: React.FC = () => {
             onUpdatePages={setPages}
             isLoggedIn={isLoggedIn}
             setIsLoggedIn={setIsLoggedIn}
-          />
+          /></Suspense>
         );
       default:
         return <Home setView={setView} onAddProduct={handleAddProduct} cartItems={cartItems} pages={pages} setPages={setPages} isVisualEditing={isVisualEditing} />;
@@ -514,8 +566,8 @@ export const AppContent: React.FC = () => {
         currentView={currentView}
         language={language}
       />
-      {isLoggedIn && (
-        <div data-visual-editor-ui style={{
+      {isLoggedIn && currentView !== 'admin' && (
+        <div data-visual-editor-ui className="visual-editor-toolbar" style={{
           position: 'sticky', top: 0, zIndex: 1000, 
           backgroundColor: '#0F172A', color: '#fff', 
           padding: '0.75rem 1.5rem', display: 'flex', 
@@ -566,29 +618,29 @@ export const AppContent: React.FC = () => {
           </div>
         </div>
       )}
-      <Navbar 
+      {currentView !== 'admin' && <Navbar
         currentView={currentView} 
         setView={setView} 
         cartCount={cartItems.length} 
         toggleCart={() => setCartOpen(!cartOpen)}
         theme={theme}
         toggleTheme={() => setTheme(theme === 'dark' ? 'light' : 'dark')}
-      />
+      />}
       
       <main style={{ flex: 1 }}>
         {renderView()}
       </main>
 
-      <Footer setView={setView} />
+      {currentView !== 'admin' && <Footer setView={setView} />}
 
-      <QuoteDrawer 
+      {currentView !== 'admin' && <QuoteDrawer
         isOpen={cartOpen} 
         onClose={() => setCartOpen(false)} 
         cartItems={cartItems} 
         onRemoveItem={handleRemoveProduct} 
         onClearCart={handleClearCart} 
         onSubmitLead={(data: any) => handleCreateLead('quote', data)}
-      />
+      />}
     </div>
   );
 };
