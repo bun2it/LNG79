@@ -206,6 +206,83 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
     ];
   });
 
+  const fileTypeFromName = (name: string) => {
+    const extension = name.split('.').pop()?.toLowerCase();
+    return extension === 'svg' ? 'image/svg+xml' : extension === 'png' ? 'image/png' : extension === 'webp' ? 'image/webp' : extension === 'gif' ? 'image/gif' : 'image/jpeg';
+  };
+
+  React.useEffect(() => {
+    let cancelled = false;
+    fetch('/api/uploads')
+      .then((response) => response.ok ? response.json() : Promise.reject(new Error('Media API unavailable')))
+      .then((hosted: Array<{ name: string; url: string; size?: number; uploadedAt?: string }>) => {
+        if (cancelled) return;
+        setMediaAssets((current) => {
+          const additions = hosted
+            .filter((file) => !current.some((asset) => asset.url === file.url))
+            .map((file) => ({
+              id: `host-${file.name}`,
+              fileName: file.name,
+              title: file.name.replace(/\.[^.]+$/, ''),
+              altText: file.name.replace(/\.[^.]+$/, '').replace(/[-_]+/g, ' '),
+              url: file.url,
+              fileSize: file.size || 0,
+              fileType: fileTypeFromName(file.name),
+              uploadedAt: file.uploadedAt?.slice(0, 10) || new Date().toISOString().slice(0, 10),
+              hosted: true,
+            }));
+          return additions.length ? [...additions, ...current] : current;
+        });
+      })
+      .catch(() => undefined);
+    return () => { cancelled = true; };
+  }, []);
+
+  const uploadMediaFiles = async (files: FileList) => {
+    const uploaded = await Promise.all(Array.from(files).map(async (file) => {
+      if (file.type === 'application/pdf') {
+        const url = await new Promise<string>((resolve, reject) => {
+          const reader = new FileReader();
+          reader.onload = () => typeof reader.result === 'string' ? resolve(reader.result) : reject(new Error('Invalid PDF'));
+          reader.onerror = () => reject(reader.error);
+          reader.readAsDataURL(file);
+        });
+        return { name: file.name, url, size: file.size, type: file.type, hosted: false };
+      }
+      const response = await fetch('/api/uploads', {
+        method: 'POST',
+        headers: { 'Content-Type': file.type, 'X-File-Name': encodeURIComponent(file.name) },
+        body: file,
+      });
+      const result = await response.json();
+      if (!response.ok) throw new Error(result.error || `Upload ${file.name} thất bại`);
+      return { name: result.name, url: result.url, size: file.size, type: file.type, hosted: true };
+    }));
+    setMediaAssets((current) => [
+      ...uploaded.map((file) => ({
+        id: `med-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
+        fileName: file.name,
+        title: file.name.replace(/\.[^.]+$/, ''),
+        altText: file.name.replace(/\.[^.]+$/, '').replace(/[-_]+/g, ' '),
+        url: file.url,
+        fileSize: file.size,
+        fileType: file.type,
+        uploadedAt: new Date().toISOString().slice(0, 10),
+        hosted: file.hosted,
+      })),
+      ...current,
+    ]);
+    logAction(`Uploaded ${files.length} assets to Media Vault`);
+  };
+
+  const deleteMediaAsset = async (asset: any) => {
+    if (asset.url?.startsWith('/uploads/')) {
+      await fetch(`/api/uploads?name=${encodeURIComponent(asset.fileName)}`, { method: 'DELETE' });
+    }
+    setMediaAssets((current) => current.filter((item) => item.id !== asset.id));
+    logAction(`Deleted media asset "${asset.fileName}"`);
+  };
+
   const [auditLogs, setAuditLogs] = useState<any[]>(() => {
     const saved = localStorage.getItem('cms_audit_logs');
     if (saved) return JSON.parse(saved);
@@ -1740,34 +1817,14 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
               <input 
                 type="file" 
                 multiple 
-                accept="image/*,application/pdf"
+                accept="image/jpeg,image/png,image/webp,image/gif,image/svg+xml,application/pdf"
                 id="mediaUploadInput"
                 style={{ display: 'none' }}
                 onChange={(e) => {
                   const files = e.target.files;
                   if (files && files.length > 0) {
-                    Array.from(files).forEach((file) => {
-                      const reader = new FileReader();
-                      reader.onloadend = () => {
-                        if (typeof reader.result === 'string') {
-                          setMediaAssets(prev => [
-                            {
-                              id: 'med-' + Date.now() + Math.random().toString(36).substr(2, 5),
-                              fileName: file.name,
-                              title: file.name.split('.')[0],
-                              altText: file.name.split('.')[0],
-                              url: reader.result,
-                              fileSize: file.size,
-                              fileType: file.type,
-                              uploadedAt: new Date().toISOString().split('T')[0]
-                            },
-                            ...prev
-                          ]);
-                        }
-                      };
-                      reader.readAsDataURL(file);
-                    });
-                    logAction(`Uploaded ${files.length} assets to Media Vault`);
+                    void uploadMediaFiles(files).catch((error) => alert(error instanceof Error ? error.message : 'Upload thất bại'));
+                    e.target.value = '';
                   }
                 }}
               />
@@ -1778,7 +1835,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                 {language === 'vi' ? 'Chọn hình ảnh hoặc PDF để tải lên' : 'Select Files to Upload'}
               </button>
               <div style={{ fontSize: '0.8rem', color: 'var(--color-text-muted)', marginTop: '0.5rem' }}>
-                Hỗ trợ ảnh PNG, JPG, WebP và PDF kỹ thuật (tự động nén WebP)
+                Hỗ trợ JPG, PNG, WebP, GIF, SVG (lưu trên host) và PDF kỹ thuật (lưu metadata CMS)
               </div>
             </div>
 
@@ -1801,10 +1858,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                     <button 
                       className="btn btn-outline btn-sm"
                       style={{ padding: '0.1rem 0.25rem', fontSize: '0.7rem', color: '#EF4444', borderColor: '#FCA5A5', marginTop: 'auto' }}
-                      onClick={() => {
-                        setMediaAssets(prev => prev.filter(a => a.id !== asset.id));
-                        logAction(`Deleted media asset "${asset.fileName}"`);
-                      }}
+                      onClick={() => void deleteMediaAsset(asset)}
                     >
                       Delete
                     </button>

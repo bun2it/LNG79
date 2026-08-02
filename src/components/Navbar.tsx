@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { useLanguage } from '../context/LanguageContext';
 import { 
   Menu, X, ChevronDown, Flame, ChefHat, 
-  ShoppingCart, Languages 
+  ShoppingCart, Languages, Sun, Moon
 } from 'lucide-react';
 
 interface NavbarProps {
@@ -10,9 +10,11 @@ interface NavbarProps {
   setView: (view: string) => void;
   cartCount: number;
   toggleCart: () => void;
+  theme: 'light' | 'dark';
+  toggleTheme: () => void;
 }
 
-export const Navbar: React.FC<NavbarProps> = ({ currentView, setView, cartCount, toggleCart }) => {
+export const Navbar: React.FC<NavbarProps> = ({ currentView, setView, cartCount, toggleCart, theme, toggleTheme }) => {
   const { language, setLanguage, t } = useLanguage();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 
@@ -123,6 +125,15 @@ export const Navbar: React.FC<NavbarProps> = ({ currentView, setView, cartCount,
 
         {/* Action Controls */}
         <div className="nav-actions">
+          <button
+            onClick={toggleTheme}
+            className="nav-theme-btn"
+            title={theme === 'dark' ? 'Chuyển sang giao diện sáng' : 'Chuyển sang giao diện tối'}
+            aria-label={theme === 'dark' ? 'Chuyển sang giao diện sáng' : 'Chuyển sang giao diện tối'}
+          >
+            {theme === 'dark' ? <Sun size={17} /> : <Moon size={17} />}
+          </button>
+
           {/* Lang Toggle */}
           <button onClick={toggleLanguage} className="nav-lang-btn" title={t('language')}>
             <Languages size={16} />

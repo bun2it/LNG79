@@ -128,7 +128,7 @@ export const Home: React.FC<HomeProps> = ({ setView, onAddProduct, cartItems, pa
                     <div className="container" style={{ maxWidth: '800px', display: 'flex', flexDirection: 'column', gap: '1.25rem', alignItems: 'center' }}>
                       {renderEditableText(block.id, language === 'vi' ? 'titleVi' : 'titleEn', language === 'vi' ? block.titleVi : block.titleEn, 'h2', { fontSize: '2rem', margin: 0, fontWeight: 700, color: 'var(--color-white)' })}
                       {renderEditableText(block.id, language === 'vi' ? 'subtitleVi' : 'subtitleEn', language === 'vi' ? block.subtitleVi : block.subtitleEn, 'p', { opacity: 0.9, fontSize: '1.1rem', margin: 0 })}
-                      <button className="btn btn-primary" style={{ backgroundColor: 'var(--color-navy)', borderColor: 'var(--color-navy)', color: 'var(--color-white)', marginTop: '0.5rem' }} onClick={() => handleNav('contact')}>
+                      <button className="btn btn-primary" style={{ backgroundColor: 'var(--color-orange)', borderColor: 'var(--color-orange)', color: 'var(--color-white)', marginTop: '0.5rem' }} onClick={() => handleNav('contact')}>
                         {renderEditableText(block.id, language === 'vi' ? 'ctaVi' : 'ctaEn', language === 'vi' ? block.ctaVi || 'Liên hệ' : block.ctaEn || 'Contact Us', 'span')}
                       </button>
                     </div>
@@ -138,49 +138,13 @@ export const Home: React.FC<HomeProps> = ({ setView, onAddProduct, cartItems, pa
               return (
                 <section key={block.id || idx} style={{ ...styles.hero, backgroundImage: block.image ? `url(${block.image})` : undefined, minHeight: '80vh', display: 'flex', alignItems: 'center', position: 'relative' }}>
                   <div style={styles.heroOverlay}></div>
-                  {isVisualEditing && (
-                    <label style={{
-                      position: 'absolute', top: '1rem', right: '1rem', zIndex: 10,
-                      backgroundColor: 'rgba(0,0,0,0.7)', color: '#fff', padding: '0.4rem 0.8rem',
-                      borderRadius: '4px', cursor: 'pointer', fontSize: '0.75rem', border: '1px solid var(--color-teal)'
-                    }}>
-                      📷 Đổi ảnh nền Hero
-                      <input
-                        type="file"
-                        accept="image/*"
-                        style={{ display: 'none' }}
-                        onChange={(e) => {
-                          const file = e.target.files?.[0];
-                          if (file) {
-                            const reader = new FileReader();
-                            reader.onload = (event) => {
-                              const base64 = event.target?.result as string;
-                              if (setPages && pages) {
-                                const updated = pages.map((p: any) => {
-                                  if (p.id === 'p-1') {
-                                    return {
-                                      ...p,
-                                      blocks: p.blocks.map((b: any) => b.id === block.id ? { ...b, image: base64 } : b)
-                                    };
-                                  }
-                                  return p;
-                                });
-                                setPages(updated);
-                              }
-                            };
-                            reader.readAsDataURL(file);
-                          }
-                        }}
-                      />
-                    </label>
-                  )}
                   <div className="container" style={styles.heroContainer}>
                     <div style={styles.heroText}>
                       <span style={styles.heroBadge}>
                         🛡️ {language === 'vi' ? 'Tổng thầu EPC - Tiêu chuẩn ASME & EN' : 'EPC Contractor - ASME & EN Standards'}
                       </span>
-                      {renderEditableText(block.id, language === 'vi' ? 'titleVi' : 'titleEn', language === 'vi' ? block.titleVi : block.titleEn, 'h1', { fontSize: '3rem', fontWeight: 800, color: 'var(--color-white)', marginBottom: '1.5rem' })}
-                      {renderEditableText(block.id, language === 'vi' ? 'subtitleVi' : 'subtitleEn', language === 'vi' ? block.subtitleVi : block.subtitleEn, 'p', { fontSize: '1.2rem', color: 'var(--color-white)', marginBottom: '2rem', opacity: 0.9 })}
+                      {renderEditableText(block.id, language === 'vi' ? 'titleVi' : 'titleEn', language === 'vi' ? block.titleVi : block.titleEn, 'h1', { fontSize: '3rem', fontWeight: 800, color: 'var(--home-on-surface)', marginBottom: '1.5rem' })}
+                      {renderEditableText(block.id, language === 'vi' ? 'subtitleVi' : 'subtitleEn', language === 'vi' ? block.subtitleVi : block.subtitleEn, 'p', { fontSize: '1.2rem', color: 'var(--home-on-surface)', marginBottom: '2rem', opacity: 0.9 })}
                       <div style={styles.heroButtons}>
                         <button className="btn btn-primary" onClick={() => handleNav('contact')}>
                           {renderEditableText(block.id, language === 'vi' ? 'ctaVi' : 'ctaEn', language === 'vi' ? block.ctaVi || 'Nhận tư vấn' : block.ctaEn || 'Get Consultation', 'span')} <ArrowRight size={18} style={{ display: 'inline', marginLeft: '0.25rem' }} />
@@ -217,15 +181,15 @@ export const Home: React.FC<HomeProps> = ({ setView, onAddProduct, cartItems, pa
                 );
               }
               return (
-                <section key={block.id || idx} className="section" style={{ backgroundColor: 'var(--color-navy)', color: 'var(--color-white)' }}>
+                <section key={block.id || idx} className="section home-adaptive-section" style={{ backgroundColor: 'var(--home-surface)', color: 'var(--home-on-surface)' }}>
                   <div className="container">
                     <div className="section-title-wrap">
-                      {renderEditableText(block.id, language === 'vi' ? 'titleVi' : 'titleEn', language === 'vi' ? block.titleVi : block.titleEn, 'h2', { color: 'var(--color-white)', fontSize: '2rem', fontWeight: 800, textAlign: 'center' })}
+                      {renderEditableText(block.id, language === 'vi' ? 'titleVi' : 'titleEn', language === 'vi' ? block.titleVi : block.titleEn, 'h2', { color: 'var(--home-on-surface)', fontSize: '2rem', fontWeight: 800, textAlign: 'center' })}
                     </div>
                     {isVisualEditing ? (
                       <div style={{ width: '100%', marginTop: '1.5rem' }}>
                         <small style={{ color: 'var(--color-teal)', display: 'block', textAlign: 'center', marginBottom: '0.5rem' }}>[Sửa số liệu & nhãn cách nhau bằng dấu phẩy. Ví dụ: "85+ Dự-án, 100% PCCC"]</small>
-                        {renderEditableText(block.id, language === 'vi' ? 'itemsVi' : 'itemsEn', language === 'vi' ? block.itemsVi : block.itemsEn, 'div', { display: 'flex', justifyContent: 'center', padding: '0.5rem', border: '1px dashed var(--color-teal)', borderRadius: '4px', color: 'var(--color-white)' })}
+                        {renderEditableText(block.id, language === 'vi' ? 'itemsVi' : 'itemsEn', language === 'vi' ? block.itemsVi : block.itemsEn, 'div', { display: 'flex', justifyContent: 'center', padding: '0.5rem', border: '1px dashed var(--color-teal)', borderRadius: '4px', color: 'var(--home-on-surface)' })}
                       </div>
                     ) : (
                       <div style={{ display: 'flex', flexWrap: 'wrap', gap: '2.5rem', justifyContent: 'space-around', marginTop: '2rem' }}>
@@ -248,23 +212,23 @@ export const Home: React.FC<HomeProps> = ({ setView, onAddProduct, cartItems, pa
             case 'features':
               if (block.id === 'b-process') {
                 return (
-                  <section key={block.id || idx} className="section section-dark">
+                  <section key={block.id || idx} className="section section-dark home-adaptive-section">
                     <div className="container">
                       <div className="section-title-wrap">
-                        {renderEditableText(block.id, language === 'vi' ? 'titleVi' : 'titleEn', language === 'vi' ? block.titleVi : block.titleEn, 'h2', { color: 'var(--color-white)', fontSize: '2rem', fontWeight: 800, textAlign: 'center' })}
+                        {renderEditableText(block.id, language === 'vi' ? 'titleVi' : 'titleEn', language === 'vi' ? block.titleVi : block.titleEn, 'h2', { color: 'var(--home-on-surface)', fontSize: '2rem', fontWeight: 800, textAlign: 'center' })}
                       </div>
                       
                       {isVisualEditing ? (
                         <div style={{ width: '100%', marginTop: '1.5rem' }}>
                           <small style={{ color: 'var(--color-teal)', display: 'block', textAlign: 'center', marginBottom: '0.5rem' }}>[Sửa quy trình phân tách bằng dấu phẩy]</small>
-                          {renderEditableText(block.id, language === 'vi' ? 'itemsVi' : 'itemsEn', language === 'vi' ? block.itemsVi : block.itemsEn, 'div', { display: 'flex', justifyContent: 'center', padding: '0.5rem', border: '1px dashed var(--color-teal)', borderRadius: '4px', color: 'var(--color-white)' })}
+                          {renderEditableText(block.id, language === 'vi' ? 'itemsVi' : 'itemsEn', language === 'vi' ? block.itemsVi : block.itemsEn, 'div', { display: 'flex', justifyContent: 'center', padding: '0.5rem', border: '1px dashed var(--color-teal)', borderRadius: '4px', color: 'var(--home-on-surface)' })}
                         </div>
                       ) : (
                         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '1.5rem', marginTop: '2rem' }}>
                           {(language === 'vi' ? block.itemsVi : block.itemsEn)?.split(',').map((step: string, i: number) => (
-                            <div key={i} style={{ backgroundColor: 'rgba(255,255,255,0.05)', padding: '1.5rem', borderRadius: 'var(--border-radius-md)', border: '1px solid rgba(255,255,255,0.1)' }}>
+                            <div key={i} className="home-adaptive-panel" style={{ backgroundColor: 'var(--home-surface-raised)', padding: '1.5rem', borderRadius: 'var(--border-radius-md)', border: '1px solid var(--home-surface-border)' }}>
                               <span style={{ fontSize: '0.8rem', color: 'var(--color-teal)', fontWeight: 800 }}>STEP 0{i + 1}</span>
-                              <h4 style={{ margin: '0.5rem 0 0 0', color: 'var(--color-white)', fontSize: '1rem' }}>{step.trim()}</h4>
+                              <h4 style={{ margin: '0.5rem 0 0 0', color: 'var(--home-on-surface)', fontSize: '1rem' }}>{step.trim()}</h4>
                             </div>
                           ))}
                         </div>
@@ -341,7 +305,7 @@ export const Home: React.FC<HomeProps> = ({ setView, onAddProduct, cartItems, pa
               <button className="btn btn-secondary" onClick={() => handleNav('lng-solution')}>
                 {t('heroBtnSolutions')}
               </button>
-              <a href="#" className="btn btn-outline" style={{ color: 'var(--color-white)', borderColor: 'rgba(255,255,255,0.3)' }}>
+              <a href="#" className="btn btn-outline" style={{ color: 'var(--home-on-surface)', borderColor: 'var(--home-outline)' }}>
                 {t('heroBtnProfile')}
               </a>
             </div>
@@ -417,7 +381,7 @@ export const Home: React.FC<HomeProps> = ({ setView, onAddProduct, cartItems, pa
       </section>
 
       {/* Turnkey Process Timeline */}
-      <section className="section section-dark">
+      <section className="section section-dark home-adaptive-section">
         <div className="container">
           <div className="section-title-wrap">
             <h2 className="section-title">{t('processTitle')}</h2>
@@ -549,10 +513,10 @@ export const Home: React.FC<HomeProps> = ({ setView, onAddProduct, cartItems, pa
       </section>
 
       {/* Interactive Tool Redirect Section */}
-      <section className="section section-dark" style={styles.calculatorSection}>
+      <section className="section section-dark home-adaptive-section" style={styles.calculatorSection}>
         <div style={styles.calculatorSectionOverlay}></div>
         <div className="container" style={styles.calcSectionContent}>
-          <h2 style={{ fontSize: '2.25rem', marginBottom: '1rem', color: 'var(--color-white)' }}>
+          <h2 style={{ fontSize: '2.25rem', marginBottom: '1rem', color: 'var(--home-on-surface)' }}>
             {language === 'vi' ? 'Bạn đang tìm cách tối ưu hóa chi phí năng lượng?' : 'Looking to optimize your thermal energy costs?'}
           </h2>
           <p style={{ fontSize: '1.1rem', opacity: 0.85, maxWidth: '800px', margin: '0 auto 2.5rem' }}>
@@ -581,7 +545,7 @@ const styles: { [key: string]: React.CSSProperties } = {
     backgroundSize: 'cover',
     backgroundPosition: 'center',
     padding: '8rem 0 7rem',
-    color: 'var(--color-white)',
+    color: 'var(--home-on-surface)',
     textAlign: 'left',
   },
   heroOverlay: {
@@ -590,7 +554,7 @@ const styles: { [key: string]: React.CSSProperties } = {
     left: 0,
     right: 0,
     bottom: 0,
-    background: 'linear-gradient(to right, rgba(15, 23, 42, 0.95) 40%, rgba(15, 23, 42, 0.5) 100%)',
+    background: 'var(--home-hero-overlay)',
     zIndex: 1,
   },
   heroContainer: {
@@ -617,7 +581,7 @@ const styles: { [key: string]: React.CSSProperties } = {
     fontSize: '3.5rem',
     fontWeight: 800,
     lineHeight: 1.15,
-    color: 'var(--color-white)',
+    color: 'var(--home-on-surface)',
     marginBottom: '0.5rem',
     fontFamily: 'var(--font-heading)',
   },
@@ -640,8 +604,8 @@ const styles: { [key: string]: React.CSSProperties } = {
     flexWrap: 'wrap',
   },
   clients: {
-    backgroundColor: 'var(--color-navy-dark)',
-    borderBottom: '1px solid var(--color-navy-accent)',
+    backgroundColor: 'var(--home-surface)',
+    borderBottom: '1px solid var(--home-surface-border)',
     padding: '2rem 0',
   },
   clientsContainer: {
@@ -661,8 +625,8 @@ const styles: { [key: string]: React.CSSProperties } = {
     display: 'flex',
     gap: '2.5rem',
     flexWrap: 'wrap',
-    color: 'var(--color-text-light)',
-    opacity: 0.4,
+    color: 'var(--home-on-surface-muted)',
+    opacity: 0.72,
     fontSize: '0.85rem',
     fontWeight: 700,
   },
@@ -717,7 +681,7 @@ const styles: { [key: string]: React.CSSProperties } = {
     padding: '0.75rem 0.5rem',
     cursor: 'pointer',
     borderBottom: '3px solid transparent',
-    color: 'var(--color-text-light)',
+    color: 'var(--home-on-surface-muted)',
     opacity: 0.7,
     transition: 'var(--transition-fast)',
     textAlign: 'left',
@@ -737,7 +701,7 @@ const styles: { [key: string]: React.CSSProperties } = {
     position: 'absolute',
     fontSize: '6rem',
     fontWeight: 900,
-    color: 'rgba(255,255,255,0.06)',
+    color: 'var(--home-graphic-number)',
     fontFamily: 'var(--font-heading)',
   },
   industryCard: {
@@ -795,7 +759,7 @@ const styles: { [key: string]: React.CSSProperties } = {
     left: 0,
     right: 0,
     bottom: 0,
-    backgroundColor: 'rgba(15, 23, 42, 0.9)',
+    backgroundColor: 'var(--home-calculator-overlay)',
     zIndex: 1,
   },
   calcSectionContent: {

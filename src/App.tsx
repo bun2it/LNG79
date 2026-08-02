@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { LanguageProvider } from './context/LanguageContext';
+import { LanguageProvider, useLanguage } from './context/LanguageContext';
 import { Navbar } from './components/Navbar';
 import { Footer } from './components/Footer';
 import { QuoteDrawer } from './components/QuoteDrawer';
@@ -13,6 +13,9 @@ import { Knowledge } from './pages/Knowledge';
 import type { ArticleItem } from './pages/Knowledge';
 import { Contact } from './pages/Contact';
 import { AdminDashboard } from './pages/AdminDashboard';
+import { VisualTextEditor } from './components/VisualTextEditor';
+import type { VisualTextEditorHandle } from './components/VisualTextEditor';
+import { VisualImageEditor } from './components/VisualImageEditor';
 
 interface LeadItem {
   id: string;
@@ -154,25 +157,73 @@ const initialProjects: ProjectItem[] = [
 ];
 
 export const AppContent: React.FC = () => {
-  const [currentView, setView] = useState<string>('home');
+  const { language } = useLanguage();
+  const appRootRef = React.useRef<HTMLDivElement>(null);
+  const visualEditorRef = React.useRef<VisualTextEditorHandle>(null);
+  const [currentView, setCurrentView] = useState<string>(() => {
+    return window.location.pathname.replace(/\/+$/, '') === '/admin' ? 'admin' : 'home';
+  });
+  const [theme, setTheme] = useState<'light' | 'dark'>(() => {
+    return localStorage.getItem('lng79_theme') === 'light' ? 'light' : 'dark';
+  });
   const [isLoggedIn, setIsLoggedIn] = useState<boolean>(() => {
     return sessionStorage.getItem('cms_logged_in') === 'true';
   });
   const [isVisualEditing, setIsVisualEditing] = useState<boolean>(false);
+  const [hasVisualDraft, setHasVisualDraft] = useState<boolean>(false);
+  const [visualSaveNotice, setVisualSaveNotice] = useState<boolean>(false);
   const [cartItems, setCartItems] = useState<any[]>([]);
   const [cartOpen, setCartOpen] = useState<boolean>(false);
   const [leads, setLeads] = useState<LeadItem[]>(initialLeads);
   const [fuelSettings, setFuelSettings] = useState({ lngPrice: 18500, lpgPrice: 23000 });
-  const [articles, setArticles] = useState<ArticleItem[]>(initialArticles);
-  const [projects, setProjects] = useState<ProjectItem[]>(initialProjects);
+  const [articles, setArticles] = useState<ArticleItem[]>(() => {
+    const saved = localStorage.getItem('cms_articles');
+    return saved ? JSON.parse(saved) : initialArticles;
+  });
+  const [projects, setProjects] = useState<ProjectItem[]>(() => {
+    const saved = localStorage.getItem('cms_projects');
+    return saved ? JSON.parse(saved) : initialProjects;
+  });
   const [products, setProducts] = useState<any[]>(() => {
     const saved = localStorage.getItem('cms_products');
     return saved ? JSON.parse(saved) : PRODUCTS_DATA;
   });
 
+  const setView = React.useCallback((view: string) => {
+    setCurrentView(view);
+    const isAdminPath = window.location.pathname.replace(/\/+$/, '') === '/admin';
+    if (view === 'admin' && !isAdminPath) {
+      window.history.pushState({ view: 'admin' }, '', '/admin');
+    } else if (view !== 'admin' && isAdminPath) {
+      window.history.pushState({ view }, '', '/');
+    }
+  }, []);
+
+  React.useEffect(() => {
+    const handlePopState = () => {
+      setCurrentView(window.location.pathname.replace(/\/+$/, '') === '/admin' ? 'admin' : 'home');
+    };
+    window.addEventListener('popstate', handlePopState);
+    return () => window.removeEventListener('popstate', handlePopState);
+  }, []);
+
   React.useEffect(() => {
     localStorage.setItem('cms_products', JSON.stringify(products));
   }, [products]);
+
+  React.useEffect(() => {
+    localStorage.setItem('cms_articles', JSON.stringify(articles));
+  }, [articles]);
+
+  React.useEffect(() => {
+    localStorage.setItem('cms_projects', JSON.stringify(projects));
+  }, [projects]);
+
+  React.useEffect(() => {
+    document.documentElement.dataset.theme = theme;
+    document.documentElement.style.colorScheme = theme;
+    localStorage.setItem('lng79_theme', theme);
+  }, [theme]);
 
   const [contactInfo, setContactInfo] = useState(() => {
     const saved = localStorage.getItem('cms_contact_info');
@@ -444,9 +495,27 @@ export const AppContent: React.FC = () => {
   };
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', minHeight: '100vh' }}>
+    <div ref={appRootRef} style={{ display: 'flex', flexDirection: 'column', minHeight: '100vh' }}>
+      <VisualTextEditor
+        ref={visualEditorRef}
+        rootRef={appRootRef}
+        isEditing={isVisualEditing}
+        currentView={currentView}
+        language={language}
+        onDirtyChange={setHasVisualDraft}
+        onSaved={() => {
+          setVisualSaveNotice(true);
+          window.setTimeout(() => setVisualSaveNotice(false), 1800);
+        }}
+      />
+      <VisualImageEditor
+        rootRef={appRootRef}
+        isEditing={isVisualEditing}
+        currentView={currentView}
+        language={language}
+      />
       {isLoggedIn && (
-        <div style={{
+        <div data-visual-editor-ui style={{
           position: 'sticky', top: 0, zIndex: 1000, 
           backgroundColor: '#0F172A', color: '#fff', 
           padding: '0.75rem 1.5rem', display: 'flex', 
@@ -468,10 +537,22 @@ export const AppContent: React.FC = () => {
                 backgroundColor: isVisualEditing ? 'var(--color-orange)' : 'var(--color-teal)',
                 color: 'var(--color-white)', border: 'none', borderRadius: '4px'
               }}
-              onClick={() => setIsVisualEditing(!isVisualEditing)}
+              onClick={() => {
+                if (isVisualEditing) visualEditorRef.current?.save();
+                setIsVisualEditing(!isVisualEditing);
+              }}
             >
               {isVisualEditing ? 'Tắt Chế Độ Sửa Trực Quan' : 'Bật Chế Độ Sửa Trực Quan'}
             </button>
+            {isVisualEditing && (
+              <button
+                className="btn btn-primary"
+                style={{ fontSize: '0.8rem', padding: '0.4rem 0.8rem' }}
+                onClick={() => visualEditorRef.current?.save()}
+              >
+                {visualSaveNotice ? 'Đã lưu' : hasVisualDraft ? 'Lưu thay đổi •' : 'Lưu thay đổi'}
+              </button>
+            )}
             <button
               className="btn btn-outline"
               style={{ color: '#fff', borderColor: 'rgba(255,255,255,0.3)', fontSize: '0.8rem', padding: '0.4rem 0.8rem' }}
@@ -489,7 +570,9 @@ export const AppContent: React.FC = () => {
         currentView={currentView} 
         setView={setView} 
         cartCount={cartItems.length} 
-        toggleCart={() => setCartOpen(!cartOpen)} 
+        toggleCart={() => setCartOpen(!cartOpen)}
+        theme={theme}
+        toggleTheme={() => setTheme(theme === 'dark' ? 'light' : 'dark')}
       />
       
       <main style={{ flex: 1 }}>
