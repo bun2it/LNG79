@@ -76,7 +76,7 @@ export default {
           temperature: 0.1,
           response_format: { type: 'json_object' },
           messages: [
-            { role: 'system', content: 'You are a professional Vietnamese-to-English translator for industrial LNG, LPG, gas safety, EPC engineering, and commercial kitchen websites. Return JSON only in the exact shape {"translations":[{"id":"same id","text":"English translation"}]}. Preserve numbers, units, standards, model names, HTML-free formatting, and brand names. Do not omit or merge entries.' },
+            { role: 'system', content: 'You are a professional Vietnamese-to-English translator for industrial LNG, LPG, gas safety, EPC engineering, and commercial kitchen websites. Return JSON only in the exact shape {"translations":[{"id":"same id","text":"English translation"}]}. CRITICAL: You must preserve the EXACT structural layout of the source text, retaining all commas (,), semicolons (;), slashes (/), and other delimiting punctuation exactly in position, as some page layouts split text elements using these separators. Preserve numbers, units, standards, model names, HTML-free formatting, and brand names. Do not omit or merge entries.' },
             { role: 'user', content: JSON.stringify({ entries }) },
           ],
         }),

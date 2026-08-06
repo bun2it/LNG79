@@ -54,7 +54,7 @@ export const Knowledge: React.FC<KnowledgeProps> = ({ articles, setArticles, isV
       </section>
 
       {/* Main Grid */}
-      <section className="section" style={{ backgroundColor: 'var(--color-white)' }}>
+      <section className="section" style={{ backgroundColor: 'var(--color-gray-card)' }}>
         <div className="container">
           {/* Category Tabs */}
           <div style={styles.tabContainer}>
@@ -204,7 +204,7 @@ const styles: { [key: string]: React.CSSProperties } = {
     backgroundSize: 'cover',
     backgroundPosition: 'center',
     padding: '5rem 0 4rem',
-    color: 'var(--color-white)',
+    color: 'var(--banner-text)',
     textAlign: 'left',
   },
   bannerOverlay: {
@@ -213,7 +213,7 @@ const styles: { [key: string]: React.CSSProperties } = {
     left: 0,
     right: 0,
     bottom: 0,
-    backgroundColor: 'rgba(15, 23, 42, 0.85)',
+    backgroundColor: 'var(--banner-overlay)',
     zIndex: 1,
   },
   bannerContainer: {
@@ -279,7 +279,7 @@ const styles: { [key: string]: React.CSSProperties } = {
   artTitle: {
     fontSize: '1.1rem',
     fontWeight: 700,
-    color: 'var(--color-navy)',
+    color: 'var(--color-text-main)',
     marginBottom: '0.75rem',
     lineHeight: 1.4,
   },

@@ -453,7 +453,7 @@ const styles: { [key: string]: React.CSSProperties } = {
     fontSize: '1.15rem',
     fontWeight: 600,
     marginBottom: '1.5rem',
-    color: 'var(--color-navy)',
+    color: 'var(--color-text-main)',
     textAlign: 'left',
   },
 
@@ -468,7 +468,7 @@ const styles: { [key: string]: React.CSSProperties } = {
     gap: '0.75rem',
     cursor: 'pointer',
     transition: 'var(--transition-normal)',
-    backgroundColor: 'var(--color-white)',
+    backgroundColor: 'var(--color-gray-card)',
     height: '120px',
   },
   activeOptionCard: {
@@ -479,7 +479,7 @@ const styles: { [key: string]: React.CSSProperties } = {
   optionLabel: {
     fontSize: '0.9rem',
     fontWeight: 600,
-    color: 'var(--color-navy)',
+    color: 'var(--color-text-main)',
     textAlign: 'center',
   },
   actions: {

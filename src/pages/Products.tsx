@@ -175,7 +175,7 @@ export const Products: React.FC<ProductsProps> = ({ onAddProduct, cartItems, pro
       </section>
 
       {/* Main Filter & Grid section */}
-      <section className="section" style={{ backgroundColor: 'var(--color-white)' }}>
+      <section className="section" style={{ backgroundColor: 'var(--color-gray-card)' }}>
         <div className="container">
           {/* Filters Bar */}
           <div style={styles.filterBar}>
@@ -323,7 +323,7 @@ export const Products: React.FC<ProductsProps> = ({ onAddProduct, cartItems, pro
               </p>
 
               {/* Specs Table */}
-              <h4 style={{ marginBottom: '0.75rem', fontSize: '1rem', color: 'var(--color-navy)' }}>
+              <h4 style={{ marginBottom: '0.75rem', fontSize: '1rem', color: 'var(--color-text-main)' }}>
                 {t('prodSpec')}
               </h4>
               <table style={styles.table}>
@@ -375,11 +375,11 @@ export const Products: React.FC<ProductsProps> = ({ onAddProduct, cartItems, pro
 const styles: { [key: string]: React.CSSProperties } = {
   banner: {
     position: 'relative',
-    backgroundImage: 'url("https://images.unsplash.com/photo-1504917595217-d4dc5ebe6122?q=80&w=2070&auto=format&fit=crop")',
+    backgroundImage: 'url("https://images.unsplash.com/photo-1581092160607-ee22621dd758?q=80&w=2070&auto=format&fit=crop")',
     backgroundSize: 'cover',
     backgroundPosition: 'center',
     padding: '5rem 0 4rem',
-    color: 'var(--color-white)',
+    color: 'var(--banner-text)',
     textAlign: 'left',
   },
   bannerOverlay: {
@@ -388,7 +388,7 @@ const styles: { [key: string]: React.CSSProperties } = {
     left: 0,
     right: 0,
     bottom: 0,
-    backgroundColor: 'rgba(15, 23, 42, 0.85)',
+    backgroundColor: 'var(--banner-overlay)',
     zIndex: 1,
   },
   bannerContainer: {
@@ -475,7 +475,7 @@ const styles: { [key: string]: React.CSSProperties } = {
   prodName: {
     fontSize: '1rem',
     fontWeight: 700,
-    color: 'var(--color-navy)',
+    color: 'var(--color-text-main)',
     marginBottom: '0.5rem',
   },
   prodSpecText: {
@@ -556,7 +556,7 @@ const styles: { [key: string]: React.CSSProperties } = {
   },
   tableCellVal: {
     padding: '0.5rem 0',
-    color: 'var(--color-navy)',
+    color: 'var(--color-text-main)',
     fontWeight: 600,
   },
   modalFooter: {

@@ -283,6 +283,47 @@ export const AppContent: React.FC = () => {
     localStorage.setItem('lng79_theme', theme);
   }, [theme]);
 
+  const [guiSettings, setGuiSettings] = useState(() => {
+    const saved = localStorage.getItem('cms_gui_settings');
+    return saved ? JSON.parse(saved) : {
+      darkColor: '#070a13',
+      darkOpacity: 85,
+      lightColor: '#ffffff',
+      lightOpacity: 0
+    };
+  });
+
+  React.useEffect(() => {
+    localStorage.setItem('cms_gui_settings', JSON.stringify(guiSettings));
+    const saveGui = async () => {
+      const client = supabase;
+      if (!client) return;
+      try {
+        await client
+          .from('site_settings')
+          .upsert({ key: 'gui_settings', value: guiSettings });
+      } catch (err) {
+        console.error('Failed to auto-save GUI settings to Supabase:', err);
+      }
+    };
+    void saveGui();
+
+    const hexToRgb = (hex: string) => {
+      const result = /^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i.exec(hex);
+      return result 
+        ? `${parseInt(result[1], 16)}, ${parseInt(result[2], 16)}, ${parseInt(result[3], 16)}`
+        : '7, 10, 19';
+    };
+
+    const darkVal = `rgba(${hexToRgb(guiSettings.darkColor || '#070a13')}, ${(guiSettings.darkOpacity !== undefined ? guiSettings.darkOpacity : 85) / 100})`;
+    const lightVal = (guiSettings.lightOpacity === 0 || guiSettings.lightOpacity === undefined)
+      ? 'transparent' 
+      : `rgba(${hexToRgb(guiSettings.lightColor || '#ffffff')}, ${guiSettings.lightOpacity / 100})`;
+
+    document.documentElement.style.setProperty('--banner-overlay-dark', darkVal);
+    document.documentElement.style.setProperty('--banner-overlay-light', lightVal);
+  }, [guiSettings]);
+
   const [contactInfo, setContactInfo] = useState(() => {
     const saved = localStorage.getItem('cms_contact_info');
     return saved ? JSON.parse(saved) : {
@@ -629,6 +670,11 @@ export const AppContent: React.FC = () => {
           if (fuel) {
             setFuelSettings(fuel.value);
             localStorage.setItem('cms_fuel_settings', JSON.stringify(fuel.value));
+          }
+          const gui = data.find((row) => row.key === 'gui_settings');
+          if (gui) {
+            setGuiSettings(gui.value);
+            localStorage.setItem('cms_gui_settings', JSON.stringify(gui.value));
           }
         }
       } catch (err) {
@@ -1084,6 +1130,9 @@ export const AppContent: React.FC = () => {
             onUpdatePages={setPages}
             isLoggedIn={isLoggedIn}
             setIsLoggedIn={setIsLoggedIn}
+            guiSettings={guiSettings}
+            onUpdateGuiSettings={setGuiSettings}
+            onExitCms={() => setView('home')}
           /></Suspense>
         );
       default:
@@ -1113,57 +1162,60 @@ export const AppContent: React.FC = () => {
         language={language}
       />
       {isLoggedIn && currentView !== 'admin' && (
-        <div data-visual-editor-ui className="visual-editor-toolbar" style={{
-          position: 'sticky', top: 0, zIndex: 1000, 
-          backgroundColor: '#0F172A', color: '#fff', 
-          padding: '0.75rem 1.5rem', display: 'flex', 
-          justifyContent: 'space-between', alignItems: 'center',
-          borderBottom: '2px solid var(--color-teal)',
-          fontFamily: 'Inter, sans-serif', boxShadow: '0 4px 6px -1px rgba(0,0,0,0.1)'
-        }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
-            <span style={{ fontSize: '1rem', fontWeight: 800, color: 'var(--color-teal)' }}>🛠️ LNG79 Live Editor</span>
-            <span style={{ fontSize: '0.75rem', backgroundColor: 'rgba(255,255,255,0.1)', padding: '0.1rem 0.4rem', borderRadius: '3px' }}>
-              Logged in as Administrator
-            </span>
-          </div>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
-            <button
-              className="btn"
-              style={{
-                fontSize: '0.8rem', padding: '0.4rem 0.8rem', cursor: 'pointer',
-                backgroundColor: isVisualEditing ? 'var(--color-orange)' : 'var(--color-teal)',
-                color: 'var(--color-white)', border: 'none', borderRadius: '4px'
-              }}
-              onClick={() => {
-                if (isVisualEditing) visualEditorRef.current?.save();
-                setIsVisualEditing(!isVisualEditing);
-              }}
-            >
-              {isVisualEditing ? 'Tắt Chế Độ Sửa Trực Quan' : 'Bật Chế Độ Sửa Trực Quan'}
-            </button>
-            {isVisualEditing && (
+        <>
+          <div data-visual-editor-ui className="visual-editor-toolbar" style={{
+            position: 'fixed', top: 0, left: 0, right: 0, zIndex: 99999, 
+            backgroundColor: '#0F172A', color: '#fff', 
+            padding: '0.75rem 1.5rem', display: 'flex', 
+            justifyContent: 'space-between', alignItems: 'center',
+            borderBottom: '2px solid var(--color-teal)',
+            fontFamily: 'Inter, sans-serif', boxShadow: '0 4px 6px -1px rgba(0,0,0,0.1)'
+          }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+              <span style={{ fontSize: '1rem', fontWeight: 800, color: 'var(--color-teal)' }}>🛠️ LNG79 Live Editor</span>
+              <span style={{ fontSize: '0.75rem', backgroundColor: 'rgba(255,255,255,0.1)', padding: '0.1rem 0.4rem', borderRadius: '3px' }}>
+                Logged in as Administrator
+              </span>
+            </div>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
               <button
-                className="btn btn-primary"
-                style={{ fontSize: '0.8rem', padding: '0.4rem 0.8rem' }}
-                disabled={visualSaving}
-                onClick={() => visualEditorRef.current?.save()}
+                className="btn"
+                style={{
+                  fontSize: '0.8rem', padding: '0.4rem 0.8rem', cursor: 'pointer',
+                  backgroundColor: isVisualEditing ? 'var(--color-orange)' : 'var(--color-teal)',
+                  color: 'var(--color-white)', border: 'none', borderRadius: '4px'
+                }}
+                onClick={() => {
+                  if (isVisualEditing) visualEditorRef.current?.save();
+                  setIsVisualEditing(!isVisualEditing);
+                }}
               >
-                {visualSaving ? (language === 'vi' ? 'Đang lưu…' : 'Saving…') : visualSaveNotice ? 'Đã lưu' : hasVisualDraft ? 'Lưu thay đổi •' : 'Lưu thay đổi'}
+                {isVisualEditing ? 'Tắt Chế Độ Sửa Trực Quan' : 'Bật Chế Độ Sửa Trực Quan'}
               </button>
-            )}
-            <button
-              className="btn btn-outline"
-              style={{ color: '#fff', borderColor: 'rgba(255,255,255,0.3)', fontSize: '0.8rem', padding: '0.4rem 0.8rem' }}
-              onClick={() => {
-                setView('admin');
-                setIsVisualEditing(false);
-              }}
-            >
-              Go to CMS Dashboard
-            </button>
+              {isVisualEditing && (
+                <button
+                  className="btn btn-primary"
+                  style={{ fontSize: '0.8rem', padding: '0.4rem 0.8rem' }}
+                  disabled={visualSaving}
+                  onClick={() => visualEditorRef.current?.save()}
+                >
+                  {visualSaving ? (language === 'vi' ? 'Đang lưu…' : 'Saving…') : visualSaveNotice ? 'Đã lưu' : hasVisualDraft ? 'Lưu thay đổi •' : 'Lưu thay đổi'}
+                </button>
+              )}
+              <button
+                className="btn btn-outline"
+                style={{ color: '#fff', borderColor: 'rgba(255,255,255,0.3)', fontSize: '0.8rem', padding: '0.4rem 0.8rem' }}
+                onClick={() => {
+                  setView('admin');
+                  setIsVisualEditing(false);
+                }}
+              >
+                Go to CMS Dashboard
+              </button>
+            </div>
           </div>
-        </div>
+          <div style={{ height: '50px' }} />
+        </>
       )}
       {currentView !== 'admin' && <Navbar
         currentView={currentView} 

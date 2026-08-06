@@ -244,12 +244,12 @@ export const Home: React.FC<HomeProps> = ({ setView, onAddProduct, cartItems, pa
                 <section key={block.id || idx} className="section" style={{ backgroundColor: 'var(--color-gray-bg)' }}>
                   <div className="container">
                     <div className="section-title-wrap">
-                      {renderEditableText(block.id, language === 'vi' ? 'titleVi' : 'titleEn', language === 'vi' ? block.titleVi : block.titleEn, 'h2', { fontSize: '2rem', fontWeight: 800, textAlign: 'center', color: 'var(--color-navy)' })}
+                      {renderEditableText(block.id, language === 'vi' ? 'titleVi' : 'titleEn', language === 'vi' ? block.titleVi : block.titleEn, 'h2', { fontSize: '2rem', fontWeight: 800, textAlign: 'center', color: 'var(--color-text-main)' })}
                     </div>
                     {isVisualEditing ? (
                       <div style={{ width: '100%', marginTop: '1.5rem' }}>
                         <small style={{ color: 'var(--color-teal)', display: 'block', textAlign: 'center', marginBottom: '0.5rem' }}>[Sửa các mục cách nhau bằng dấu chấm phẩy, Tiêu đề:Mô tả cách nhau bằng dấu hai chấm. Ví dụ: "Dịch vụ:Thi công lắp đặt; Bảo dưỡng:Kiểm tra thiết bị"]</small>
-                        {renderEditableText(block.id, language === 'vi' ? 'itemsVi' : 'itemsEn', language === 'vi' ? block.itemsVi : block.itemsEn, 'div', { display: 'flex', justifyContent: 'center', padding: '0.5rem', border: '1px dashed var(--color-teal)', borderRadius: '4px', color: 'var(--color-navy)' })}
+                        {renderEditableText(block.id, language === 'vi' ? 'itemsVi' : 'itemsEn', language === 'vi' ? block.itemsVi : block.itemsEn, 'div', { display: 'flex', justifyContent: 'center', padding: '0.5rem', border: '1px dashed var(--color-teal)', borderRadius: '4px', color: 'var(--color-text-main)' })}
                       </div>
                     ) : (
                       <div className="grid-2">
@@ -259,7 +259,7 @@ export const Home: React.FC<HomeProps> = ({ setView, onAddProduct, cartItems, pa
                           const desc = parts.slice(1).join(':');
                           return (
                             <div key={idx2} className="card" style={styles.divisionCard}>
-                              <h3 style={{ fontSize: '1.4rem', marginBottom: '1rem', color: 'var(--color-navy)' }}>{title?.trim()}</h3>
+                              <h3 style={{ fontSize: '1.4rem', marginBottom: '1rem', color: 'var(--color-text-main)' }}>{title?.trim()}</h3>
                               <p style={{ color: 'var(--color-text-muted)', lineHeight: 1.6 }}>{desc?.trim()}</p>
                             </div>
                           );
@@ -700,7 +700,7 @@ const styles: { [key: string]: React.CSSProperties } = {
     fontFamily: 'var(--font-heading)',
   },
   industryCard: {
-    backgroundColor: 'var(--color-white)',
+    backgroundColor: 'var(--color-gray-card)',
     border: '1px solid var(--color-gray-border)',
     borderRadius: 'var(--border-radius-md)',
     padding: '2rem 1.5rem',
@@ -729,7 +729,7 @@ const styles: { [key: string]: React.CSSProperties } = {
   prodName: {
     fontSize: '1rem',
     fontWeight: 700,
-    color: 'var(--color-navy)',
+    color: 'var(--color-text-main)',
     marginBottom: '0.75rem',
     lineHeight: 1.4,
   },

@@ -645,9 +645,55 @@ Completed:
 - Configured state-change watchers in `App.tsx` to automatically push local fuel settings and contact updates to the remote Supabase database.
 - Re-architected `AdminDashboard.tsx` to retrieve and write navigation menus to `public.navigation_items` and synchronize across other client devices.
 - Refactored `Navbar.tsx` and `Footer.tsx` to consume dynamic navigation lists and contact settings dynamically.
+- Implemented automatic, batch AI-powered translation from Vietnamese to English during live editor saves (using the remote Supabase Edge Function `translate-content` powered by Groq).
+- Refined the translation model instructions to strictly enforce preservation of spacing, punctuation (commas `,`, semicolons `;`), slashes `/`, and structural delimiters.
+- Optimized database upserts to combine Vietnamese edits and their English translations in a single row transaction, eliminating parallel write race conditions.
 - Verified build and lint checks pass cleanly.
 
-Next: Phase 15 — Migration importer.
+### Phase 15 — Migration importer: complete (2026-08-06)
+
+Completed:
+
+- Designed and created the migration importer tool [import-backup.js](file:///Users/tai/Documents/LNG%2079/scripts/import-backup.js) using the native `supabase` CLI query engine.
+- Configured key-parsing logic to validate the JSON format, check data shapes, and extract products, projects, articles, navigation menu entries, and site settings.
+- Added a `--dry-run` flag to preview imports, perform validation checks, and count potential operations without executing changes.
+- Implemented deduplication logic that queries the remote database to report exact counts of duplicate vs. new records before inserting/upserting.
+- Verified successful import execution, fully synchronizing products, projects, articles, navigation, and visual editor text overrides into the remote Supabase database.
+- Confirmed build and lint checks pass cleanly.
+
+### Phase 16 — Dual-read and dual-write transition: complete (2026-08-06)
+
+Completed:
+
+- Configured dual-read loading behavior: Mount handlers query the remote Supabase database and seamlessly fall back to local `localStorage` caches if the database is offline or unreachable.
+- Enabled dual-write capabilities: All visual layout updates inside [VisualTextEditor.tsx](file:///Users/tai/Documents/LNG%2079/src/components/VisualTextEditor.tsx) are now saved unconditionally to `localStorage` (as cache fallback) as well as written to the remote `site_texts` Supabase table.
+- Verified that updates to products, projects, articles, navigation menu configurations, company contact cards, and fuel pricing settings are written in parallel to both `localStorage` and Supabase.
+- Verified build and lint checks pass cleanly.
+
+### Phase 17 — Source-of-truth cutover: complete (2026-08-06)
+
+Completed:
+
+- Cut over authoritative state reads to Supabase: The frontend now relies strictly on Supabase query sets as its authoritative state, resolving data from local mocks or hardcoded assets only when disconnected.
+- Retired legacy `localStorage` write paths: Purged state dependencies so that clearing browser local storage cache does not result in any data loss of shared catalog data, navigation menu links, visual layout overrides, or contact settings.
+- Confirmed that only personal configuration settings (e.g. `lng79_theme` preferences or draft editing buffers) are scoped to browser localStorage.
+- Verified build and lint checks pass cleanly.
+
+### Phase 18 — Revisions and rollback: complete (2026-08-06)
+
+Completed:
+
+- Designed and created the page revisions table `public.page_revisions` in Supabase to house layout snapshots.
+- Updated the import backup script [import-backup.js](file:///Users/tai/Documents/LNG%2079/scripts/import-backup.js) to parse, deduplicate, and load initial page history revisions.
+- Integrated cloud-persisted revision tracking inside [AdminDashboard.tsx](file:///Users/tai/Documents/LNG%2079/src/pages/AdminDashboard.tsx):
+  - Fetches revisions from Supabase on mount.
+  - Automatically pushes a new revision layout snapshot to Supabase on "Save Blocks".
+  - Allows deleting revisions from the database directly.
+- Verified rollback functionality: administrators can select and restore page block layouts safely from the revision history.
+- Verified build and lint checks pass cleanly.
+
+Next: Phase 19 — Audit logs.
+
 
 
 

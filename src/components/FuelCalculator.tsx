@@ -227,7 +227,7 @@ export const FuelCalculator: React.FC<FuelCalculatorProps> = ({
             <div style={styles.recommendationBox}>
               <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center', marginBottom: '0.5rem' }}>
                 <ShieldCheck size={20} color="var(--color-teal)" />
-                <h5 style={{ margin: 0, fontSize: '0.9rem', color: 'var(--color-navy)' }}>
+                <h5 style={{ margin: 0, fontSize: '0.9rem', color: 'var(--color-text-main)' }}>
                   {language === 'vi' ? 'Đề Xuất Quy Mô Trạm Hóa Hơi LNG Sơ Bộ' : 'Recommended Preliminary LNG Station Scale'}
                 </h5>
               </div>
@@ -276,7 +276,7 @@ const styles: { [key: string]: React.CSSProperties } = {
   sectionHeader: {
     fontSize: '1.1rem',
     fontWeight: 700,
-    color: 'var(--color-navy)',
+    color: 'var(--color-text-main)',
     marginBottom: '1.5rem',
     borderBottom: '1px solid var(--color-gray-border)',
     paddingBottom: '0.5rem',
@@ -303,7 +303,7 @@ const styles: { [key: string]: React.CSSProperties } = {
   },
   metricCard: {
     flex: 1,
-    backgroundColor: 'var(--color-white)',
+    backgroundColor: 'var(--color-gray-card)',
     border: '1px solid var(--color-gray-border)',
     padding: '1rem',
     borderRadius: 'var(--border-radius-sm)',
@@ -319,7 +319,7 @@ const styles: { [key: string]: React.CSSProperties } = {
   metricValue: {
     fontSize: '1.25rem',
     fontWeight: 700,
-    color: 'var(--color-navy)',
+    color: 'var(--color-text-main)',
     marginTop: '0.25rem',
   },
   savingsBannerLng: {
@@ -361,7 +361,7 @@ const styles: { [key: string]: React.CSSProperties } = {
   savingsTag: {
     fontSize: '0.85rem',
     fontWeight: 700,
-    color: 'var(--color-navy)',
+    color: 'var(--color-text-main)',
     backgroundColor: 'rgba(255,255,255,0.8)',
     padding: '0.25rem 0.5rem',
     borderRadius: 'var(--border-radius-sm)',
@@ -369,7 +369,7 @@ const styles: { [key: string]: React.CSSProperties } = {
   savingValue: {
     fontSize: '1.75rem',
     fontWeight: 800,
-    color: 'var(--color-navy)',
+    color: 'var(--color-text-main)',
     margin: '0.5rem 0',
   },
   impactFooter: {
@@ -382,7 +382,7 @@ const styles: { [key: string]: React.CSSProperties } = {
     marginTop: '0.25rem',
   },
   recommendationBox: {
-    backgroundColor: 'var(--color-white)',
+    backgroundColor: 'var(--color-gray-card)',
     border: '1px solid var(--color-gray-border)',
     borderRadius: 'var(--border-radius-sm)',
     padding: '1rem',

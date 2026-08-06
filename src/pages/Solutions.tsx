@@ -249,7 +249,7 @@ export const Solutions: React.FC<SolutionsProps> = ({ subView, setView, pages, s
       </section>
 
       {/* Main Content Details */}
-      <section className="section" style={{ backgroundColor: 'var(--color-white)' }}>
+      <section className="section" style={{ backgroundColor: 'var(--color-gray-card)' }}>
         <div className="container solutions-content-grid">
           {/* Detailed text */}
           <div style={styles.descCol}>
@@ -369,7 +369,7 @@ export const Solutions: React.FC<SolutionsProps> = ({ subView, setView, pages, s
       </section>
 
       {/* FAQ Section */}
-      <section className="section" style={{ backgroundColor: 'var(--color-white)' }}>
+      <section className="section" style={{ backgroundColor: 'var(--color-gray-card)' }}>
         <div className="container" style={{ maxWidth: '800px' }}>
           <div className="section-title-wrap">
             <h2 className="section-title">{language === 'vi' ? 'Câu Hỏi Thường Gặp' : 'Technical FAQ'}</h2>
@@ -435,7 +435,7 @@ const styles: { [key: string]: React.CSSProperties } = {
     backgroundSize: 'cover',
     backgroundPosition: 'center',
     padding: '6rem 0 5rem',
-    color: 'var(--color-white)',
+    color: 'var(--banner-text)',
     textAlign: 'left',
   },
   bannerOverlay: {
@@ -444,7 +444,7 @@ const styles: { [key: string]: React.CSSProperties } = {
     left: 0,
     right: 0,
     bottom: 0,
-    backgroundColor: 'rgba(15, 23, 42, 0.85)',
+    backgroundColor: 'var(--banner-overlay)',
     zIndex: 1,
   },
   bannerContainer: {
@@ -478,7 +478,7 @@ const styles: { [key: string]: React.CSSProperties } = {
   sectionHeader: {
     fontSize: '1.75rem',
     fontWeight: 700,
-    color: 'var(--color-navy)',
+    color: 'var(--color-text-main)',
     marginBottom: '1rem',
   },
   descParagraph: {
@@ -503,7 +503,7 @@ const styles: { [key: string]: React.CSSProperties } = {
     border: '1px solid var(--color-gray-border)',
     fontSize: '0.9rem',
     fontWeight: 600,
-    color: 'var(--color-navy)',
+    color: 'var(--color-text-main)',
   },
   infoCol: {
     textAlign: 'left',
@@ -514,6 +514,8 @@ const styles: { [key: string]: React.CSSProperties } = {
     padding: '2rem',
     borderRadius: 'var(--border-radius-md)',
     boxShadow: 'var(--shadow-md)',
+    border: '1px solid var(--color-gray-border)',
+    backdropFilter: 'blur(8px)',
   },
   infoList: {
     listStyle: 'none',
@@ -542,7 +544,7 @@ const styles: { [key: string]: React.CSSProperties } = {
   flowTitle: {
     fontSize: '0.9rem',
     fontWeight: 700,
-    color: 'var(--color-navy)',
+    color: 'var(--color-text-main)',
     marginBottom: '0.4rem',
   },
   flowDesc: {
@@ -573,7 +575,7 @@ const styles: { [key: string]: React.CSSProperties } = {
     border: 'none',
     cursor: 'pointer',
     textAlign: 'left',
-    color: 'var(--color-navy)',
+    color: 'var(--color-text-main)',
     fontWeight: 600,
     fontSize: '1rem',
   },

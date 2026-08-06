@@ -106,3 +106,8 @@ on public.site_settings
 for delete
 to authenticated
 using (private.current_user_has_cms_role(array['owner', 'admin', 'editor']));
+
+-- 3. SYNC MEDIA_ASSETS TABLE COLUMNS
+alter table public.media_assets add column if not exists media_role text;
+alter table public.media_assets add column if not exists visible boolean not null default true;
+alter table public.media_assets add column if not exists sort_order integer not null default 0;

@@ -34,8 +34,20 @@ const allDirectTextNodes = (element: Element): Text[] =>
     (node): node is Text => node.nodeType === Node.TEXT_NODE
   );
 
-const hasEditableText = (element: Element): boolean =>
-  allDirectTextNodes(element).some((node) => Boolean(node.textContent?.trim()));
+const getElementValues = (element: Element): string[] => {
+  const hasKey = element.hasAttribute('data-content-key') || element.closest('[data-content-key]');
+  const hasComplexChildren = element.querySelector('svg, img');
+  if (hasKey && !hasComplexChildren) {
+    const text = (element as HTMLElement).innerText || element.textContent || '';
+    return [text];
+  }
+  return allDirectTextNodes(element).map((node) => node.data);
+};
+
+const hasEditableText = (element: Element): boolean => {
+  const values = getElementValues(element);
+  return values.some((val) => Boolean(val?.trim()));
+};
 
 const elementPath = (element: Element, boundary: Element): string => {
   const parts: string[] = [];
@@ -97,22 +109,29 @@ export const VisualTextEditor = forwardRef<VisualTextEditorHandle, VisualTextEdi
     const applySaved = useCallback(() => {
       const root = rootRef.current;
       if (!root) return;
-      const saved = readSaved();
+      const saved = { ...readSaved(), ...draftsRef.current };
 
       root.querySelectorAll(TEXT_SELECTOR).forEach((element) => {
         if (element.closest('[data-visual-editor-ui]')) return;
         const identity = getIdentity(element);
         if (!identity) return;
 
+        const hasKey = element.hasAttribute('data-content-key') || element.closest('[data-content-key]');
+        const hasComplexChildren = element.querySelector('svg, img');
+
         // 1. Check Supabase published overrides first (stable content keys)
         if (supabaseTexts && supabaseTexts[identity]) {
           const overrideValue = language === 'vi' ? supabaseTexts[identity].value_vi : supabaseTexts[identity].value_en;
           if (overrideValue !== undefined && overrideValue !== null) {
-            const nodes = allDirectTextNodes(element);
-            if (nodes.length > 0) {
-              nodes[0].data = overrideValue;
-              for (let i = 1; i < nodes.length; i++) {
-                nodes[i].data = '';
+            if (hasKey && !hasComplexChildren) {
+              (element as HTMLElement).innerText = overrideValue;
+            } else {
+              const nodes = allDirectTextNodes(element);
+              if (nodes.length > 0) {
+                nodes[0].data = overrideValue;
+                for (let i = 1; i < nodes.length; i++) {
+                  nodes[i].data = '';
+                }
               }
             }
             return;
@@ -121,10 +140,15 @@ export const VisualTextEditor = forwardRef<VisualTextEditorHandle, VisualTextEdi
 
         // 2. Check local draft / legacy overrides
         if (saved[identity]) {
-          const nodes = allDirectTextNodes(element);
-          saved[identity].forEach((value, index) => {
-            if (nodes[index]) nodes[index].data = value;
-          });
+          if (hasKey && !hasComplexChildren) {
+            const text = saved[identity].join('');
+            (element as HTMLElement).innerText = text;
+          } else {
+            const nodes = allDirectTextNodes(element);
+            saved[identity].forEach((value, index) => {
+              if (nodes[index]) nodes[index].data = value;
+            });
+          }
         }
       });
     }, [getIdentity, rootRef, supabaseTexts, language]);
@@ -144,15 +168,75 @@ export const VisualTextEditor = forwardRef<VisualTextEditorHandle, VisualTextEdi
 
       onSavingChange?.(true);
       try {
+        if (language === 'vi') {
+          const entriesToTranslate: { id: string; text: string }[] = [];
+          Object.keys(drafts).forEach((identity) => {
+            if (identity.endsWith('::en') || identity.startsWith('en/')) return;
+            const text = drafts[identity].join('').trim();
+            if (text) {
+              entriesToTranslate.push({ id: identity, text });
+            }
+          });
+
+          if (entriesToTranslate.length > 0) {
+            try {
+              let translationsResult: { id: string; text: string }[] = [];
+              if (client) {
+                const { data, error } = await client.functions.invoke('translate-content', {
+                  body: { entries: entriesToTranslate }
+                });
+                if (error || !data) throw new Error(error?.message || 'Supabase Edge Function translation failed');
+                translationsResult = data.translations || [];
+              } else {
+                const response = await authFetch('/api/ai/translate', {
+                  method: 'POST',
+                  headers: { 'Content-Type': 'application/json' },
+                  body: JSON.stringify({ entries: entriesToTranslate })
+                });
+                const result = await response.json();
+                if (!response.ok) throw new Error(result.error || 'Translation failed');
+                translationsResult = result.translations || [];
+              }
+
+              translationsResult.forEach((item) => {
+                const identity = item.id;
+                const translatedText = item.text;
+                const originalValues = drafts[identity];
+                
+                const source = originalValues.join('');
+                const leading = source.match(/^\s*/)?.[0] || '';
+                const trailing = source.match(/\s*$/)?.[0] || '';
+                const finalEnText = `${leading}${translatedText.trim()}${trailing}`;
+                
+                const isStable = !identity.includes('/');
+                if (isStable) {
+                  drafts[`${identity}::en`] = [finalEnText];
+                } else if (identity.startsWith('vi/')) {
+                  drafts[identity.replace(/^vi\//, 'en/')] = [finalEnText];
+                }
+              });
+            } catch (err) {
+              console.error('Auto-translation failed during save:', err);
+            }
+          }
+        }
+
+        const keys = Object.keys(drafts).filter((identity) => {
+          if (identity.endsWith('::en')) return false;
+          if (identity.startsWith('en/')) {
+            const viKey = identity.replace(/^en\//, 'vi/');
+            if (drafts[viKey]) return false;
+          }
+          return true;
+        });
+
         if (client) {
-          const promises = Object.keys(drafts).map(async (identity) => {
+          const promises = keys.map(async (identity) => {
             const newText = drafts[identity].join('').trim();
-            const isTranslation = identity.endsWith('::en');
-            const cleanIdentity = isTranslation ? identity.slice(0, -4) : identity;
-            const isStable = !cleanIdentity.includes('/');
+            const isStable = !identity.includes('/');
             
             if (isStable) {
-              const parts = cleanIdentity.split('.');
+              const parts = identity.split('.');
               const pageName = parts[0] || 'home';
               const sectionName = parts[2] || 'section';
               const fieldName = parts[3] || 'field';
@@ -160,22 +244,24 @@ export const VisualTextEditor = forwardRef<VisualTextEditorHandle, VisualTextEdi
               const { data: existing } = await client
                 .from('site_texts')
                 .select('value_vi, value_en')
-                .eq('content_key', cleanIdentity)
+                .eq('content_key', identity)
                 .maybeSingle();
 
               let valueVi = existing?.value_vi || '';
               let valueEn = existing?.value_en || '';
 
-              if (isTranslation) {
-                valueEn = newText;
-              } else if (language === 'vi') {
+              if (language === 'vi') {
                 valueVi = newText;
+                const translationKey = `${identity}::en`;
+                if (drafts[translationKey]) {
+                  valueEn = drafts[translationKey].join('').trim();
+                }
               } else if (language === 'en') {
                 valueEn = newText;
               }
 
               const updatedRow = {
-                content_key: cleanIdentity,
+                content_key: identity,
                 page: pageName,
                 section: sectionName,
                 field: fieldName,
@@ -193,19 +279,31 @@ export const VisualTextEditor = forwardRef<VisualTextEditorHandle, VisualTextEdi
               const { data: existing } = await client
                 .from('site_texts')
                 .select('value_vi, value_en')
-                .eq('content_key', cleanIdentity)
+                .eq('content_key', identity)
                 .maybeSingle();
 
-              const isEnLegacy = cleanIdentity.startsWith('en/');
+              const isEnLegacy = identity.startsWith('en/');
+              let valueVi = existing?.value_vi || '';
+              let valueEn = existing?.value_en || '';
+
+              if (isEnLegacy) {
+                valueEn = newText;
+              } else {
+                valueVi = newText;
+                const translationKey = identity.replace(/^vi\//, 'en/');
+                if (drafts[translationKey]) {
+                  valueEn = drafts[translationKey].join('').trim();
+                }
+              }
 
               const updatedRow = {
-                content_key: cleanIdentity,
+                content_key: identity,
                 page: 'legacy',
                 section: 'legacy',
                 field: 'legacy',
                 status: 'published',
-                value_vi: !isEnLegacy ? newText : (existing?.value_vi || ''),
-                value_en: isEnLegacy ? newText : (existing?.value_en || '')
+                value_vi: valueVi,
+                value_en: valueEn
               };
 
               const { error } = await client
@@ -230,9 +328,10 @@ export const VisualTextEditor = forwardRef<VisualTextEditorHandle, VisualTextEdi
             });
             setSupabaseTexts(dict);
           }
-        } else {
-          localStorage.setItem(STORAGE_KEY, JSON.stringify({ ...readSaved(), ...drafts }));
         }
+        
+        // Always write to local storage cache to support dual-write
+        localStorage.setItem(STORAGE_KEY, JSON.stringify({ ...readSaved(), ...drafts }));
         
         draftsRef.current = {};
         onDirtyChange?.(false);
@@ -258,7 +357,7 @@ export const VisualTextEditor = forwardRef<VisualTextEditorHandle, VisualTextEdi
         const element = event.currentTarget as HTMLElement;
         const identity = getIdentity(element);
         if (!identity) return;
-        draftsRef.current[identity] = allDirectTextNodes(element).map((node) => node.data);
+        draftsRef.current[identity] = getElementValues(element);
         onDirtyChange?.(true);
       };
       const stopAction = (event: Event) => {
@@ -272,16 +371,22 @@ export const VisualTextEditor = forwardRef<VisualTextEditorHandle, VisualTextEdi
         root.classList.add('visual-editor-active');
         root.querySelectorAll<HTMLElement>(TEXT_SELECTOR).forEach((element) => {
           if (element.closest('[data-visual-editor-ui]') || element.closest('input,select,textarea')) return;
-          if (element.isContentEditable || !hasEditableText(element)) return;
-          element.contentEditable = 'true';
-          element.spellcheck = true;
-          element.classList.add('visual-text-editable');
+          if (element.tagName.toLowerCase() === 'div' && !element.hasAttribute('data-content-key')) return;
+          if (!hasEditableText(element)) return;
+          
+          if (!element.classList.contains('visual-text-editable')) {
+            element.contentEditable = 'true';
+            element.spellcheck = true;
+            element.classList.add('visual-text-editable');
+          }
+          
           element.addEventListener('input', handleInput);
           editableElements.push(element);
         });
         if (language === 'vi') {
           const translatableElements = Array.from(root.querySelectorAll<HTMLElement>(TEXT_SELECTOR)).filter((element) => {
             if (element.closest('[data-visual-editor-ui]') || element.closest('input,select,textarea')) return false;
+            if (element.tagName.toLowerCase() === 'div' && !element.hasAttribute('data-content-key')) return false;
             return (element.classList.contains('visual-text-editable') || element.isContentEditable) && hasEditableText(element);
           });
           const refreshButtonPositions = () => {
@@ -308,8 +413,7 @@ export const VisualTextEditor = forwardRef<VisualTextEditorHandle, VisualTextEdi
               if (button.disabled) return;
               const viIdentity = getIdentity(element);
               if (!viIdentity) return;
-              const nodes = allDirectTextNodes(element);
-              const viValues = nodes.map((node) => node.data);
+              const viValues = getElementValues(element);
               const entries = viValues.map((text, index) => ({ id: String(index), text: text.trim() })).filter((entry) => entry.text);
               if (!entries.length) return;
 

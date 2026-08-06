@@ -52,7 +52,7 @@ export const Projects: React.FC<ProjectsProps> = ({ projects, setProjects, isVis
       </section>
 
       {/* Grid and filters */}
-      <section className="section" style={{ backgroundColor: 'var(--color-white)' }}>
+      <section className="section" style={{ backgroundColor: 'var(--color-gray-card)' }}>
         <div className="container">
           {/* Filters */}
           <div style={styles.filterBar}>
@@ -179,7 +179,7 @@ export const Projects: React.FC<ProjectsProps> = ({ projects, setProjects, isVis
                   </div>
 
                   <div style={styles.eqBox}>
-                    <span style={{ fontSize: '0.8rem', fontWeight: 700, color: 'var(--color-navy)', marginRight: '0.5rem' }}>
+                    <span style={{ fontSize: '0.8rem', fontWeight: 700, color: 'var(--color-text-main)', marginRight: '0.5rem' }}>
                       {language === 'vi' ? 'Thiết bị chính lắp đặt:' : 'Key installed equipment:'}
                     </span>
                     <div style={styles.tagWrap}>
@@ -218,7 +218,7 @@ const styles: { [key: string]: React.CSSProperties } = {
     backgroundSize: 'cover',
     backgroundPosition: 'center',
     padding: '5rem 0 4rem',
-    color: 'var(--color-white)',
+    color: 'var(--banner-text)',
     textAlign: 'left',
   },
   bannerOverlay: {
@@ -227,7 +227,7 @@ const styles: { [key: string]: React.CSSProperties } = {
     left: 0,
     right: 0,
     bottom: 0,
-    backgroundColor: 'rgba(15, 23, 42, 0.85)',
+    backgroundColor: 'var(--banner-overlay)',
     zIndex: 1,
   },
   bannerContainer: {
@@ -288,7 +288,7 @@ const styles: { [key: string]: React.CSSProperties } = {
   },
   projectTitle: {
     fontSize: '1.25rem',
-    color: 'var(--color-navy)',
+    color: 'var(--color-text-main)',
     marginBottom: '0.75rem',
   },
   metaRow: {

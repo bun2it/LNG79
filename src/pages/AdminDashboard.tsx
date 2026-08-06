@@ -53,6 +53,9 @@ interface AdminDashboardProps {
   onUpdatePages: React.Dispatch<React.SetStateAction<any[]>>;
   isLoggedIn: boolean;
   setIsLoggedIn: React.Dispatch<React.SetStateAction<boolean>>;
+  guiSettings: { darkColor: string; darkOpacity: number; lightColor: string; lightOpacity: number };
+  onUpdateGuiSettings: (settings: { darkColor: string; darkOpacity: number; lightColor: string; lightOpacity: number }) => void;
+  onExitCms?: () => void;
 }
 
 const AUDIT_FUELS: { [key: string]: { name: { vi: string; en: string }; lhv: number; co2Factor: number; defaultPrice: number; defaultEff: number } } = {
@@ -168,14 +171,15 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
   products, onAddProduct, onEditProduct, onDeleteProduct, onToggleProduct, onTranslateAllContent,
   articles, onAddArticle, onDeleteArticle, onToggleArticle,
   projects, onAddProject, onDeleteProject, onToggleProject, onEditProject,
-  onEditArticle, pages, onUpdatePages: setPages, isLoggedIn, setIsLoggedIn
+  onEditArticle, pages, onUpdatePages: setPages, isLoggedIn, setIsLoggedIn,
+  guiSettings, onUpdateGuiSettings, onExitCms
 }) => {
   const { language } = useLanguage();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [authError, setAuthError] = useState('');
   const [isAuthenticating, setIsAuthenticating] = useState(false);
-  const [activeTab, setActiveTab] = useState<'overview' | 'pages' | 'navigation' | 'media' | 'leads' | 'products' | 'settings' | 'articles' | 'projects' | 'seo' | 'logs' | 'trash'>('overview');
+  const [activeTab, setActiveTab] = useState<'overview' | 'pages' | 'navigation' | 'media' | 'leads' | 'products' | 'settings' | 'articles' | 'projects' | 'seo' | 'logs' | 'trash' | 'gui'>('overview');
   const showLegacyManagers = sessionStorage.getItem('cms_debug_legacy_managers') === 'true';
   const [lngInput, setLngInput] = useState(fuelSettings.lngPrice);
   const [lpgInput, setLpgInput] = useState(fuelSettings.lpgPrice);
@@ -530,6 +534,33 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
     if (saved) return JSON.parse(saved);
     return [];
   });
+
+  React.useEffect(() => {
+    const fetchRevisions = async () => {
+      const client = supabase;
+      if (!client) return;
+      try {
+        const { data, error } = await client
+          .from('page_revisions')
+          .select('*')
+          .order('timestamp', { ascending: false });
+        if (error) throw error;
+        if (data) {
+          const mapped = data.map(r => ({
+            id: r.id,
+            pageId: r.page_id,
+            timestamp: r.timestamp,
+            author: r.author,
+            blocks: r.blocks
+          }));
+          setPageHistory(mapped);
+        }
+      } catch (err) {
+        console.error('Failed to load page revisions from Supabase:', err);
+      }
+    };
+    void fetchRevisions();
+  }, []);
 
   const [trashBin, setTrashBin] = useState<any[]>(() => {
     const saved = localStorage.getItem('cms_trash_bin');
@@ -1107,6 +1138,21 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
             </div>
           </div>
 
+          {onExitCms && (
+            <button
+              onClick={onExitCms}
+              style={{
+                display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.5rem',
+                backgroundColor: 'rgba(255, 255, 255, 0.08)', border: '1px solid rgba(255, 255, 255, 0.15)',
+                color: 'var(--color-white)', padding: '0.6rem 1rem', width: '100%', cursor: 'pointer',
+                fontSize: '0.85rem', fontWeight: 700, borderRadius: 'var(--border-radius-sm)',
+                marginBottom: '1.5rem', transition: 'var(--transition-fast)'
+              }}
+            >
+              🌐 {language === 'vi' ? 'Quay lại Website' : 'Back to Website'}
+            </button>
+          )}
+
           {/* Links list */}
           <div style={{ display: 'flex', flexDirection: 'column', gap: '0.35rem' }}>
             {/* Overview */}
@@ -1237,6 +1283,19 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
             >
               <Settings size={16} />
               <span>{language === 'vi' ? 'SEO & Redirects' : 'SEO & Redirects'}</span>
+            </button>
+
+            {/* GUI */}
+            <button 
+              onClick={() => setActiveTab('gui')}
+              style={{
+                display: 'flex', alignItems: 'center', gap: '0.75rem', background: 'none', border: 'none', padding: '0.75rem 1rem', width: '100%', cursor: 'pointer', fontSize: '0.85rem', fontWeight: 600, textAlign: 'left', borderRadius: 'var(--border-radius-sm)', transition: 'var(--transition-fast)',
+                color: activeTab === 'gui' ? 'var(--color-white)' : 'rgba(255, 255, 255, 0.7)',
+                backgroundColor: activeTab === 'gui' ? 'var(--color-teal)' : 'transparent'
+              }}
+            >
+              <Layers size={16} />
+              <span>GUI</span>
             </button>
 
             {/* Logs */}
@@ -1570,7 +1629,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
 
                   <button 
                     className="btn btn-teal"
-                    onClick={() => {
+                    onClick={async () => {
                       if (editingBlocksPageId) {
                         const pageObj = pages.find(p => p.id === editingBlocksPageId);
                         const currentBlocks = getPageBlocks(editingBlocksPageId);
@@ -1581,6 +1640,23 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                           author: 'admin',
                           blocks: currentBlocks
                         };
+                        const client = supabase;
+                        if (client) {
+                          try {
+                            const { error } = await client
+                              .from('page_revisions')
+                              .insert({
+                                id: newCommit.id,
+                                page_id: newCommit.pageId,
+                                timestamp: newCommit.timestamp,
+                                author: newCommit.author,
+                                blocks: newCommit.blocks
+                              });
+                            if (error) throw error;
+                          } catch (err) {
+                            console.error('Failed to save page revision to Supabase:', err);
+                          }
+                        }
                         setPageHistory(prev => [newCommit, ...prev]);
                         logAction(`Created page revision backup for: "${pageObj?.name || editingBlocksPageId}"`);
                       }
@@ -2987,6 +3063,121 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
           </div>
         )}
 
+        {/* GUI TAB */}
+        {activeTab === 'gui' && (
+          <div className="animate-fade-in" style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
+            <div>
+              <h3 style={{ fontSize: '1.2rem', color: 'var(--color-navy)', margin: 0 }}>
+                {language === 'vi' ? 'Cấu Hình Giao Diện (GUI Settings)' : 'GUI Customization Settings'}
+              </h3>
+              <p style={{ margin: '0.25rem 0 0 0', fontSize: '0.85rem', color: 'var(--color-text-muted)' }}>
+                {language === 'vi' 
+                  ? 'Điều chỉnh các thông số hiển thị trực quan của website như màu sắc và độ phủ của ảnh bìa (banner).' 
+                  : 'Tune visual display variables of the website such as banner overlay colors and opacities.'}
+              </p>
+            </div>
+
+            <div style={{ backgroundColor: 'var(--color-gray-card)', border: '1px solid var(--color-gray-border)', borderRadius: 'var(--border-radius-md)', padding: '2rem', display: 'flex', flexDirection: 'column', gap: '2rem' }}>
+              
+              {/* Dark Theme Settings */}
+              <div>
+                <h4 style={{ fontSize: '1rem', color: 'var(--color-navy)', borderBottom: '1px solid var(--color-gray-border)', paddingBottom: '0.5rem', marginBottom: '1rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                  🌙 {language === 'vi' ? 'Chế độ tối (Dark Mode)' : 'Dark Mode Banners'}
+                </h4>
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(250px, 1fr))', gap: '1.5rem' }}>
+                  <div className="form-group">
+                    <label className="form-label">{language === 'vi' ? 'Màu sắc lớp phủ (Overlay Color)' : 'Overlay Mask Color'}</label>
+                    <div style={{ display: 'flex', gap: '0.75rem', alignItems: 'center' }}>
+                      <input 
+                        type="color" 
+                        value={guiSettings.darkColor || '#070a13'} 
+                        onChange={(e) => onUpdateGuiSettings({ ...guiSettings, darkColor: e.target.value })}
+                        style={{ width: '50px', height: '40px', padding: '0', border: '1px solid var(--color-gray-border)', borderRadius: 'var(--border-radius-sm)', cursor: 'pointer' }}
+                      />
+                      <input 
+                        type="text" 
+                        className="form-input" 
+                        value={guiSettings.darkColor || '#070a13'} 
+                        onChange={(e) => onUpdateGuiSettings({ ...guiSettings, darkColor: e.target.value })}
+                        style={{ fontFamily: 'var(--font-mono)' }}
+                      />
+                    </div>
+                  </div>
+
+                  <div className="form-group">
+                    <label className="form-label">
+                      {language === 'vi' ? `Độ mờ lớp phủ (Opacity): ${guiSettings.darkOpacity ?? 85}%` : `Overlay Opacity: ${guiSettings.darkOpacity ?? 85}%`}
+                    </label>
+                    <input 
+                      type="range" 
+                      min="0" 
+                      max="100" 
+                      value={guiSettings.darkOpacity ?? 85} 
+                      onChange={(e) => onUpdateGuiSettings({ ...guiSettings, darkOpacity: parseInt(e.target.value) })}
+                      className="slider"
+                      style={{ width: '100%', height: '8px', cursor: 'pointer', accentColor: 'var(--color-teal)' }}
+                    />
+                  </div>
+                </div>
+              </div>
+
+              {/* Light Theme Settings */}
+              <div>
+                <h4 style={{ fontSize: '1rem', color: 'var(--color-navy)', borderBottom: '1px solid var(--color-gray-border)', paddingBottom: '0.5rem', marginBottom: '1rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                  ☀️ {language === 'vi' ? 'Chế độ sáng (Light Mode)' : 'Light Mode Banners'}
+                </h4>
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(250px, 1fr))', gap: '1.5rem' }}>
+                  <div className="form-group">
+                    <label className="form-label">{language === 'vi' ? 'Màu sắc lớp phủ (Overlay Color)' : 'Overlay Mask Color'}</label>
+                    <div style={{ display: 'flex', gap: '0.75rem', alignItems: 'center' }}>
+                      <input 
+                        type="color" 
+                        value={guiSettings.lightColor || '#ffffff'} 
+                        disabled={(guiSettings.lightOpacity ?? 0) === 0}
+                        onChange={(e) => onUpdateGuiSettings({ ...guiSettings, lightColor: e.target.value })}
+                        style={{ width: '50px', height: '40px', padding: '0', border: '1px solid var(--color-gray-border)', borderRadius: 'var(--border-radius-sm)', cursor: 'pointer', opacity: (guiSettings.lightOpacity ?? 0) === 0 ? 0.5 : 1 }}
+                      />
+                      <input 
+                        type="text" 
+                        className="form-input" 
+                        value={guiSettings.lightColor || '#ffffff'} 
+                        disabled={(guiSettings.lightOpacity ?? 0) === 0}
+                        onChange={(e) => onUpdateGuiSettings({ ...guiSettings, lightColor: e.target.value })}
+                        style={{ fontFamily: 'var(--font-mono)' }}
+                      />
+                    </div>
+                  </div>
+
+                  <div className="form-group">
+                    <label className="form-label">
+                      {language === 'vi' ? `Độ mờ lớp phủ (Opacity): ${guiSettings.lightOpacity ?? 0}%` : `Overlay Opacity: ${guiSettings.lightOpacity ?? 0}%`}
+                    </label>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
+                      <input 
+                        type="range" 
+                        min="0" 
+                        max="100" 
+                        value={guiSettings.lightOpacity ?? 0} 
+                        onChange={(e) => onUpdateGuiSettings({ ...guiSettings, lightOpacity: parseInt(e.target.value) })}
+                        className="slider"
+                        style={{ flex: 1, height: '8px', cursor: 'pointer', accentColor: 'var(--color-teal)' }}
+                      />
+                      <button 
+                        type="button" 
+                        className="btn btn-outline btn-sm"
+                        onClick={() => onUpdateGuiSettings({ ...guiSettings, lightOpacity: (guiSettings.lightOpacity ?? 0) === 0 ? 30 : 0 })}
+                      >
+                        {(guiSettings.lightOpacity ?? 0) === 0 ? (language === 'vi' ? 'Bật' : 'Enable') : (language === 'vi' ? 'Tắt' : 'Disable')}
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+            </div>
+          </div>
+        )}
+
         {/* SECURITY & LOGS TAB */}
         {activeTab === 'logs' && (
           <div className="animate-fade-in" style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
@@ -3736,8 +3927,20 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                           type="button"
                           className="btn btn-outline btn-sm"
                           style={{ color: '#EF4444', borderColor: '#FCA5A5', padding: '0.25rem 0.5rem', fontSize: '0.75rem' }}
-                          onClick={() => {
+                          onClick={async () => {
                             if (confirm(language === 'vi' ? 'Bạn có muốn xoá bản lưu này không?' : 'Delete this backup?')) {
+                              const client = supabase;
+                              if (client) {
+                                try {
+                                  const { error } = await client
+                                    .from('page_revisions')
+                                    .delete()
+                                    .eq('id', rev.id);
+                                  if (error) throw error;
+                                } catch (err) {
+                                  console.error('Failed to delete page revision from Supabase:', err);
+                                }
+                              }
                               setPageHistory(prev => prev.filter(h => h.id !== rev.id));
                             }
                           }}
