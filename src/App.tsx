@@ -289,7 +289,8 @@ export const AppContent: React.FC = () => {
       darkColor: '#070a13',
       darkOpacity: 85,
       lightColor: '#ffffff',
-      lightOpacity: 0
+      lightOpacity: 0,
+      logoHeight: 42
     };
   });
 
@@ -1225,6 +1226,8 @@ export const AppContent: React.FC = () => {
         theme={theme}
         toggleTheme={() => setTheme(theme === 'dark' ? 'light' : 'dark')}
         menuItems={menuItems}
+        logoUrl={guiSettings.logoUrl}
+        logoHeight={guiSettings.logoHeight}
       />}
       
       <main style={{ flex: 1 }}>

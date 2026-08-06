@@ -13,9 +13,11 @@ interface NavbarProps {
   theme: 'light' | 'dark';
   toggleTheme: () => void;
   menuItems?: any[];
+  logoUrl?: string;
+  logoHeight?: number;
 }
 
-export const Navbar: React.FC<NavbarProps> = ({ currentView, setView, cartCount, toggleCart, theme, toggleTheme, menuItems = [] }) => {
+export const Navbar: React.FC<NavbarProps> = ({ currentView, setView, cartCount, toggleCart, theme, toggleTheme, menuItems = [], logoUrl, logoHeight }) => {
   const { language, setLanguage, t } = useLanguage();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 
@@ -34,14 +36,20 @@ export const Navbar: React.FC<NavbarProps> = ({ currentView, setView, cartCount,
       <div className="container nav-container">
         {/* Logo */}
         <div className="nav-logo" onClick={() => handleNav('home')}>
-          <div className="nav-logo-icon">
-            <Flame size={20} className="icon-flame" />
-            <ChefHat size={20} className="icon-chef" />
-          </div>
-          <div className="nav-logo-text">
-            <span className="nav-logo-title">LNG & LPG SYSTEM</span>
-            <span className="nav-logo-subtitle">COMMERCIAL KITCHEN SOLUTION</span>
-          </div>
+          {logoUrl ? (
+            <img src={logoUrl} alt="Logo" style={{ height: `${logoHeight || 42}px`, maxWidth: '240px', objectFit: 'contain' }} />
+          ) : (
+            <>
+              <div className="nav-logo-icon">
+                <Flame size={20} className="icon-flame" />
+                <ChefHat size={20} className="icon-chef" />
+              </div>
+              <div className="nav-logo-text">
+                <span className="nav-logo-title">LNG & LPG SYSTEM</span>
+                <span className="nav-logo-subtitle">COMMERCIAL KITCHEN SOLUTION</span>
+              </div>
+            </>
+          )}
         </div>
 
         {/* Desktop Links */}

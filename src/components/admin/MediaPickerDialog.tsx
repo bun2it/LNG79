@@ -143,13 +143,110 @@ export const MediaPickerDialog: React.FC<{
     <div className="image-library-backdrop" data-visual-editor-ui onMouseDown={onClose}>
       <div className="image-library-modal" role="dialog" aria-modal="true" aria-label="Media Vault" onMouseDown={(event) => event.stopPropagation()}>
         <div className="image-library-header"><div><h3>{language === 'vi' ? 'Media Vault' : 'Media Vault'}</h3><p>{language === 'vi' ? 'Chọn ảnh có sẵn hoặc tải ảnh mới lên host.' : 'Choose an existing image or upload a new one.'}</p></div><button type="button" className="image-library-close" aria-label="Close" onClick={onClose}>×</button></div>
-        <div className="media-picker-toolbar">
-          <input className="form-input" placeholder={language === 'vi' ? 'Tìm theo tên ảnh…' : 'Search image name…'} value={query} onChange={(event) => setQuery(event.target.value)} />
-          <label className="btn btn-primary image-library-upload">{uploading ? (language === 'vi' ? 'Đang tải…' : 'Uploading…') : (language === 'vi' ? 'Tải ảnh mới' : 'Upload image')}<input type="file" accept="image/jpeg,image/png,image/webp,image/gif" disabled={uploading} onChange={(event) => void upload(event.target.files?.[0])} /></label>
+        
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
+          <div className="media-picker-toolbar">
+            <input className="form-input" placeholder={language === 'vi' ? 'Tìm theo tên ảnh…' : 'Search image name…'} value={query} onChange={(event) => setQuery(event.target.value)} />
+            <label className="btn btn-primary image-library-upload">{uploading ? (language === 'vi' ? 'Đang tải…' : 'Uploading…') : (language === 'vi' ? 'Tải ảnh mới' : 'Upload image')}<input type="file" accept="image/jpeg,image/png,image/webp,image/gif" disabled={uploading} onChange={(event) => void upload(event.target.files?.[0])} /></label>
+          </div>
+
+          <div style={{ display: 'flex', gap: '0.75rem' }}>
+            <input 
+              type="text"
+              className="form-input" 
+              placeholder={language === 'vi' ? 'Hoặc dán URL hình ảnh trực tiếp tại đây...' : 'Or paste image URL directly here...'} 
+              id="direct-media-url-input"
+              style={{ flex: 1 }}
+            />
+            <button 
+              type="button" 
+              className="btn btn-teal"
+              onClick={() => {
+                const url = (document.getElementById('direct-media-url-input') as HTMLInputElement)?.value?.trim();
+                if (url) {
+                  onSelect(url);
+                  onClose();
+                }
+              }}
+            >
+              {language === 'vi' ? 'Xác nhận URL' : 'Confirm URL'}
+            </button>
+          </div>
         </div>
+
         {error && <p className="image-library-error">{error}</p>}
+        
         <div className="image-library-grid">
-          {filtered.map((image) => <button type="button" key={image.url} className={`image-library-item ${value === image.url ? 'is-selected' : ''}`} onClick={() => { onSelect(image.url); onClose(); }} title={image.name}><img src={image.url} alt="" /><span>{image.name}</span></button>)}
+          {filtered.map((image) => (
+            <div key={image.url} style={{ position: 'relative', width: '100%', aspectRatio: '4/3' }}>
+              <button 
+                type="button" 
+                className={`image-library-item ${value === image.url ? 'is-selected' : ''}`} 
+                onClick={() => { onSelect(image.url); onClose(); }} 
+                title={image.name}
+                style={{ width: '100%', height: '100%', display: 'block' }}
+              >
+                <img src={image.url} alt="" />
+                <span>{image.name}</span>
+              </button>
+              <button
+                type="button"
+                aria-label={language === 'vi' ? 'Xoá ảnh' : 'Delete image'}
+                onClick={async (e) => {
+                  e.stopPropagation();
+                  if (!confirm(language === 'vi' ? 'Bạn có chắc chắn muốn xoá ảnh này vĩnh viễn?' : 'Are you sure you want to permanently delete this image?')) return;
+                  
+                  const client = supabase;
+                  try {
+                    if (client) {
+                      const pathSegments = image.url.split('/');
+                      const storagePath = decodeURIComponent(pathSegments[pathSegments.length - 1]);
+                      
+                      const { error: storageError } = await client.storage
+                        .from('website-media')
+                        .remove([storagePath]);
+                      if (storageError) console.error('Storage delete issue:', storageError);
+
+                      const { error: dbError } = await client
+                        .from('media_assets')
+                        .delete()
+                        .eq('storage_path', storagePath);
+                      if (dbError) throw dbError;
+                    } else {
+                      const cmsMedia = JSON.parse(localStorage.getItem('cms_media') || '[]');
+                      const updated = cmsMedia.filter((x: any) => x.url !== image.url);
+                      localStorage.setItem('cms_media', JSON.stringify(updated));
+                    }
+                    void loadLibrary();
+                  } catch (err) {
+                    alert(language === 'vi' ? 'Không thể xoá ảnh.' : 'Failed to delete image.');
+                    console.error(err);
+                  }
+                }}
+                style={{
+                  position: 'absolute',
+                  top: '5px',
+                  right: '5px',
+                  backgroundColor: 'rgba(239, 68, 68, 0.9)',
+                  color: 'white',
+                  border: 'none',
+                  borderRadius: '50%',
+                  width: '24px',
+                  height: '24px',
+                  cursor: 'pointer',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  fontWeight: 'bold',
+                  fontSize: '14px',
+                  zIndex: 10,
+                  boxShadow: '0 2px 4px rgba(0,0,0,0.2)'
+                }}
+              >
+                ×
+              </button>
+            </div>
+          ))}
           {!error && filtered.length === 0 && <p className="image-library-empty">{language === 'vi' ? 'Không tìm thấy ảnh.' : 'No images found.'}</p>}
         </div>
       </div>

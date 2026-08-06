@@ -30,7 +30,7 @@
   --home-surface-border: rgba(255, 255, 255, 0.07);
   --home-on-surface: var(--color-white);
   --home-on-surface-muted: var(--color-text-light);
-  --home-hero-overlay: linear-gradient(to right, rgba(7, 10, 19, 0.96) 40%, rgba(7, 10, 19, 0.6) 100%);
+  --home-hero-overlay: linear-gradient(to right, var(--banner-overlay-dark, rgba(7, 10, 19, 0.96)) 40%, rgba(7, 10, 19, 0.4) 100%);
   --home-calculator-overlay: rgba(11, 15, 25, 0.93);
   --home-graphic-number: rgba(255, 255, 255, 0.04);
   --home-outline: rgba(255, 255, 255, 0.25);
@@ -90,7 +90,7 @@
   --banner-overlay: var(--banner-overlay-light, transparent);
   --banner-text: var(--color-navy-dark);
   --home-on-surface-muted: var(--color-text-muted);
-  --home-hero-overlay: linear-gradient(90deg, rgba(239, 247, 255, 0.97) 34%, rgba(222, 238, 255, 0.88) 62%, rgba(221, 249, 243, 0.55) 100%);
+  --home-hero-overlay: linear-gradient(90deg, var(--banner-overlay-light, rgba(239, 247, 255, 0.97)) 34%, rgba(222, 238, 255, 0.6) 62%, rgba(221, 249, 243, 0.3) 100%);
   --home-calculator-overlay: rgba(237, 246, 255, 0.93);
   --home-graphic-number: rgba(7, 111, 229, 0.08);
   --home-outline: var(--color-navy-accent);

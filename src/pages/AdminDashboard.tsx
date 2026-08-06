@@ -53,8 +53,8 @@ interface AdminDashboardProps {
   onUpdatePages: React.Dispatch<React.SetStateAction<any[]>>;
   isLoggedIn: boolean;
   setIsLoggedIn: React.Dispatch<React.SetStateAction<boolean>>;
-  guiSettings: { darkColor: string; darkOpacity: number; lightColor: string; lightOpacity: number };
-  onUpdateGuiSettings: (settings: { darkColor: string; darkOpacity: number; lightColor: string; lightOpacity: number }) => void;
+  guiSettings: { darkColor: string; darkOpacity: number; lightColor: string; lightOpacity: number; logoUrl?: string; logoHeight?: number };
+  onUpdateGuiSettings: (settings: { darkColor: string; darkOpacity: number; lightColor: string; lightOpacity: number; logoUrl?: string; logoHeight?: number }) => void;
   onExitCms?: () => void;
 }
 
@@ -179,6 +179,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
   const [password, setPassword] = useState('');
   const [authError, setAuthError] = useState('');
   const [isAuthenticating, setIsAuthenticating] = useState(false);
+  const [guiLogoPickerOpen, setGuiLogoPickerOpen] = useState(false);
   const [activeTab, setActiveTab] = useState<'overview' | 'pages' | 'navigation' | 'media' | 'leads' | 'products' | 'settings' | 'articles' | 'projects' | 'seo' | 'logs' | 'trash' | 'gui'>('overview');
   const showLegacyManagers = sessionStorage.getItem('cms_debug_legacy_managers') === 'true';
   const [lngInput, setLngInput] = useState(fuelSettings.lngPrice);
@@ -3079,6 +3080,60 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
 
             <div style={{ backgroundColor: 'var(--color-gray-card)', border: '1px solid var(--color-gray-border)', borderRadius: 'var(--border-radius-md)', padding: '2rem', display: 'flex', flexDirection: 'column', gap: '2rem' }}>
               
+              {/* Logo Settings */}
+              <div>
+                <h4 style={{ fontSize: '1rem', color: 'var(--color-navy)', borderBottom: '1px solid var(--color-gray-border)', paddingBottom: '0.5rem', marginBottom: '1rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                  🖼️ {language === 'vi' ? 'Logo Website (Header Brand)' : 'Header Logo'}
+                </h4>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
+                  <div style={{ display: 'flex', gap: '1.5rem', alignItems: 'center', flexWrap: 'wrap' }}>
+                    <div style={{ width: '180px', height: '60px', border: '1px solid var(--color-gray-border)', borderRadius: 'var(--border-radius-sm)', display: 'flex', alignItems: 'center', justifyContent: 'center', backgroundColor: '#fff', padding: '0.5rem' }}>
+                      {guiSettings.logoUrl ? (
+                        <img src={guiSettings.logoUrl} alt="Logo" style={{ maxHeight: '100%', maxWidth: '100%', objectFit: 'contain' }} />
+                      ) : (
+                        <span style={{ fontSize: '0.8rem', color: '#94a3b8' }}>{language === 'vi' ? 'Không có Logo (Dùng chữ)' : 'No Logo (Using text)'}</span>
+                      )}
+                    </div>
+                    <div style={{ display: 'flex', gap: '0.75rem' }}>
+                      <button 
+                        type="button" 
+                        className="btn btn-teal"
+                        onClick={() => setGuiLogoPickerOpen(true)}
+                      >
+                        {language === 'vi' ? 'Chọn từ Media Vault' : 'Choose from Media'}
+                      </button>
+                      {guiSettings.logoUrl && (
+                        <button 
+                          type="button" 
+                          className="btn btn-outline"
+                          onClick={() => onUpdateGuiSettings({ ...guiSettings, logoUrl: '' })}
+                        >
+                          {language === 'vi' ? 'Xóa Logo (Dùng chữ)' : 'Remove Logo'}
+                        </button>
+                      )}
+                    </div>
+                  </div>
+
+                  {guiSettings.logoUrl && (
+                    <div style={{ width: '100%', maxWidth: '300px' }}>
+                      <label className="form-label" style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '0.5rem' }}>
+                        <span>{language === 'vi' ? 'Chiều cao Logo (Logo Height)' : 'Logo Height'}</span>
+                        <span style={{ fontWeight: 700, color: 'var(--color-teal)' }}>{guiSettings.logoHeight ?? 42}px</span>
+                      </label>
+                      <input 
+                        type="range" 
+                        min="20" 
+                        max="80" 
+                        value={guiSettings.logoHeight ?? 42} 
+                        onChange={(e) => onUpdateGuiSettings({ ...guiSettings, logoHeight: parseInt(e.target.value) })}
+                        className="slider"
+                        style={{ width: '100%', height: '8px', cursor: 'pointer', accentColor: 'var(--color-teal)' }}
+                      />
+                    </div>
+                  )}
+                </div>
+              </div>
+
               {/* Dark Theme Settings */}
               <div>
                 <h4 style={{ fontSize: '1rem', color: 'var(--color-navy)', borderBottom: '1px solid var(--color-gray-border)', paddingBottom: '0.5rem', marginBottom: '1rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
@@ -3969,6 +4024,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
       <MediaPickerDialog open={articleMediaPickerOpen} value={newArt.imageURL} language={language} onClose={() => setArticleMediaPickerOpen(false)} onSelect={(url) => setNewArt((current) => ({ ...current, imageURL: current.imageURL || url, galleryImages: Array.from(new Set([...current.galleryImages, url])) }))} />
       <MediaPickerDialog open={projectMediaPickerOpen} value={newProj.imageURL} language={language} onClose={() => setProjectMediaPickerOpen(false)} onSelect={(url) => setNewProj((current) => ({ ...current, imageURL: current.imageURL || url, galleryImages: Array.from(new Set([...current.galleryImages, url])) }))} />
       <MediaPickerDialog open={blockLogoPickerOpen} language={language} onClose={() => setBlockLogoPickerOpen(false)} onSelect={async (url) => { if (!editingBlocksPageId || !selectedBlockId) return; const blocksList = getPageBlocks(editingBlocksPageId); const selectedBlock = blocksList.find((b: any) => b.id === selectedBlockId); const client = supabase; if (client) { try { const path = decodeURIComponent(url.split('/').pop() || ''); const currentLogosLength = selectedBlock?.logos?.length || 0; await client.from('media_assets').update({ media_role: 'logo', visible: true, sort_order: currentLogosLength }).eq('storage_path', path); } catch (err) { console.error('Failed to save partner logo to Supabase:', err); } } handleSavePageBlocks(editingBlocksPageId, blocksList.map((block: any) => block.id === selectedBlockId ? { ...block, logos: Array.from(new Set([...(block.logos || []), url])) } : block)); }} />
+      <MediaPickerDialog open={guiLogoPickerOpen} language={language} onClose={() => setGuiLogoPickerOpen(false)} onSelect={(url) => { onUpdateGuiSettings({ ...guiSettings, logoUrl: url }); setGuiLogoPickerOpen(false); }} />
     </div>
   );
 };
