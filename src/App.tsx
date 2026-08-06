@@ -17,6 +17,7 @@ import type { VisualTextEditorHandle } from './components/VisualTextEditor';
 import { VisualImageEditor } from './components/VisualImageEditor';
 import { translateWebsiteContent } from './features/ai/bulkTranslate';
 import { CMS_AUTH_EXPIRED_EVENT } from './features/auth/authFetch';
+import { getCurrentCmsProfile, supabase } from './lib/supabase';
 
 const AdminDashboard = React.lazy(() => import('./pages/AdminDashboard').then((module) => ({ default: module.AdminDashboard })));
 
@@ -173,6 +174,7 @@ export const AppContent: React.FC = () => {
   const [isVisualEditing, setIsVisualEditing] = useState<boolean>(false);
   const [hasVisualDraft, setHasVisualDraft] = useState<boolean>(false);
   const [visualSaveNotice, setVisualSaveNotice] = useState<boolean>(false);
+  const [visualSaving, setVisualSaving] = useState<boolean>(false);
   const [cartItems, setCartItems] = useState<any[]>([]);
   const [cartOpen, setCartOpen] = useState<boolean>(false);
   const [leads, setLeads] = useState<LeadItem[]>(() => {
@@ -191,6 +193,7 @@ export const AppContent: React.FC = () => {
     const saved = localStorage.getItem('cms_projects');
     return saved ? JSON.parse(saved) : initialProjects;
   });
+  const [menuItems, setMenuItems] = useState<any[]>([]);
   const [products, setProducts] = useState<any[]>(() => {
     const saved = localStorage.getItem('cms_products');
     return saved ? JSON.parse(saved) : PRODUCTS_DATA;
@@ -216,10 +219,33 @@ export const AppContent: React.FC = () => {
 
   React.useEffect(() => {
     let cancelled = false;
-    fetch('/api/auth/status').then((response) => response.json()).then((result) => { if (!cancelled) setIsLoggedIn(Boolean(result.authenticated)); }).catch(() => undefined);
-    const handleExpiredSession = () => setIsLoggedIn(false);
+    let unsubscribe: () => void = () => undefined;
+    if (supabase) {
+      supabase.auth.getSession().then(async ({ data }) => {
+        const profile = data.session ? await getCurrentCmsProfile() : null;
+        if (!cancelled) setIsLoggedIn(Boolean(profile));
+      }).catch(() => { if (!cancelled) setIsLoggedIn(false); });
+      const listener = supabase.auth.onAuthStateChange((_event, session) => {
+        if (!session) {
+          if (!cancelled) setIsLoggedIn(false);
+          return;
+        }
+        window.setTimeout(() => {
+          void getCurrentCmsProfile().then((profile) => {
+            if (!cancelled) setIsLoggedIn(Boolean(profile));
+          });
+        }, 0);
+      });
+      unsubscribe = () => listener.data.subscription.unsubscribe();
+    } else {
+      fetch('/api/auth/status').then((response) => response.json()).then((result) => { if (!cancelled) setIsLoggedIn(Boolean(result.authenticated)); }).catch(() => undefined);
+    }
+    const handleExpiredSession = () => {
+      setIsLoggedIn(false);
+      if (supabase) void supabase.auth.signOut({ scope: 'local' });
+    };
     window.addEventListener(CMS_AUTH_EXPIRED_EVENT, handleExpiredSession);
-    return () => { cancelled = true; window.removeEventListener(CMS_AUTH_EXPIRED_EVENT, handleExpiredSession); };
+    return () => { cancelled = true; unsubscribe(); window.removeEventListener(CMS_AUTH_EXPIRED_EVENT, handleExpiredSession); };
   }, []);
 
   React.useEffect(() => {
@@ -235,7 +261,21 @@ export const AppContent: React.FC = () => {
   }, [projects]);
 
   React.useEffect(() => { localStorage.setItem('cms_leads', JSON.stringify(leads)); }, [leads]);
-  React.useEffect(() => { localStorage.setItem('cms_fuel_settings', JSON.stringify(fuelSettings)); }, [fuelSettings]);
+  React.useEffect(() => {
+    localStorage.setItem('cms_fuel_settings', JSON.stringify(fuelSettings));
+    const saveFuel = async () => {
+      const client = supabase;
+      if (!client) return;
+      try {
+        await client
+          .from('site_settings')
+          .upsert({ key: 'fuel_settings', value: fuelSettings });
+      } catch (err) {
+        console.error('Failed to auto-save fuel settings to Supabase:', err);
+      }
+    };
+    void saveFuel();
+  }, [fuelSettings]);
 
   React.useEffect(() => {
     document.documentElement.dataset.theme = theme;
@@ -257,6 +297,18 @@ export const AppContent: React.FC = () => {
 
   React.useEffect(() => {
     localStorage.setItem('cms_contact_info', JSON.stringify(contactInfo));
+    const saveContact = async () => {
+      const client = supabase;
+      if (!client) return;
+      try {
+        await client
+          .from('site_settings')
+          .upsert({ key: 'contact_info', value: contactInfo });
+      } catch (err) {
+        console.error('Failed to auto-save contact info to Supabase:', err);
+      }
+    };
+    void saveContact();
   }, [contactInfo]);
 
   const [pages, setPages] = useState<any[]>(() => {
@@ -358,6 +410,277 @@ export const AppContent: React.FC = () => {
     localStorage.setItem('cms_pages', JSON.stringify(pages));
   }, [pages]);
 
+  React.useEffect(() => {
+    let active = true;
+    const loadSiteTexts = async () => {
+      const client = supabase;
+      if (!client) return;
+      try {
+        const { data, error } = await client
+          .from('site_texts')
+          .select('content_key, value_vi, value_en')
+          .eq('status', 'published');
+        
+        if (error) throw error;
+        if (data && data.length > 0 && active) {
+          setPages((currentPages) => {
+            return currentPages.map((page) => {
+              if (page.blocks) {
+                const updatedBlocks = page.blocks.map((block: any) => {
+                  const updatedBlock = { ...block };
+                  const prefix = `${page.slug || 'home'}.block.${block.id}`;
+                  
+                  const applyText = (fieldBase: string, fieldVi: string, fieldEn: string) => {
+                    const matched = data.find((row) => row.content_key === `${prefix}.${fieldBase}`);
+                    if (matched) {
+                      updatedBlock[fieldVi] = matched.value_vi;
+                      updatedBlock[fieldEn] = matched.value_en;
+                    }
+                  };
+
+                  applyText('title', 'titleVi', 'titleEn');
+                  applyText('subtitle', 'subtitleVi', 'subtitleEn');
+                  applyText('cta', 'ctaVi', 'ctaEn');
+                  applyText('items', 'itemsVi', 'itemsEn');
+                  applyText('content', 'contentVi', 'contentEn');
+
+                  return updatedBlock;
+                });
+                return { ...page, blocks: updatedBlocks };
+              }
+              return page;
+            });
+          });
+        }
+      } catch (err) {
+        console.error('Failed to load site texts from Supabase:', err);
+      }
+    };
+    void loadSiteTexts();
+    return () => { active = false; };
+  }, []);
+
+  React.useEffect(() => {
+    const fetchProducts = async () => {
+      const client = supabase;
+      if (!client) return;
+      try {
+        const { data, error } = await client
+          .from('products')
+          .select('*')
+          .order('sort_order', { ascending: true })
+          .order('created_at', { ascending: false });
+        
+        if (error) throw error;
+        if (data) {
+          const mapped = data.map((item) => ({
+            id: item.id,
+            name: item.name,
+            category: item.category,
+            specs: item.specs,
+            origin: item.origin,
+            details: item.details,
+            techParams: item.tech_params || [],
+            image: item.image,
+            visible: item.visible,
+            sortOrder: item.sort_order
+          }));
+          setProducts(mapped);
+          localStorage.setItem('cms_products', JSON.stringify(mapped));
+        }
+      } catch (err) {
+        console.error('Failed to fetch products from Supabase:', err);
+      }
+    };
+    void fetchProducts();
+  }, []);
+
+  React.useEffect(() => {
+    const fetchProjects = async () => {
+      const client = supabase;
+      if (!client) return;
+      try {
+        const { data, error } = await client
+          .from('projects')
+          .select('*')
+          .order('sort_order', { ascending: true })
+          .order('created_at', { ascending: false });
+        
+        if (error) throw error;
+        if (data) {
+          const mapped = data.map((item) => ({
+            id: item.id,
+            name: item.name,
+            category: item.category,
+            location: item.location,
+            scope: item.scope,
+            capacity: item.capacity,
+            result: item.result,
+            equipments: item.equipments || [],
+            image: item.image,
+            images: item.images || [],
+            visible: item.visible,
+            sortOrder: item.sort_order
+          }));
+          setProjects(mapped);
+          localStorage.setItem('cms_projects', JSON.stringify(mapped));
+        }
+      } catch (err) {
+        console.error('Failed to fetch projects from Supabase:', err);
+      }
+    };
+    void fetchProjects();
+  }, []);
+
+  React.useEffect(() => {
+    const fetchArticles = async () => {
+      const client = supabase;
+      if (!client) return;
+      try {
+        const { data, error } = await client
+          .from('articles')
+          .select('*')
+          .order('sort_order', { ascending: true })
+          .order('created_at', { ascending: false });
+        
+        if (error) throw error;
+        if (data) {
+          const mapped = data.map((item) => ({
+            id: item.id,
+            title: item.title,
+            category: item.category,
+            excerpt: item.excerpt,
+            content: item.content,
+            date: item.date,
+            image: item.image,
+            images: item.images || [],
+            visible: item.visible,
+            sortOrder: item.sort_order
+          }));
+          setArticles(mapped);
+          localStorage.setItem('cms_articles', JSON.stringify(mapped));
+        }
+      } catch (err) {
+        console.error('Failed to fetch articles from Supabase:', err);
+      }
+    };
+    void fetchArticles();
+  }, []);
+
+  React.useEffect(() => {
+    const loadLogos = async () => {
+      const client = supabase;
+      if (!client) return;
+      try {
+        const { data, error } = await client
+          .from('media_assets')
+          .select('bucket_id, storage_path')
+          .eq('media_role', 'logo')
+          .eq('visible', true)
+          .order('sort_order', { ascending: true });
+        
+        if (error) throw error;
+        if (data) {
+          const urls = data.map((item) => {
+            const { data: { publicUrl } } = client.storage
+              .from(item.bucket_id)
+              .getPublicUrl(item.storage_path);
+            return publicUrl;
+          });
+          
+          setPages((currentPages) => {
+            return currentPages.map((page) => {
+              if (page.blocks) {
+                const updatedBlocks = page.blocks.map((block: any) => {
+                  if (block.id === 'b-clients') {
+                    return { ...block, logos: urls };
+                  }
+                  return block;
+                });
+                return { ...page, blocks: updatedBlocks };
+              }
+              return page;
+            });
+          });
+        }
+      } catch (err) {
+        console.error('Failed to load partner logos:', err);
+      }
+    };
+    void loadLogos();
+  }, [pages.length]);
+
+  React.useEffect(() => {
+    const fetchSettings = async () => {
+      const client = supabase;
+      if (!client) return;
+      try {
+        const { data, error } = await client
+          .from('site_settings')
+          .select('*');
+        if (error) throw error;
+        if (data) {
+          const contact = data.find((row) => row.key === 'contact_info');
+          if (contact) {
+            setContactInfo(contact.value);
+            localStorage.setItem('cms_contact_info', JSON.stringify(contact.value));
+          }
+          const fuel = data.find((row) => row.key === 'fuel_settings');
+          if (fuel) {
+            setFuelSettings(fuel.value);
+            localStorage.setItem('cms_fuel_settings', JSON.stringify(fuel.value));
+          }
+        }
+      } catch (err) {
+        console.error('Failed to fetch settings from Supabase:', err);
+      }
+    };
+    void fetchSettings();
+  }, []);
+
+  React.useEffect(() => {
+    const fetchNavigation = async () => {
+      const client = supabase;
+      if (!client) return;
+      try {
+        const { data, error } = await client
+          .from('navigation_items')
+          .select('*')
+          .order('sort_order', { ascending: true });
+        
+        if (error) throw error;
+        if (data && data.length > 0) {
+          const roots = data.filter((item) => !item.parent_id);
+          const children = data.filter((item) => item.parent_id);
+          const hierarchy = roots.map((root) => {
+            const sub = children
+              .filter((child) => child.parent_id === root.id)
+              .map((child) => ({
+                id: child.id,
+                label: child.label,
+                link: child.path,
+                visible: child.visible,
+                target: child.target
+              }));
+            
+            return {
+              id: root.id,
+              label: root.label,
+              link: root.path,
+              visible: root.visible,
+              target: root.target,
+              ...(sub.length > 0 ? { children: sub } : {})
+            };
+          });
+          setMenuItems(hierarchy);
+        }
+      } catch (err) {
+        console.error('Failed to load navigation in App.tsx:', err);
+      }
+    };
+    void fetchNavigation();
+  }, []);
+
   const handleAddProduct = (product: any) => {
     setCartItems((prev) => {
       if (prev.some((item) => item.id === product.id)) {
@@ -372,20 +695,94 @@ export const AppContent: React.FC = () => {
     setCartItems((prev) => prev.filter((item) => item.id !== id));
   };
 
-  const handleCreateProduct = (product: any) => {
+  const handleCreateProduct = async (product: any) => {
+    const client = supabase;
+    if (client) {
+      try {
+        const { error } = await client
+          .from('products')
+          .insert({
+            id: product.id,
+            name: product.name,
+            category: product.category,
+            specs: product.specs,
+            origin: product.origin,
+            details: product.details,
+            tech_params: product.techParams || [],
+            image: product.image,
+            visible: product.visible !== false,
+            sort_order: product.sortOrder || 0
+          });
+        if (error) throw error;
+      } catch (err) {
+        console.error('Failed to create product in Supabase:', err);
+      }
+    }
     setProducts((current) => [product, ...current]);
   };
 
-  const handleUpdateProduct = (product: any) => {
+  const handleUpdateProduct = async (product: any) => {
+    const client = supabase;
+    if (client) {
+      try {
+        const { error } = await client
+          .from('products')
+          .update({
+            name: product.name,
+            category: product.category,
+            specs: product.specs,
+            origin: product.origin,
+            details: product.details,
+            tech_params: product.techParams || [],
+            image: product.image,
+            visible: product.visible !== false,
+            sort_order: product.sortOrder || 0
+          })
+          .eq('id', product.id);
+        if (error) throw error;
+      } catch (err) {
+        console.error('Failed to update product in Supabase:', err);
+      }
+    }
     setProducts((current) => current.map((item) => item.id === product.id ? product : item));
   };
 
-  const handleDeleteProduct = (id: string) => {
+  const handleDeleteProduct = async (id: string) => {
+    const client = supabase;
+    if (client) {
+      try {
+        const { error } = await client
+          .from('products')
+          .delete()
+          .eq('id', id);
+        if (error) throw error;
+      } catch (err) {
+        console.error('Failed to delete product in Supabase:', err);
+      }
+    }
     setProducts((current) => current.filter((item) => item.id !== id));
   };
 
-  const handleToggleProduct = (id: string) => {
-    setProducts((current) => current.map((item) => item.id === id ? { ...item, visible: item.visible === false } : item));
+  const handleToggleProduct = async (id: string) => {
+    const client = supabase;
+    let newVisible = false;
+    setProducts((current) => {
+      const found = current.find((item) => item.id === id);
+      if (found) newVisible = found.visible === false;
+      return current.map((item) => item.id === id ? { ...item, visible: newVisible } : item);
+    });
+
+    if (client) {
+      try {
+        const { error } = await client
+          .from('products')
+          .update({ visible: newVisible })
+          .eq('id', id);
+        if (error) throw error;
+      } catch (err) {
+        console.error('Failed to toggle product visibility in Supabase:', err);
+      }
+    }
   };
 
   const handleTranslateAllContent = async (onProgress: (done: number, total: number) => void) => {
@@ -435,42 +832,190 @@ export const AppContent: React.FC = () => {
   };
 
   // Article handlers
-  const handleAddArticle = (article: ArticleItem) => {
+  const handleAddArticle = async (article: ArticleItem) => {
+    const client = supabase;
+    if (client) {
+      try {
+        const { error } = await client
+          .from('articles')
+          .insert({
+            id: article.id,
+            title: article.title,
+            category: article.category,
+            excerpt: article.excerpt,
+            content: article.content,
+            date: article.date,
+            image: article.image,
+            images: article.images || [],
+            visible: article.visible !== false,
+            sort_order: article.sortOrder || 0
+          });
+        if (error) throw error;
+      } catch (err) {
+        console.error('Failed to create article in Supabase:', err);
+      }
+    }
     setArticles((prev) => [article, ...prev]);
   };
 
-  const handleDeleteArticle = (id: string) => {
+  const handleDeleteArticle = async (id: string) => {
+    const client = supabase;
+    if (client) {
+      try {
+        const { error } = await client
+          .from('articles')
+          .delete()
+          .eq('id', id);
+        if (error) throw error;
+      } catch (err) {
+        console.error('Failed to delete article in Supabase:', err);
+      }
+    }
     setArticles((prev) => prev.filter((art) => art.id !== id));
   };
 
-  const handleToggleArticleVisibility = (id: string) => {
-    setArticles((prev) =>
-      prev.map((art) => (art.id === id ? { ...art, visible: !art.visible } : art))
-    );
+  const handleToggleArticleVisibility = async (id: string) => {
+    const client = supabase;
+    let newVisible = false;
+    setArticles((prev) => {
+      const found = prev.find((art) => art.id === id);
+      if (found) newVisible = !found.visible;
+      return prev.map((art) => (art.id === id ? { ...art, visible: newVisible } : art));
+    });
+
+    if (client) {
+      try {
+        const { error } = await client
+          .from('articles')
+          .update({ visible: newVisible })
+          .eq('id', id);
+        if (error) throw error;
+      } catch (err) {
+        console.error('Failed to toggle article visibility in Supabase:', err);
+      }
+    }
   };
 
-  const handleEditArticle = (updatedArticle: ArticleItem) => {
+  const handleEditArticle = async (updatedArticle: ArticleItem) => {
+    const client = supabase;
+    if (client) {
+      try {
+        const { error } = await client
+          .from('articles')
+          .update({
+            title: updatedArticle.title,
+            category: updatedArticle.category,
+            excerpt: updatedArticle.excerpt,
+            content: updatedArticle.content,
+            date: updatedArticle.date,
+            image: updatedArticle.image,
+            images: updatedArticle.images || [],
+            visible: updatedArticle.visible !== false,
+            sort_order: updatedArticle.sortOrder || 0
+          })
+          .eq('id', updatedArticle.id);
+        if (error) throw error;
+      } catch (err) {
+        console.error('Failed to update article in Supabase:', err);
+      }
+    }
     setArticles((prev) =>
       prev.map((art) => (art.id === updatedArticle.id ? updatedArticle : art))
     );
   };
 
   // Project handlers
-  const handleAddProject = (project: ProjectItem) => {
+  const handleAddProject = async (project: ProjectItem) => {
+    const client = supabase;
+    if (client) {
+      try {
+        const { error } = await client
+          .from('projects')
+          .insert({
+            id: project.id,
+            name: project.name,
+            category: project.category,
+            location: project.location,
+            scope: project.scope,
+            capacity: project.capacity,
+            result: project.result,
+            equipments: project.equipments || [],
+            image: project.image,
+            images: project.images || [],
+            visible: project.visible !== false,
+            sort_order: project.sortOrder || 0
+          });
+        if (error) throw error;
+      } catch (err) {
+        console.error('Failed to create project in Supabase:', err);
+      }
+    }
     setProjects((prev) => [project, ...prev]);
   };
 
-  const handleDeleteProject = (id: string) => {
+  const handleDeleteProject = async (id: string) => {
+    const client = supabase;
+    if (client) {
+      try {
+        const { error } = await client
+          .from('projects')
+          .delete()
+          .eq('id', id);
+        if (error) throw error;
+      } catch (err) {
+        console.error('Failed to delete project in Supabase:', err);
+      }
+    }
     setProjects((prev) => prev.filter((proj) => proj.id !== id));
   };
 
-  const handleToggleProjectVisibility = (id: string) => {
-    setProjects((prev) =>
-      prev.map((proj) => (proj.id === id ? { ...proj, visible: !proj.visible } : proj))
-    );
+  const handleToggleProjectVisibility = async (id: string) => {
+    const client = supabase;
+    let newVisible = false;
+    setProjects((prev) => {
+      const found = prev.find((proj) => proj.id === id);
+      if (found) newVisible = !found.visible;
+      return prev.map((proj) => (proj.id === id ? { ...proj, visible: newVisible } : proj));
+    });
+
+    if (client) {
+      try {
+        const { error } = await client
+          .from('projects')
+          .update({ visible: newVisible })
+          .eq('id', id);
+        if (error) throw error;
+      } catch (err) {
+        console.error('Failed to toggle project visibility in Supabase:', err);
+      }
+    }
   };
 
-  const handleEditProject = (updatedProject: ProjectItem) => {
+  const handleEditProject = async (updatedProject: ProjectItem) => {
+    const client = supabase;
+    if (client) {
+      try {
+        const { error } = await client
+          .from('projects')
+          .update({
+            name: updatedProject.name,
+            category: updatedProject.category,
+            location: updatedProject.location,
+            scope: updatedProject.scope,
+            capacity: updatedProject.capacity,
+            result: updatedProject.result,
+            equipments: updatedProject.equipments || [],
+            image: updatedProject.image,
+            images: updatedProject.images || [],
+            visible: updatedProject.visible !== false,
+            sort_order: updatedProject.sortOrder || 0
+          })
+          .eq('id', updatedProject.id);
+        if (error) throw error;
+      } catch (err) {
+        console.error('Failed to update project in Supabase:', err);
+      }
+    }
     setProjects((prev) =>
       prev.map((proj) => (proj.id === updatedProject.id ? updatedProject : proj))
     );
@@ -555,6 +1100,7 @@ export const AppContent: React.FC = () => {
         currentView={currentView}
         language={language}
         onDirtyChange={setHasVisualDraft}
+        onSavingChange={setVisualSaving}
         onSaved={() => {
           setVisualSaveNotice(true);
           window.setTimeout(() => setVisualSaveNotice(false), 1800);
@@ -600,9 +1146,10 @@ export const AppContent: React.FC = () => {
               <button
                 className="btn btn-primary"
                 style={{ fontSize: '0.8rem', padding: '0.4rem 0.8rem' }}
+                disabled={visualSaving}
                 onClick={() => visualEditorRef.current?.save()}
               >
-                {visualSaveNotice ? 'Đã lưu' : hasVisualDraft ? 'Lưu thay đổi •' : 'Lưu thay đổi'}
+                {visualSaving ? (language === 'vi' ? 'Đang lưu…' : 'Saving…') : visualSaveNotice ? 'Đã lưu' : hasVisualDraft ? 'Lưu thay đổi •' : 'Lưu thay đổi'}
               </button>
             )}
             <button
@@ -625,13 +1172,14 @@ export const AppContent: React.FC = () => {
         toggleCart={() => setCartOpen(!cartOpen)}
         theme={theme}
         toggleTheme={() => setTheme(theme === 'dark' ? 'light' : 'dark')}
+        menuItems={menuItems}
       />}
       
       <main style={{ flex: 1 }}>
         {renderView()}
       </main>
 
-      {currentView !== 'admin' && <Footer setView={setView} />}
+      {currentView !== 'admin' && <Footer setView={setView} contactInfo={contactInfo} />}
 
       {currentView !== 'admin' && <QuoteDrawer
         isOpen={cartOpen} 

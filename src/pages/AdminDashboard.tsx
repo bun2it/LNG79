@@ -11,6 +11,7 @@ import { ArticleManager, ProductManager, ProjectManager } from '../components/ad
 import { MediaPickerDialog } from '../components/admin/MediaPickerDialog';
 import { createCmsBackup, downloadCmsBackup, restoreCmsBackup, validateCmsBackup } from '../features/cms/backup';
 import { authFetch } from '../features/auth/authFetch';
+import { getCurrentCmsProfile, getSupabaseClient, supabaseConfiguration, supabase } from '../lib/supabase';
 
 interface LeadItem {
   id: string;
@@ -170,7 +171,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
   onEditArticle, pages, onUpdatePages: setPages, isLoggedIn, setIsLoggedIn
 }) => {
   const { language } = useLanguage();
-  const [username, setUsername] = useState('');
+  const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [authError, setAuthError] = useState('');
   const [isAuthenticating, setIsAuthenticating] = useState(false);
@@ -182,18 +183,6 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
   const [translationProgress, setTranslationProgress] = useState<{ done: number; total: number } | null>(null);
   const [translationMessage, setTranslationMessage] = useState('');
   const [backupMessage, setBackupMessage] = useState('');
-
-  const [loginAttempts, setLoginAttempts] = useState<number>(0);
-  const [lockoutTime, setLockoutTime] = useState<number | null>(null);
-
-  // Check lockout on render
-  React.useEffect(() => {
-    if (lockoutTime && Date.now() >= lockoutTime) {
-      setLockoutTime(null);
-      setLoginAttempts(0);
-      setAuthError('');
-    }
-  }, [lockoutTime]);
 
   const [menuItems, setMenuItems] = useState<any[]>(() => {
     const saved = localStorage.getItem('cms_menu');
@@ -231,60 +220,218 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
     return extension === 'pdf' ? 'application/pdf' : extension === 'svg' ? 'image/svg+xml' : extension === 'png' ? 'image/png' : extension === 'webp' ? 'image/webp' : extension === 'gif' ? 'image/gif' : 'image/jpeg';
   };
 
+  const loadMediaAssets = React.useCallback(async () => {
+    try {
+      const client = supabase;
+      if (client) {
+        const { data: dbAssets, error: dbError } = await client
+          .from('media_assets')
+          .select('id, bucket_id, storage_path, mime_type, file_size, title, alt_text, created_at')
+          .order('created_at', { ascending: false });
+        
+        if (dbError) throw dbError;
+
+        const mapped = (dbAssets || []).map((asset) => {
+          const { data: { publicUrl } } = client.storage
+            .from(asset.bucket_id)
+            .getPublicUrl(asset.storage_path);
+          return {
+            id: asset.id,
+            fileName: asset.storage_path.replace(/^\d+-/, ''),
+            title: asset.title || asset.storage_path.replace(/^\d+-/, '').replace(/\.[^.]+$/, ''),
+            altText: asset.alt_text || '',
+            url: publicUrl,
+            fileSize: Number(asset.file_size),
+            fileType: asset.mime_type,
+            uploadedAt: asset.created_at?.slice(0, 10) || new Date().toISOString().slice(0, 10),
+            hosted: true,
+            storagePath: asset.storage_path,
+            bucketId: asset.bucket_id
+          };
+        });
+        setMediaAssets(mapped);
+      } else {
+        const response = await authFetch('/api/uploads');
+        if (response.ok) {
+          const hosted = await response.json();
+          setMediaAssets((current) => {
+            const additions = hosted
+              .filter((file: any) => !current.some((asset) => asset.url === file.url))
+              .map((file: any) => ({
+                id: `host-${file.name}`,
+                fileName: file.name,
+                title: file.name.replace(/\.[^.]+$/, ''),
+                altText: file.name.replace(/\.[^.]+$/, '').replace(/[-_]+/g, ' '),
+                url: file.url,
+                fileSize: file.size || 0,
+                fileType: fileTypeFromName(file.name),
+                uploadedAt: file.uploadedAt?.slice(0, 10) || new Date().toISOString().slice(0, 10),
+                hosted: true,
+              }));
+            return additions.length ? [...additions, ...current] : current;
+          });
+        }
+      }
+    } catch (e) {
+      console.error(e);
+    }
+  }, []);
+
   React.useEffect(() => {
     if (!isLoggedIn) return;
-    let cancelled = false;
-    authFetch('/api/uploads')
-      .then((response) => response.ok ? response.json() : Promise.reject(new Error('Media API unavailable')))
-      .then((hosted: Array<{ name: string; url: string; size?: number; uploadedAt?: string }>) => {
-        if (cancelled) return;
-        setMediaAssets((current) => {
-          const additions = hosted
-            .filter((file) => !current.some((asset) => asset.url === file.url))
-            .map((file) => ({
-              id: `host-${file.name}`,
-              fileName: file.name,
-              title: file.name.replace(/\.[^.]+$/, ''),
-              altText: file.name.replace(/\.[^.]+$/, '').replace(/[-_]+/g, ' '),
-              url: file.url,
-              fileSize: file.size || 0,
-              fileType: fileTypeFromName(file.name),
-              uploadedAt: file.uploadedAt?.slice(0, 10) || new Date().toISOString().slice(0, 10),
-              hosted: true,
-            }));
-          return additions.length ? [...additions, ...current] : current;
-        });
-      })
-      .catch(() => undefined);
-    return () => { cancelled = true; };
+    void loadMediaAssets();
+  }, [isLoggedIn, loadMediaAssets]);
+
+  React.useEffect(() => {
+    if (!isLoggedIn) return;
+    const fetchNavigation = async () => {
+      const client = supabase;
+      if (!client) return;
+      try {
+        const { data, error } = await client
+          .from('navigation_items')
+          .select('*')
+          .order('sort_order', { ascending: true });
+        
+        if (error) throw error;
+        if (data && data.length > 0) {
+          const roots = data.filter((item) => !item.parent_id);
+          const children = data.filter((item) => item.parent_id);
+          const hierarchy = roots.map((root) => {
+            const sub = children
+              .filter((child) => child.parent_id === root.id)
+              .map((child) => ({
+                id: child.id,
+                label: child.label,
+                link: child.path,
+                visible: child.visible,
+                target: child.target
+              }));
+            
+            return {
+              id: root.id,
+              label: root.label,
+              link: root.path,
+              visible: root.visible,
+              target: root.target,
+              ...(sub.length > 0 ? { children: sub } : {})
+            };
+          });
+          setMenuItems(hierarchy);
+          localStorage.setItem('cms_menu', JSON.stringify(hierarchy));
+        }
+      } catch (err) {
+        console.error('Failed to load navigation items from Supabase:', err);
+      }
+    };
+    void fetchNavigation();
   }, [isLoggedIn]);
 
   const uploadMediaFiles = async (files: FileList) => {
-    const uploaded = await Promise.all(Array.from(files).map(async (file) => {
-      const response = await authFetch('/api/uploads', {
-        method: 'POST',
-        headers: { 'Content-Type': file.type, 'X-File-Name': encodeURIComponent(file.name) },
-        body: file,
-      });
-      const result = await response.json();
-      if (!response.ok) throw new Error(result.error || `Upload ${file.name} thất bại`);
-      return { name: result.name, url: result.url, size: file.size, type: file.type, hosted: true };
-    }));
-    setMediaAssets((current) => [
-      ...uploaded.map((file) => ({
-        id: `med-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
-        fileName: file.name,
-        title: file.name.replace(/\.[^.]+$/, ''),
-        altText: file.name.replace(/\.[^.]+$/, '').replace(/[-_]+/g, ' '),
-        url: file.url,
-        fileSize: file.size,
-        fileType: file.type,
-        uploadedAt: new Date().toISOString().slice(0, 10),
-        hosted: file.hosted,
-      })),
-      ...current,
-    ]);
-    logAction(`Uploaded ${files.length} assets to Media Vault`);
+    try {
+      const client = supabase;
+      if (client) {
+        const allowedTypes = new Set(['image/jpeg', 'image/png', 'image/webp', 'image/gif', 'application/pdf']);
+        const uploaded: any[] = [];
+
+        for (const file of Array.from(files)) {
+          if (!allowedTypes.has(file.type)) {
+            throw new Error(language === 'vi' ? `Chỉ hỗ trợ JPG, PNG, WebP, GIF hoặc PDF: ${file.name}` : `Only JPG, PNG, WebP, GIF, or PDF are supported: ${file.name}`);
+          }
+          if (file.size > 10 * 1024 * 1024) {
+            throw new Error(language === 'vi' ? `File ${file.name} vượt quá 10 MB.` : `File ${file.name} exceeds 10 MB.`);
+          }
+
+          const fileExt = file.name.split('.').pop() || '';
+          const cleanBaseName = file.name.replace(/\.[^.]+$/, '').replace(/[^a-zA-Z0-9_-]+/g, '-').slice(0, 60);
+          const storagePath = `${Date.now()}-${cleanBaseName}.${fileExt}`;
+
+          let dimensions: { width: number; height: number } | null = null;
+          if (file.type.startsWith('image/')) {
+            dimensions = await new Promise<{ width: number; height: number } | null>((resolve) => {
+              const img = new Image();
+              img.onload = () => resolve({ width: img.naturalWidth, height: img.naturalHeight });
+              img.onerror = () => resolve(null);
+              img.src = URL.createObjectURL(file);
+            });
+          }
+
+          const { error: uploadError } = await client.storage
+            .from('website-media')
+            .upload(storagePath, file, { cacheControl: '3600', upsert: false });
+          
+          if (uploadError) throw uploadError;
+
+          const { data: { publicUrl } } = client.storage
+            .from('website-media')
+            .getPublicUrl(storagePath);
+
+          const { data: userData } = await client.auth.getUser();
+          const { data: dbAsset, error: dbError } = await client
+            .from('media_assets')
+            .insert({
+              bucket_id: 'website-media',
+              storage_path: storagePath,
+              mime_type: file.type,
+              file_size: file.size,
+              width: dimensions?.width || null,
+              height: dimensions?.height || null,
+              title: file.name.replace(/\.[^.]+$/, ''),
+              alt_text: file.name.replace(/\.[^.]+$/, '').replace(/[-_]+/g, ' '),
+              uploaded_by: userData?.user?.id || null
+            })
+            .select()
+            .single();
+
+          if (dbError) throw dbError;
+
+          uploaded.push({
+            id: dbAsset.id,
+            fileName: storagePath.replace(/^\d+-/, ''),
+            title: dbAsset.title || file.name.replace(/\.[^.]+$/, ''),
+            altText: dbAsset.alt_text || '',
+            url: publicUrl,
+            fileSize: file.size,
+            fileType: file.type,
+            uploadedAt: new Date().toISOString().slice(0, 10),
+            hosted: true,
+            storagePath: storagePath,
+            bucketId: 'website-media'
+          });
+        }
+
+        setMediaAssets((current) => [...uploaded, ...current]);
+        logAction(`Uploaded ${files.length} assets to Supabase Storage`);
+      } else {
+        const uploaded = await Promise.all(Array.from(files).map(async (file) => {
+          const response = await authFetch('/api/uploads', {
+            method: 'POST',
+            headers: { 'Content-Type': file.type, 'X-File-Name': encodeURIComponent(file.name) },
+            body: file,
+          });
+          const result = await response.json();
+          if (!response.ok) throw new Error(result.error || `Upload ${file.name} thất bại`);
+          return { name: result.name, url: result.url, size: file.size, type: file.type, hosted: true };
+        }));
+        setMediaAssets((current) => [
+          ...uploaded.map((file) => ({
+            id: `med-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
+            fileName: file.name,
+            title: file.name.replace(/\.[^.]+$/, ''),
+            altText: file.name.replace(/\.[^.]+$/, '').replace(/[-_]+/g, ' '),
+            url: file.url,
+            fileSize: file.size,
+            fileType: file.type,
+            uploadedAt: new Date().toISOString().slice(0, 10),
+            hosted: file.hosted,
+          })),
+          ...current,
+        ]);
+        logAction(`Uploaded ${files.length} assets to Media Vault`);
+      }
+    } catch (reason: any) {
+      alert(reason.message || 'Upload file thất bại');
+    }
   };
 
   const deleteMediaAsset = async (asset: any) => {
@@ -293,12 +440,38 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
       ? `${language === 'vi' ? 'File đang được sử dụng tại' : 'This file is used in'} ${usages} ${language === 'vi' ? 'nội dung. Xóa vẫn tiếp tục?' : 'content items. Delete anyway?'}`
       : (language === 'vi' ? 'Xóa file này khỏi Media Vault?' : 'Delete this file from Media Vault?');
     if (!window.confirm(warning)) return;
-    if (asset.url?.startsWith('/uploads/')) {
-      const response = await authFetch(`/api/uploads?name=${encodeURIComponent(asset.fileName)}`, { method: 'DELETE' });
-      if (!response.ok) throw new Error(language === 'vi' ? 'Không thể xóa file trên host.' : 'Could not delete hosted file.');
+
+    try {
+      if (supabase && asset.id && !asset.id.startsWith('host-') && !asset.id.startsWith('med-')) {
+        const storagePath = asset.storagePath || asset.fileName;
+        const bucketId = asset.bucketId || 'website-media';
+        
+        const { error: storageError } = await supabase.storage
+          .from(bucketId)
+          .remove([storagePath]);
+
+        if (storageError) throw storageError;
+
+        const { error: dbError } = await supabase
+          .from('media_assets')
+          .delete()
+          .eq('id', asset.id);
+
+        if (dbError) throw dbError;
+
+        setMediaAssets((current) => current.filter((item) => item.id !== asset.id));
+        logAction(`Deleted media asset "${asset.fileName}" from Supabase`);
+      } else {
+        if (asset.url?.startsWith('/uploads/')) {
+          const response = await authFetch(`/api/uploads?name=${encodeURIComponent(asset.fileName)}`, { method: 'DELETE' });
+          if (!response.ok) throw new Error(language === 'vi' ? 'Không thể xóa file trên host.' : 'Could not delete hosted file.');
+        }
+        setMediaAssets((current) => current.filter((item) => item.id !== asset.id));
+        logAction(`Deleted media asset "${asset.fileName}"`);
+      }
+    } catch (reason: any) {
+      alert(reason.message || 'Xóa file thất bại');
     }
-    setMediaAssets((current) => current.filter((item) => item.id !== asset.id));
-    logAction(`Deleted media asset "${asset.fileName}"`);
   };
 
   const filteredMediaAssets = mediaAssets.filter((asset) => {
@@ -307,8 +480,20 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
     return matchesType && haystack.includes(mediaQuery.trim().toLocaleLowerCase());
   });
 
-  const updateMediaMetadata = (id: string, field: 'title' | 'altText', value: string) => {
+  const updateMediaMetadata = async (id: string, field: 'title' | 'altText', value: string) => {
     setMediaAssets((current) => current.map((asset) => asset.id === id ? { ...asset, [field]: value } : asset));
+    try {
+      if (supabase && !id.startsWith('host-') && !id.startsWith('med-')) {
+        const dbField = field === 'title' ? 'title' : 'alt_text';
+        const { error } = await supabase
+          .from('media_assets')
+          .update({ [dbField]: value })
+          .eq('id', id);
+        if (error) throw error;
+      }
+    } catch (e: any) {
+      console.error('Failed to update media metadata:', e.message);
+    }
   };
 
   const [auditLogs, setAuditLogs] = useState<any[]>(() => {
@@ -363,6 +548,63 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
 
   React.useEffect(() => {
     localStorage.setItem('cms_menu', JSON.stringify(menuItems));
+    const saveNavigation = async () => {
+      const client = supabase;
+      if (!client) return;
+      try {
+        const flattened: any[] = [];
+        menuItems.forEach((item, rootIdx) => {
+          flattened.push({
+            id: item.id,
+            label: item.label,
+            path: item.link,
+            sort_order: rootIdx,
+            visible: item.visible !== false,
+            target: item.target || '_self',
+            parent_id: null
+          });
+          if (item.children) {
+            item.children.forEach((child: any, childIdx: number) => {
+              flattened.push({
+                id: child.id,
+                label: child.label,
+                path: child.link,
+                sort_order: childIdx,
+                visible: child.visible !== false,
+                target: child.target || '_self',
+                parent_id: item.id
+              });
+            });
+          }
+        });
+        
+        const { data: existing } = await client
+          .from('navigation_items')
+          .select('id');
+        
+        const currentIds = new Set(flattened.map((f) => f.id));
+        const toDelete = (existing || [])
+          .map((row) => row.id)
+          .filter((id) => !currentIds.has(id));
+        
+        if (toDelete.length > 0) {
+          await client
+            .from('navigation_items')
+            .delete()
+            .in('id', toDelete);
+        }
+        
+        if (flattened.length > 0) {
+          const { error } = await client
+            .from('navigation_items')
+            .upsert(flattened);
+          if (error) throw error;
+        }
+      } catch (err) {
+        console.error('Failed to sync navigation menu to Supabase:', err);
+      }
+    };
+    void saveNavigation();
   }, [menuItems]);
   React.useEffect(() => {
     localStorage.setItem('cms_media', JSON.stringify(mediaAssets));
@@ -515,6 +757,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
   const [showAddArticleModal, setShowAddArticleModal] = useState(false);
   const [showArticleDraftPreview, setShowArticleDraftPreview] = useState(false);
   const [articleMediaPickerOpen, setArticleMediaPickerOpen] = useState(false);
+  const [blockLogoPickerOpen, setBlockLogoPickerOpen] = useState(false);
   const [editingArticle, setEditingArticle] = useState<ArticleItem | null>(null);
   const [newArt, setNewArt] = useState({
     titleVi: '',
@@ -713,46 +956,38 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (lockoutTime && Date.now() < lockoutTime) {
-      const remainingMins = Math.ceil((lockoutTime - Date.now()) / (60 * 1000));
-      setAuthError(
-        language === 'vi' 
-          ? `Tài khoản tạm thời bị khóa do đăng nhập sai nhiều lần. Vui lòng thử lại sau ${remainingMins} phút.` 
-          : `Account locked due to multiple failed attempts. Please try again in ${remainingMins} minutes.`
-      );
-      return;
-    }
-
     setIsAuthenticating(true);
+    setAuthError('');
     try {
-      const response = await fetch('/api/auth/login', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ username, password }) });
-      const result = await response.json();
-      if (response.ok && result.authenticated) {
+      if (supabaseConfiguration.configured) {
+        const { error } = await getSupabaseClient().auth.signInWithPassword({ email: email.trim(), password });
+        if (error) throw error;
+        const profile = await getCurrentCmsProfile();
+        if (!profile) {
+          await getSupabaseClient().auth.signOut({ scope: 'local' });
+          throw new Error(language === 'vi' ? 'Tài khoản chưa được kích hoạt quyền CMS.' : 'This account has not been activated for CMS access.');
+        }
         setIsLoggedIn(true);
         setPassword('');
-        setAuthError('');
-        setLoginAttempts(0);
-        setLockoutTime(null);
         logAction('Administrator logged in successfully');
         return;
       }
-      const newAttempts = loginAttempts + 1;
-      setLoginAttempts(newAttempts);
-      if (response.status === 429 || newAttempts >= 5) {
-        const lockDuration = 15 * 60 * 1000;
-        setLockoutTime(Date.now() + lockDuration);
-      }
-      setAuthError(result.error || (language === 'vi' ? 'Sai tài khoản hoặc mật khẩu.' : 'Invalid credentials.'));
-      logAction(`FAILED login attempt ${newAttempts}/5`);
-    } catch {
-      setAuthError(language === 'vi' ? 'Không thể kết nối máy chủ đăng nhập.' : 'Could not connect to the authentication server.');
+      const response = await fetch('/api/auth/login', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ username: email, password }) });
+      const result = await response.json();
+      if (!response.ok || !result.authenticated) throw new Error(result.error || (language === 'vi' ? 'Sai tài khoản hoặc mật khẩu.' : 'Invalid credentials.'));
+      setIsLoggedIn(true);
+      setPassword('');
+      logAction('Administrator logged in with legacy fallback');
+    } catch (reason) {
+      setAuthError(reason instanceof Error ? reason.message : (language === 'vi' ? 'Không thể kết nối máy chủ đăng nhập.' : 'Could not connect to the authentication server.'));
     } finally {
       setIsAuthenticating(false);
     }
   };
 
   const handleLogout = async () => {
-    await fetch('/api/auth/logout', { method: 'POST' }).catch(() => undefined);
+    if (supabaseConfiguration.configured) await getSupabaseClient().auth.signOut().catch(() => undefined);
+    else await fetch('/api/auth/logout', { method: 'POST' }).catch(() => undefined);
     setIsLoggedIn(false);
   };
 
@@ -824,12 +1059,14 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
             )}
             
             <div className="form-group" style={{ marginBottom: 0 }}>
-              <label className="form-label">{language === 'vi' ? 'Tài khoản *' : 'Username *'}</label>
+              <label className="form-label">{language === 'vi' ? 'Email quản trị *' : 'Admin email *'}</label>
               <input 
-                type="text" 
+                type="email"
                 className="form-input" 
-                value={username}
-                onChange={(e) => setUsername(e.target.value)}
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                autoComplete="username"
+                placeholder="admin@domain.com"
                 required
               />
             </div>
@@ -841,6 +1078,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                 className="form-input" 
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
+                autoComplete="current-password"
                 required
               />
             </div>
@@ -1634,6 +1872,8 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                         </div>
                       )}
 
+                      {selectedBlock.id === 'b-clients' && <div className="cms-logo-manager"><div className="cms-tech-params__header"><div><h4>{language === 'vi' ? 'Logo đối tác từ Media Vault' : 'Partner logos from Media Vault'}</h4><small>{language === 'vi' ? 'Ảnh được hiển thị trong khung vuông và chạy ngang trên trang chủ.' : 'Images appear in square tiles and scroll across the homepage.'}</small></div><button type="button" className="btn btn-outline btn-sm" onClick={() => setBlockLogoPickerOpen(true)}><Plus size={14} /> {language === 'vi' ? 'Thêm logo' : 'Add logo'}</button></div><div className="cms-logo-manager__grid">{(selectedBlock.logos || []).map((url: string, logoIndex: number) => <div key={`${url}-${logoIndex}`}><img src={url} alt="" /><button type="button" aria-label={language === 'vi' ? 'Xóa logo' : 'Remove logo'} onClick={async () => { const client = supabase; if (client) { try { const path = decodeURIComponent(url.split('/').pop() || ''); await client.from('media_assets').update({ media_role: null }).eq('storage_path', path); } catch (err) { console.error('Failed to remove partner logo in Supabase:', err); } } const logos = (selectedBlock.logos || []).filter((_: string, index: number) => index !== logoIndex); handleSavePageBlocks(editingBlocksPageId, blocksList.map((block: any) => block.id === selectedBlock.id ? { ...block, logos } : block)); }}>×</button></div>)}{!(selectedBlock.logos || []).length && <p>{language === 'vi' ? 'Chưa có logo. Bấm “Thêm logo” để chọn từ Media Vault.' : 'No logos yet. Choose Add logo to select from Media Vault.'}</p>}</div></div>}
+
                       {/* Hero Image Loader */}
                       {selectedBlock.type === 'hero' && (
                         <div className="form-group" style={{ marginBottom: 0 }}>
@@ -2236,6 +2476,8 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
             <h3 style={{ fontSize: '1.2rem', color: 'var(--color-navy)', marginBottom: '1.5rem' }}>
               {language === 'vi' ? 'Điều Chỉnh Đơn Giá Nhiên Liệu (Calculator Tuning)' : 'Fuel Price Calculator Tuning'}
             </h3>
+
+            <section className="cms-backup-panel cms-backup-panel--prominent"><div><span className="cms-ai-translate-card__eyebrow">BACKUP & RESTORE</span><h4>{language === 'vi' ? 'Sao lưu và khôi phục dữ liệu CMS' : 'CMS backup and restore'}</h4><p>{language === 'vi' ? 'Xuất nội dung, menu, Media Vault metadata, lịch sử, cấu hình, lead và các chỉnh sửa trực quan thành một file JSON.' : 'Export content, menus, Media Vault metadata, history, settings, leads, and visual edits to one JSON file.'}</p><small>{language === 'vi' ? 'Lưu ý: ảnh/PDF trong public/uploads không được nhúng vào JSON; hãy sao lưu thư mục này khi chuyển host.' : 'Note: public/uploads files are not embedded; copy that folder when moving hosts.'}</small></div><div className="cms-backup-actions"><button type="button" className="btn btn-teal" onClick={handleExportBackup}>{language === 'vi' ? 'Tải file sao lưu' : 'Download backup'}</button><label className="btn btn-outline">{language === 'vi' ? 'Chọn file để khôi phục' : 'Choose backup to restore'}<input type="file" accept="application/json,.json" hidden onChange={(event) => { void handleImportBackup(event.target.files?.[0]); event.target.value = ''; }} /></label></div>{backupMessage && <p className="cms-backup-message">{backupMessage}</p>}</section>
             
             <div style={{ display: 'grid', gridTemplateColumns: '1.2fr 1fr', gap: '2.5rem' }} className="admin-settings-grid">
               {/* Settings Form */}
@@ -2367,8 +2609,6 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
             </div>
           </div>
         )}
-
-        {activeTab === 'settings' && <section className="cms-backup-panel"><div><span className="cms-ai-translate-card__eyebrow">BACKUP & RESTORE</span><h4>{language === 'vi' ? 'Sao lưu và khôi phục dữ liệu CMS' : 'CMS backup and restore'}</h4><p>{language === 'vi' ? 'Xuất nội dung, menu, Media Vault metadata, lịch sử, cấu hình, lead và các chỉnh sửa trực quan thành một file JSON.' : 'Export content, menus, Media Vault metadata, history, settings, leads, and visual edits to one JSON file.'}</p><small>{language === 'vi' ? 'Lưu ý: ảnh/PDF trong public/uploads không được nhúng vào JSON; hãy sao lưu thư mục này khi chuyển host.' : 'Note: public/uploads files are not embedded; copy that folder when moving hosts.'}</small></div><div className="cms-backup-actions"><button type="button" className="btn btn-teal" onClick={handleExportBackup}>{language === 'vi' ? 'Tải file sao lưu' : 'Download backup'}</button><label className="btn btn-outline">{language === 'vi' ? 'Chọn file để khôi phục' : 'Choose backup to restore'}<input type="file" accept="application/json,.json" hidden onChange={(event) => { void handleImportBackup(event.target.files?.[0]); event.target.value = ''; }} /></label></div>{backupMessage && <p className="cms-backup-message">{backupMessage}</p>}</section>}
 
         {activeTab === 'articles' && (
           <ArticleManager
@@ -3525,6 +3765,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
       )}
       <MediaPickerDialog open={articleMediaPickerOpen} value={newArt.imageURL} language={language} onClose={() => setArticleMediaPickerOpen(false)} onSelect={(url) => setNewArt((current) => ({ ...current, imageURL: current.imageURL || url, galleryImages: Array.from(new Set([...current.galleryImages, url])) }))} />
       <MediaPickerDialog open={projectMediaPickerOpen} value={newProj.imageURL} language={language} onClose={() => setProjectMediaPickerOpen(false)} onSelect={(url) => setNewProj((current) => ({ ...current, imageURL: current.imageURL || url, galleryImages: Array.from(new Set([...current.galleryImages, url])) }))} />
+      <MediaPickerDialog open={blockLogoPickerOpen} language={language} onClose={() => setBlockLogoPickerOpen(false)} onSelect={async (url) => { if (!editingBlocksPageId || !selectedBlockId) return; const blocksList = getPageBlocks(editingBlocksPageId); const selectedBlock = blocksList.find((b: any) => b.id === selectedBlockId); const client = supabase; if (client) { try { const path = decodeURIComponent(url.split('/').pop() || ''); const currentLogosLength = selectedBlock?.logos?.length || 0; await client.from('media_assets').update({ media_role: 'logo', visible: true, sort_order: currentLogosLength }).eq('storage_path', path); } catch (err) { console.error('Failed to save partner logo to Supabase:', err); } } handleSavePageBlocks(editingBlocksPageId, blocksList.map((block: any) => block.id === selectedBlockId ? { ...block, logos: Array.from(new Set([...(block.logos || []), url])) } : block)); }} />
     </div>
   );
 };

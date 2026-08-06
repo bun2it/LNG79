@@ -9,6 +9,31 @@ const allowedImageTypes = new Set(['image/jpeg', 'image/png', 'image/webp', 'ima
 const devSessions = new Set<string>()
 const cookieValue = (req: import('node:http').IncomingMessage, name: string) => String(req.headers.cookie || '').split(';').map((part) => part.trim().split('=')).find(([key]) => key === name)?.[1]
 const devAuthenticated = (req: import('node:http').IncomingMessage) => Boolean(cookieValue(req, 'lng79_session') && devSessions.has(cookieValue(req, 'lng79_session')!))
+const bearerToken = (req: import('node:http').IncomingMessage) => {
+  const authorization = String(req.headers.authorization || '')
+  return authorization.startsWith('Bearer ') ? authorization.slice(7).trim() : ''
+}
+const supabaseAuthenticated = async (req: import('node:http').IncomingMessage, url: string, publishableKey: string, allowedRoles: string[]) => {
+  const token = bearerToken(req)
+  if (!url || !publishableKey || !token) return false
+  try {
+    const baseUrl = url.replace(/\/$/, '')
+    const response = await fetch(`${baseUrl}/auth/v1/user`, {
+      headers: { apikey: publishableKey, Authorization: `Bearer ${token}` },
+    })
+    if (!response.ok) return false
+    const user = await response.json() as { id?: string }
+    if (!user.id) return false
+    const profileResponse = await fetch(`${baseUrl}/rest/v1/profiles?id=eq.${encodeURIComponent(user.id)}&select=role,status`, {
+      headers: { apikey: publishableKey, Authorization: `Bearer ${token}` },
+    })
+    if (!profileResponse.ok) return false
+    const profiles = await profileResponse.json() as Array<{ role?: string; status?: string }>
+    return profiles.length === 1 && profiles[0].status === 'active' && allowedRoles.includes(profiles[0].role || '')
+  } catch {
+    return false
+  }
+}
 
 const authPlugin = (adminUsername: string, adminPassword: string) => ({
   name: 'lng79-admin-auth',
@@ -33,12 +58,12 @@ const authPlugin = (adminUsername: string, adminPassword: string) => ({
   },
 })
 
-const groqTranslationPlugin = (apiKey: string, model: string) => ({
+const groqTranslationPlugin = (apiKey: string, model: string, supabaseUrl: string, supabasePublishableKey: string) => ({
   name: 'lng79-groq-translation',
   configureServer(server: { middlewares: { use: (path: string, handler: (req: import('node:http').IncomingMessage, res: import('node:http').ServerResponse) => void) => void } }) {
-    server.middlewares.use('/api/ai/translate', (req, res) => {
+    server.middlewares.use('/api/ai/translate', async (req, res) => {
       res.setHeader('Content-Type', 'application/json; charset=utf-8')
-      if (!devAuthenticated(req)) { res.statusCode = 401; res.end(JSON.stringify({ error: 'Phiên quản trị không hợp lệ.' })); return }
+      if (!(devAuthenticated(req) || await supabaseAuthenticated(req, supabaseUrl, supabasePublishableKey, ['owner', 'admin', 'editor', 'translator']))) { res.statusCode = 401; res.end(JSON.stringify({ error: 'Phiên quản trị không hợp lệ.' })); return }
       if (req.method !== 'POST') {
         res.statusCode = 405
         res.end(JSON.stringify({ error: 'Method not allowed' }))
@@ -84,13 +109,13 @@ const groqTranslationPlugin = (apiKey: string, model: string) => ({
   },
 })
 
-const imageLibraryPlugin = () => ({
+const imageLibraryPlugin = (supabaseUrl: string, supabasePublishableKey: string) => ({
   name: 'lng79-image-library',
   configureServer(server: { middlewares: { use: (path: string, handler: (req: import('node:http').IncomingMessage, res: import('node:http').ServerResponse) => void) => void } }) {
     fs.mkdirSync(uploadsDir, { recursive: true })
-    server.middlewares.use('/api/uploads', (req, res) => {
+    server.middlewares.use('/api/uploads', async (req, res) => {
       res.setHeader('Content-Type', 'application/json; charset=utf-8')
-      if (!devAuthenticated(req)) { res.statusCode = 401; res.end(JSON.stringify({ error: 'Phiên quản trị không hợp lệ.' })); return }
+      if (!(devAuthenticated(req) || await supabaseAuthenticated(req, supabaseUrl, supabasePublishableKey, ['owner', 'admin', 'editor']))) { res.statusCode = 401; res.end(JSON.stringify({ error: 'Phiên quản trị không hợp lệ.' })); return }
       if (req.method === 'GET') {
         const images = fs.readdirSync(uploadsDir)
           .filter((file) => /\.(jpe?g|png|webp|gif|svg|pdf)$/i.test(file))
@@ -147,6 +172,16 @@ const imageLibraryPlugin = () => ({
 export default defineConfig(({ mode }) => {
   const env = loadEnv(mode, process.cwd(), '')
   return {
-    plugins: [react(), authPlugin(env.ADMIN_USERNAME || '', env.ADMIN_PASSWORD || ''), imageLibraryPlugin(), groqTranslationPlugin(env.GROQ_API_KEY || process.env.GROQ_API_KEY || '', env.GROQ_TRANSLATION_MODEL || 'llama-3.3-70b-versatile')],
+    plugins: [
+      react(),
+      authPlugin(env.ADMIN_USERNAME || '', env.ADMIN_PASSWORD || ''),
+      imageLibraryPlugin(env.VITE_SUPABASE_URL || '', env.VITE_SUPABASE_PUBLISHABLE_KEY || ''),
+      groqTranslationPlugin(
+        env.GROQ_API_KEY || process.env.GROQ_API_KEY || '',
+        env.GROQ_TRANSLATION_MODEL || 'llama-3.3-70b-versatile',
+        env.VITE_SUPABASE_URL || '',
+        env.VITE_SUPABASE_PUBLISHABLE_KEY || '',
+      ),
+    ],
   }
 })

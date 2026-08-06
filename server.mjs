@@ -3,6 +3,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import crypto from 'node:crypto';
+import { createClient } from '@supabase/supabase-js';
 
 const rootDir = path.dirname(fileURLToPath(import.meta.url));
 const distDir = path.join(rootDir, 'dist');
@@ -13,6 +14,11 @@ const groqApiKey = process.env.GROQ_API_KEY || '';
 const groqModel = process.env.GROQ_TRANSLATION_MODEL || 'llama-3.3-70b-versatile';
 const adminUsername = process.env.ADMIN_USERNAME || '';
 const adminPassword = process.env.ADMIN_PASSWORD || '';
+const supabaseUrl = process.env.VITE_SUPABASE_URL || '';
+const supabasePublishableKey = process.env.VITE_SUPABASE_PUBLISHABLE_KEY || '';
+const supabaseAuth = supabaseUrl && supabasePublishableKey
+  ? createClient(supabaseUrl, supabasePublishableKey, { auth: { persistSession: false, autoRefreshToken: false, detectSessionInUrl: false } })
+  : null;
 const sessions = new Map();
 const loginAttempts = new Map();
 const sessionMaxAge = 8 * 60 * 60 * 1000;
@@ -38,6 +44,32 @@ const currentSession = (req) => {
   const expiresAt = token ? sessions.get(token) : undefined;
   if (!token || !expiresAt || expiresAt <= Date.now()) { if (token) sessions.delete(token); return null; }
   return token;
+};
+const bearerToken = (req) => {
+  const authorization = String(req.headers.authorization || '');
+  return authorization.startsWith('Bearer ') ? authorization.slice(7).trim() : '';
+};
+const getSupabaseCmsRole = async (req) => {
+  const token = bearerToken(req);
+  if (!supabaseAuth || !token) return null;
+  try {
+    const { data, error } = await supabaseAuth.auth.getUser(token);
+    if (error || !data.user) return null;
+    const requestClient = createClient(supabaseUrl, supabasePublishableKey, {
+      global: { headers: { Authorization: `Bearer ${token}` } },
+      auth: { persistSession: false, autoRefreshToken: false, detectSessionInUrl: false },
+    });
+    const { data: profile, error: profileError } = await requestClient
+      .from('profiles')
+      .select('role,status')
+      .eq('id', data.user.id)
+      .maybeSingle();
+    return !profileError && profile?.status === 'active' && ['owner', 'admin', 'editor', 'translator'].includes(profile.role)
+      ? profile.role
+      : null;
+  } catch {
+    return null;
+  }
 };
 const isSameOrigin = (req) => {
   const origin = req.headers.origin;
@@ -66,13 +98,13 @@ const serveFile = (res, filePath) => {
   return true;
 };
 
-http.createServer((req, res) => {
+http.createServer(async (req, res) => {
   res.setHeader('X-Content-Type-Options', 'nosniff');
   res.setHeader('X-Frame-Options', 'DENY');
   res.setHeader('Referrer-Policy', 'strict-origin-when-cross-origin');
   res.setHeader('Permissions-Policy', 'camera=(), microphone=(), geolocation=()');
   const requestUrl = new URL(req.url || '/', 'http://localhost');
-  if (requestUrl.pathname === '/api/auth/status' && req.method === 'GET') return json(res, 200, { authenticated: Boolean(currentSession(req)) });
+  if (requestUrl.pathname === '/api/auth/status' && req.method === 'GET') return json(res, 200, { authenticated: Boolean(currentSession(req)) || Boolean(await getSupabaseCmsRole(req)) });
   if (requestUrl.pathname === '/api/auth/login' && req.method === 'POST') {
     if (!adminUsername || !adminPassword) return json(res, 503, { error: 'ADMIN_USERNAME và ADMIN_PASSWORD chưa được cấu hình trên server.' });
     const address = req.socket.remoteAddress || 'unknown';
@@ -101,7 +133,10 @@ http.createServer((req, res) => {
     res.setHeader('Set-Cookie', 'lng79_session=; HttpOnly; SameSite=Strict; Path=/; Max-Age=0');
     return json(res, 200, { authenticated: false });
   }
-  if (requestUrl.pathname.startsWith('/api/') && (!currentSession(req) || !isSameOrigin(req))) return json(res, 401, { error: 'Phiên quản trị không hợp lệ hoặc đã hết hạn.' });
+  const legacySession = currentSession(req);
+  const cmsRole = legacySession ? 'owner' : await getSupabaseCmsRole(req);
+  if (requestUrl.pathname.startsWith('/api/') && (!cmsRole || !isSameOrigin(req))) return json(res, 401, { error: 'Phiên quản trị không hợp lệ hoặc đã hết hạn.' });
+  if (requestUrl.pathname.startsWith('/api/uploads') && !['owner', 'admin', 'editor'].includes(cmsRole)) return json(res, 403, { error: 'Vai trò hiện tại không có quyền quản lý Media Vault.' });
   if (requestUrl.pathname === '/api/ai/translate' && req.method === 'POST') {
     if (!groqApiKey) return json(res, 503, { error: 'GROQ_API_KEY chưa được cấu hình trên server.' });
     const chunks = [];

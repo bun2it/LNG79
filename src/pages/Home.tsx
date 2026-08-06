@@ -14,6 +14,16 @@ interface HomeProps {
   isVisualEditing?: boolean;
 }
 
+const PartnerLogoMarquee: React.FC<{ logos?: string[]; names: string[] }> = ({ logos = [], names }) => {
+  const entries = (logos.length ? logos : names).map((value, index) => ({
+    image: logos.length ? value : '',
+    name: names[index] || `Partner ${index + 1}`,
+  }));
+  if (!entries.length) return null;
+  const loop = [...entries, ...entries];
+  return <div className="partner-logo-marquee" data-visual-editor-ui aria-label="Partner logos"><div className="partner-logo-track">{loop.map((entry, index) => <div className="partner-logo-tile" key={`${entry.image || entry.name}-${index}`} aria-hidden={index >= entries.length}>{entry.image ? <img src={entry.image} alt={index < entries.length ? entry.name : ''} /> : <span>{entry.name}</span>}</div>)}</div></div>;
+};
+
 export const Home: React.FC<HomeProps> = ({ setView, onAddProduct, cartItems, pages, setPages, isVisualEditing }) => {
   const { language, t } = useLanguage();
   const [activeProcessStep, setActiveProcessStep] = useState<number>(0);
@@ -73,11 +83,15 @@ export const Home: React.FC<HomeProps> = ({ setView, onAddProduct, cartItems, pa
     extraStyle: React.CSSProperties = {}
   ) => {
     const Tag = tagName;
+    const fieldBase = field.replace(/(Vi|En)$/, '');
+    const contentKey = `home.block.${blockId}.${fieldBase}`;
+
     if (!isVisualEditing) {
-      return <Tag style={extraStyle}>{currentVal}</Tag>;
+      return <Tag data-content-key={contentKey} style={extraStyle}>{currentVal}</Tag>;
     }
     return (
       <Tag
+        data-content-key={contentKey}
         contentEditable={true}
         suppressContentEditableWarning={true}
         onBlur={(e) => {
@@ -164,18 +178,7 @@ export const Home: React.FC<HomeProps> = ({ setView, onAddProduct, cartItems, pa
                     <div className="container" style={styles.clientsContainer}>
                       {renderEditableText(block.id, language === 'vi' ? 'titleVi' : 'titleEn', language === 'vi' ? block.titleVi : block.titleEn, 'span', { fontSize: '0.85rem', color: 'var(--color-text-muted)', letterSpacing: '2px', fontWeight: 700, display: 'block', marginBottom: '1rem', textAlign: 'center' })}
                       
-                      {isVisualEditing ? (
-                        <div style={{ width: '100%' }}>
-                          <small style={{ color: 'var(--color-teal)', display: 'block', textAlign: 'center', marginBottom: '0.5rem' }}>[Sửa danh sách đối tác phân tách bằng dấu phẩy]</small>
-                          {renderEditableText(block.id, language === 'vi' ? 'itemsVi' : 'itemsEn', language === 'vi' ? block.itemsVi : block.itemsEn, 'div', { display: 'flex', justifyContent: 'center', padding: '0.5rem', border: '1px dashed var(--color-teal)', borderRadius: '4px', fontWeight: 'bold', color: 'var(--color-navy)' })}
-                        </div>
-                      ) : (
-                        <div style={styles.clientsGrid}>
-                          {(language === 'vi' ? block.itemsVi : block.itemsEn)?.split(',').map((partner: string, i: number) => (
-                            <span key={i}>{partner.trim()}</span>
-                          ))}
-                        </div>
-                      )}
+                      <PartnerLogoMarquee logos={block.logos} names={(language === 'vi' ? block.itemsVi : block.itemsEn)?.split(',').map((partner: string) => partner.trim()).filter(Boolean) || []} />
                     </div>
                   </section>
                 );
@@ -317,14 +320,7 @@ export const Home: React.FC<HomeProps> = ({ setView, onAddProduct, cartItems, pa
       <section style={styles.clients}>
         <div className="container" style={styles.clientsContainer}>
           <span style={styles.clientsTitle}>{language === 'vi' ? 'ĐỐI TÁC CHIẾN LƯỢC & KHÁCH HÀNG' : 'STRATEGIC PARTNERS & CLIENTS'}</span>
-          <div style={styles.clientsGrid}>
-            <span>COCA-COLA VN</span>
-            <span>SABECO BREWERY</span>
-            <span>HYUNDAI STEEL</span>
-            <span>VINPEARL RESORTS</span>
-            <span>CJ FOODS</span>
-            <span>SAMSUNG ELECTRONICS</span>
-          </div>
+          <PartnerLogoMarquee names={['COCA-COLA VN', 'SABECO BREWERY', 'HYUNDAI STEEL', 'VINPEARL RESORTS', 'CJ FOODS', 'SAMSUNG ELECTRONICS']} />
         </div>
       </section>
 
@@ -609,17 +605,16 @@ const styles: { [key: string]: React.CSSProperties } = {
     padding: '2rem 0',
   },
   clientsContainer: {
-    display: 'flex',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    flexWrap: 'wrap',
-    gap: '1.5rem',
+    display: 'block',
   },
   clientsTitle: {
     fontSize: '0.75rem',
     fontWeight: 700,
     color: 'var(--color-teal)',
     letterSpacing: '0.1em',
+    display: 'block',
+    marginBottom: '1rem',
+    textAlign: 'center',
   },
   clientsGrid: {
     display: 'flex',

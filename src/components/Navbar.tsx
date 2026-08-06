@@ -12,9 +12,10 @@ interface NavbarProps {
   toggleCart: () => void;
   theme: 'light' | 'dark';
   toggleTheme: () => void;
+  menuItems?: any[];
 }
 
-export const Navbar: React.FC<NavbarProps> = ({ currentView, setView, cartCount, toggleCart, theme, toggleTheme }) => {
+export const Navbar: React.FC<NavbarProps> = ({ currentView, setView, cartCount, toggleCart, theme, toggleTheme, menuItems = [] }) => {
   const { language, setLanguage, t } = useLanguage();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 
@@ -45,82 +46,115 @@ export const Navbar: React.FC<NavbarProps> = ({ currentView, setView, cartCount,
 
         {/* Desktop Links */}
         <div className="nav-links">
-          <button 
-            className={`nav-link ${currentView === 'home' ? 'active' : ''}`}
-            onClick={() => handleNav('home')}
-          >
-            {t('navHome')}
-          </button>
+          {menuItems && menuItems.length > 0 ? (
+            menuItems.filter((item) => item.visible !== false).map((item) => {
+              if (item.children && item.children.length > 0) {
+                const isActive = item.children.some((child: any) => currentView === child.link);
+                return (
+                  <div className="nav-dropdown-container" key={item.id}>
+                    <button className={`nav-link nav-dropdown-btn ${isActive ? 'active' : ''}`}>
+                      {language === 'vi' ? item.label.vi : item.label.en} <ChevronDown size={14} className="dropdown-arrow" />
+                    </button>
+                    <div className="nav-dropdown-menu">
+                      {item.children.filter((child: any) => child.visible !== false).map((child: any) => (
+                        <div className="nav-dropdown-item" key={child.id} onClick={() => handleNav(child.link)}>
+                          <div className="nav-dropdown-item-title">{language === 'vi' ? child.label.vi : child.label.en}</div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                );
+              }
+              return (
+                <button 
+                  key={item.id}
+                  className={`nav-link ${currentView === item.link ? 'active' : ''}`}
+                  onClick={() => handleNav(item.link)}
+                >
+                  {language === 'vi' ? item.label.vi : item.label.en}
+                </button>
+              );
+            })
+          ) : (
+            <>
+              <button 
+                className={`nav-link ${currentView === 'home' ? 'active' : ''}`}
+                onClick={() => handleNav('home')}
+              >
+                {t('navHome')}
+              </button>
 
-          <div className="nav-dropdown-container">
-            <button 
-              className={`nav-link nav-dropdown-btn ${(currentView.includes('solution') || currentView === 'conversion') ? 'active' : ''}`}
-            >
-              {t('navSolutions')} <ChevronDown size={14} className="dropdown-arrow" />
-            </button>
-            
-            <div className="nav-dropdown-menu">
-              <div className="nav-dropdown-item" onClick={() => handleNav('lng-solution')}>
-                <div className="nav-dropdown-item-title">{t('lngTurnkey')}</div>
-                <div className="nav-dropdown-item-desc">
-                  {language === 'vi' ? 'Trạm tồn chứa khí hóa hơi LNG' : 'Bulk regasification station'}
+              <div className="nav-dropdown-container">
+                <button 
+                  className={`nav-link nav-dropdown-btn ${(currentView.includes('solution') || currentView === 'conversion') ? 'active' : ''}`}
+                >
+                  {t('navSolutions')} <ChevronDown size={14} className="dropdown-arrow" />
+                </button>
+                
+                <div className="nav-dropdown-menu">
+                  <div className="nav-dropdown-item" onClick={() => handleNav('lng-solution')}>
+                    <div className="nav-dropdown-item-title">{t('lngTurnkey')}</div>
+                    <div className="nav-dropdown-item-desc">
+                      {language === 'vi' ? 'Trạm tồn chứa khí hóa hơi LNG' : 'Bulk regasification station'}
+                    </div>
+                  </div>
+                  <div className="nav-dropdown-item" onClick={() => handleNav('lpg-solution')}>
+                    <div className="nav-dropdown-item-title">{t('lpgTurnkey')}</div>
+                    <div className="nav-dropdown-item-desc">
+                      {language === 'vi' ? 'Hệ thống bồn, gas hóa hơi công nghiệp' : 'LPG bulk & manifold gas supply'}
+                    </div>
+                  </div>
+                  <div className="nav-dropdown-item" onClick={() => handleNav('conversion')}>
+                    <div className="nav-dropdown-item-title">{t('fuelConv')}</div>
+                    <div className="nav-dropdown-item-desc">
+                      {language === 'vi' ? 'Cải tạo đầu đốt than/FO sang khí sạch' : 'Burner fuel conversion to gas'}
+                    </div>
+                  </div>
+                  <div className="nav-dropdown-item" onClick={() => handleNav('kitchen-solution')}>
+                    <div className="nav-dropdown-item-title">{t('commKitchen')}</div>
+                    <div className="nav-dropdown-item-desc">
+                      {language === 'vi' ? 'Thiết kế bếp và an toàn gas trung tâm' : 'Central gas kitchen integration'}
+                    </div>
+                  </div>
                 </div>
               </div>
-              <div className="nav-dropdown-item" onClick={() => handleNav('lpg-solution')}>
-                <div className="nav-dropdown-item-title">{t('lpgTurnkey')}</div>
-                <div className="nav-dropdown-item-desc">
-                  {language === 'vi' ? 'Hệ thống bồn, gas hóa hơi công nghiệp' : 'LPG bulk & manifold gas supply'}
-                </div>
-              </div>
-              <div className="nav-dropdown-item" onClick={() => handleNav('conversion')}>
-                <div className="nav-dropdown-item-title">{t('fuelConv')}</div>
-                <div className="nav-dropdown-item-desc">
-                  {language === 'vi' ? 'Cải tạo đầu đốt than/FO sang khí sạch' : 'Burner fuel conversion to gas'}
-                </div>
-              </div>
-              <div className="nav-dropdown-item" onClick={() => handleNav('kitchen-solution')}>
-                <div className="nav-dropdown-item-title">{t('commKitchen')}</div>
-                <div className="nav-dropdown-item-desc">
-                  {language === 'vi' ? 'Thiết kế bếp và an toàn gas trung tâm' : 'Central gas kitchen integration'}
-                </div>
-              </div>
-            </div>
-          </div>
 
-          <button 
-            className={`nav-link ${currentView === 'products' ? 'active' : ''}`}
-            onClick={() => handleNav('products')}
-          >
-            {t('navProducts')}
-          </button>
+              <button 
+                className={`nav-link ${currentView === 'products' ? 'active' : ''}`}
+                onClick={() => handleNav('products')}
+              >
+                {t('navProducts')}
+              </button>
 
-          <button 
-            className={`nav-link ${currentView === 'projects' ? 'active' : ''}`}
-            onClick={() => handleNav('projects')}
-          >
-            {t('navProjects')}
-          </button>
+              <button 
+                className={`nav-link ${currentView === 'projects' ? 'active' : ''}`}
+                onClick={() => handleNav('projects')}
+              >
+                {t('navProjects')}
+              </button>
 
-          <button 
-            className={`nav-link ${currentView === 'calculator' ? 'active' : ''}`}
-            onClick={() => handleNav('calculator')}
-          >
-            {language === 'vi' ? 'Bộ tính toán' : 'Calculators'}
-          </button>
+              <button 
+                className={`nav-link ${currentView === 'calculator' ? 'active' : ''}`}
+                onClick={() => handleNav('calculator')}
+              >
+                {language === 'vi' ? 'Bộ tính toán' : 'Calculators'}
+              </button>
 
-          <button 
-            className={`nav-link ${currentView === 'knowledge' ? 'active' : ''}`}
-            onClick={() => handleNav('knowledge')}
-          >
-            {t('navKnowledge')}
-          </button>
+              <button 
+                className={`nav-link ${currentView === 'knowledge' ? 'active' : ''}`}
+                onClick={() => handleNav('knowledge')}
+              >
+                {t('navKnowledge')}
+              </button>
 
-          <button 
-            className={`nav-link ${currentView === 'contact' ? 'active' : ''}`}
-            onClick={() => handleNav('contact')}
-          >
-            {t('navContact')}
-          </button>
+              <button 
+                className={`nav-link ${currentView === 'contact' ? 'active' : ''}`}
+                onClick={() => handleNav('contact')}
+              >
+                {t('navContact')}
+              </button>
+            </>
+          )}
         </div>
 
         {/* Action Controls */}
@@ -164,19 +198,43 @@ export const Navbar: React.FC<NavbarProps> = ({ currentView, setView, cartCount,
       {/* Mobile Menu Panel */}
       {mobileMenuOpen && (
         <div className="nav-mobile-menu">
-          <button className="nav-mobile-link" onClick={() => handleNav('home')}>{t('navHome')}</button>
-          
-          <div className="nav-mobile-subheader">{t('navSolutions')}</div>
-          <button className="nav-mobile-sublink" onClick={() => handleNav('lng-solution')}>{t('lngTurnkey')}</button>
-          <button className="nav-mobile-sublink" onClick={() => handleNav('lpg-solution')}>{t('lpgTurnkey')}</button>
-          <button className="nav-mobile-sublink" onClick={() => handleNav('conversion')}>{t('fuelConv')}</button>
-          <button className="nav-mobile-sublink" onClick={() => handleNav('kitchen-solution')}>{t('commKitchen')}</button>
-          
-          <button className="nav-mobile-link" onClick={() => handleNav('products')}>{t('navProducts')}</button>
-          <button className="nav-mobile-link" onClick={() => handleNav('projects')}>{t('navProjects')}</button>
-          <button className="nav-mobile-link" onClick={() => handleNav('calculator')}>{language === 'vi' ? 'Bộ tính toán' : 'Calculators'}</button>
-          <button className="nav-mobile-link" onClick={() => handleNav('knowledge')}>{t('navKnowledge')}</button>
-          <button className="nav-mobile-link" onClick={() => handleNav('contact')}>{t('navContact')}</button>
+          {menuItems && menuItems.length > 0 ? (
+            menuItems.filter((item) => item.visible !== false).map((item) => {
+              if (item.children && item.children.length > 0) {
+                return (
+                  <React.Fragment key={item.id}>
+                    <div className="nav-mobile-subheader">{language === 'vi' ? item.label.vi : item.label.en}</div>
+                    {item.children.filter((child: any) => child.visible !== false).map((child: any) => (
+                      <button className="nav-mobile-sublink" key={child.id} onClick={() => handleNav(child.link)}>
+                        {language === 'vi' ? child.label.vi : child.label.en}
+                      </button>
+                    ))}
+                  </React.Fragment>
+                );
+              }
+              return (
+                <button key={item.id} className="nav-mobile-link" onClick={() => handleNav(item.link)}>
+                  {language === 'vi' ? item.label.vi : item.label.en}
+                </button>
+              );
+            })
+          ) : (
+            <>
+              <button className="nav-mobile-link" onClick={() => handleNav('home')}>{t('navHome')}</button>
+              
+              <div className="nav-mobile-subheader">{t('navSolutions')}</div>
+              <button className="nav-mobile-sublink" onClick={() => handleNav('lng-solution')}>{t('lngTurnkey')}</button>
+              <button className="nav-mobile-sublink" onClick={() => handleNav('lpg-solution')}>{t('lpgTurnkey')}</button>
+              <button className="nav-mobile-sublink" onClick={() => handleNav('conversion')}>{t('fuelConv')}</button>
+              <button className="nav-mobile-sublink" onClick={() => handleNav('kitchen-solution')}>{t('commKitchen')}</button>
+              
+              <button className="nav-mobile-link" onClick={() => handleNav('products')}>{t('navProducts')}</button>
+              <button className="nav-mobile-link" onClick={() => handleNav('projects')}>{t('navProjects')}</button>
+              <button className="nav-mobile-link" onClick={() => handleNav('calculator')}>{language === 'vi' ? 'Bộ tính toán' : 'Calculators'}</button>
+              <button className="nav-mobile-link" onClick={() => handleNav('knowledge')}>{t('navKnowledge')}</button>
+              <button className="nav-mobile-link" onClick={() => handleNav('contact')}>{t('navContact')}</button>
+            </>
+          )}
           
           <div className="nav-mobile-actions">
             <button onClick={toggleLanguage} className="nav-lang-btn" style={{ width: '100%', justifyContent: 'center', padding: '0.75rem' }}>

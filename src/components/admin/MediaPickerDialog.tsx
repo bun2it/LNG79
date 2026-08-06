@@ -1,5 +1,6 @@
 import React from 'react';
 import { authFetch } from '../../features/auth/authFetch';
+import { supabase } from '../../lib/supabase';
 
 export interface MediaLibraryImage { name: string; url: string }
 
@@ -17,17 +18,39 @@ export const MediaPickerDialog: React.FC<{
 
   const loadLibrary = React.useCallback(async () => {
     setError('');
+    const client = supabase;
     try {
-      const response = await authFetch('/api/uploads');
-      if (!response.ok) throw new Error('Không thể đọc thư viện ảnh trên host.');
-      const hosted: MediaLibraryImage[] = (await response.json()).filter((asset: MediaLibraryImage) => /\.(jpe?g|png|webp|gif|svg)$/i.test(asset.name));
-      let cmsImages: MediaLibraryImage[] = [];
-      try {
-        cmsImages = JSON.parse(localStorage.getItem('cms_media') || '[]')
-          .filter((asset: { fileType?: string }) => asset.fileType?.startsWith('image/'))
-          .map((asset: { fileName: string; url: string }) => ({ name: asset.fileName, url: asset.url }));
-      } catch { /* Ignore malformed legacy metadata. */ }
-      setLibrary([...hosted, ...cmsImages].filter((image, index, items) => items.findIndex((item) => item.url === image.url) === index));
+      if (client) {
+        const { data: assets, error: dbError } = await client
+          .from('media_assets')
+          .select('bucket_id, storage_path, mime_type')
+          .order('created_at', { ascending: false });
+        if (dbError) throw dbError;
+        
+        const libraryItems: MediaLibraryImage[] = (assets || [])
+          .filter((asset) => asset.mime_type.startsWith('image/'))
+          .map((asset) => {
+            const { data: { publicUrl } } = client.storage
+              .from(asset.bucket_id)
+              .getPublicUrl(asset.storage_path);
+            return {
+              name: asset.storage_path.replace(/^\d+-/, ''),
+              url: publicUrl,
+            };
+          });
+        setLibrary(libraryItems);
+      } else {
+        const response = await authFetch('/api/uploads');
+        if (!response.ok) throw new Error('Không thể đọc thư viện ảnh trên host.');
+        const hosted: MediaLibraryImage[] = (await response.json()).filter((asset: MediaLibraryImage) => /\.(jpe?g|png|webp|gif|svg)$/i.test(asset.name));
+        let cmsImages: MediaLibraryImage[] = [];
+        try {
+          cmsImages = JSON.parse(localStorage.getItem('cms_media') || '[]')
+            .filter((asset: { fileType?: string }) => asset.fileType?.startsWith('image/'))
+            .map((asset: { fileName: string; url: string }) => ({ name: asset.fileName, url: asset.url }));
+        } catch { /* Ignore malformed legacy metadata. */ }
+        setLibrary([...hosted, ...cmsImages].filter((image, index, items) => items.findIndex((item) => item.url === image.url) === index));
+      }
     } catch (reason) {
       setError(reason instanceof Error ? reason.message : 'Không thể đọc thư viện ảnh.');
     }
@@ -39,13 +62,74 @@ export const MediaPickerDialog: React.FC<{
     if (!file) return;
     setUploading(true);
     setError('');
+    const client = supabase;
     try {
-      const response = await authFetch('/api/uploads', { method: 'POST', headers: { 'Content-Type': file.type, 'X-File-Name': encodeURIComponent(file.name) }, body: file });
-      const result = await response.json();
-      if (!response.ok) throw new Error(result.error || 'Upload ảnh thất bại.');
-      setLibrary((current) => [result, ...current]);
-      onSelect(result.url);
-      onClose();
+      if (client) {
+        const allowedTypes = new Set(['image/jpeg', 'image/png', 'image/webp', 'image/gif', 'application/pdf']);
+        if (!allowedTypes.has(file.type)) {
+          throw new Error(language === 'vi' ? 'Chỉ hỗ trợ JPG, PNG, WebP, GIF hoặc PDF.' : 'Only JPG, PNG, WebP, GIF, or PDF are supported.');
+        }
+        if (file.size > 10 * 1024 * 1024) {
+          throw new Error(language === 'vi' ? 'Ảnh không được vượt quá 10 MB.' : 'Image size must not exceed 10 MB.');
+        }
+
+        const fileExt = file.name.split('.').pop() || '';
+        const cleanBaseName = file.name.replace(/\.[^.]+$/, '').replace(/[^a-zA-Z0-9_-]+/g, '-').slice(0, 60);
+        const storagePath = `${Date.now()}-${cleanBaseName}.${fileExt}`;
+
+        let dimensions: { width: number; height: number } | null = null;
+        if (file.type.startsWith('image/')) {
+          dimensions = await new Promise<{ width: number; height: number } | null>((resolve) => {
+            const img = new Image();
+            img.onload = () => resolve({ width: img.naturalWidth, height: img.naturalHeight });
+            img.onerror = () => resolve(null);
+            img.src = URL.createObjectURL(file);
+          });
+        }
+
+        const { error: uploadError } = await client.storage
+          .from('website-media')
+          .upload(storagePath, file, { cacheControl: '3600', upsert: false });
+        
+        if (uploadError) throw uploadError;
+
+        const { data: { publicUrl } } = client.storage
+          .from('website-media')
+          .getPublicUrl(storagePath);
+
+        const { data: userData } = await client.auth.getUser();
+        const { error: dbError } = await client
+          .from('media_assets')
+          .insert({
+            bucket_id: 'website-media',
+            storage_path: storagePath,
+            mime_type: file.type,
+            file_size: file.size,
+            width: dimensions?.width || null,
+            height: dimensions?.height || null,
+            title: file.name.replace(/\.[^.]+$/, ''),
+            alt_text: file.name.replace(/\.[^.]+$/, '').replace(/[-_]+/g, ' '),
+            uploaded_by: userData?.user?.id || null
+          });
+
+        if (dbError) throw dbError;
+
+        const newAsset: MediaLibraryImage = {
+          name: storagePath.replace(/^\d+-/, ''),
+          url: publicUrl
+        };
+
+        setLibrary((current) => [newAsset, ...current]);
+        onSelect(newAsset.url);
+        onClose();
+      } else {
+        const response = await authFetch('/api/uploads', { method: 'POST', headers: { 'Content-Type': file.type, 'X-File-Name': encodeURIComponent(file.name) }, body: file });
+        const result = await response.json();
+        if (!response.ok) throw new Error(result.error || 'Upload ảnh thất bại.');
+        setLibrary((current) => [result, ...current]);
+        onSelect(result.url);
+        onClose();
+      }
     } catch (reason) {
       setError(reason instanceof Error ? reason.message : 'Upload ảnh thất bại.');
     } finally {

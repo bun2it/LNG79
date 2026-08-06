@@ -4,9 +4,17 @@ import { MapPin, Phone, Mail, Clock, ShieldCheck } from 'lucide-react';
 
 interface FooterProps {
   setView: (view: string) => void;
+  contactInfo?: {
+    hotline: string;
+    email: string;
+    addressVi: string;
+    addressEn: string;
+    workingHoursVi: string;
+    workingHoursEn: string;
+  };
 }
 
-export const Footer: React.FC<FooterProps> = ({ setView }) => {
+export const Footer: React.FC<FooterProps> = ({ setView, contactInfo }) => {
   const { language, t } = useLanguage();
 
   const handleNav = (view: string) => {
@@ -68,23 +76,27 @@ export const Footer: React.FC<FooterProps> = ({ setView }) => {
           <div style={styles.contactItem}>
             <MapPin size={18} color="var(--color-teal)" style={{ flexShrink: 0, marginTop: 3 }} />
             <span style={styles.contactText}>
-              {language === 'vi' 
-                ? 'Lô CN-08, Khu Công Nghiệp Sóng Thần 3, Thủ Dầu Một, Bình Dương, Việt Nam'
-                : 'CN-08 Lot, Song Than 3 Industrial Park, Thu Dau Mot, Binh Duong, Vietnam'}
+              {contactInfo 
+                ? (language === 'vi' ? contactInfo.addressVi : contactInfo.addressEn)
+                : (language === 'vi' 
+                    ? 'Lô CN-08, Khu Công Nghiệp Sóng Thần 3, Thủ Dầu Một, Bình Dương, Việt Nam'
+                    : 'CN-08 Lot, Song Than 3 Industrial Park, Thu Dau Mot, Binh Duong, Vietnam')}
             </span>
           </div>
           <div style={styles.contactItem}>
             <Phone size={18} color="var(--color-teal)" style={{ flexShrink: 0 }} />
-            <span style={styles.contactText}>+84 (0) 274 3801 888</span>
+            <span style={styles.contactText}>{contactInfo?.hotline || '+84 (0) 274 3801 888'}</span>
           </div>
           <div style={styles.contactItem}>
             <Mail size={18} color="var(--color-teal)" style={{ flexShrink: 0 }} />
-            <span style={styles.contactText}>info@lnglpgkitchen-solutions.com</span>
+            <span style={styles.contactText}>{contactInfo?.email || 'info@lnglpgkitchen-solutions.com'}</span>
           </div>
           <div style={styles.contactItem}>
             <Clock size={18} color="var(--color-teal)" style={{ flexShrink: 0 }} />
             <span style={styles.contactText}>
-              {language === 'vi' ? 'Hỗ trợ kỹ thuật khẩn cấp: 24/7' : 'Emergency support line: 24/7'}
+              {contactInfo 
+                ? (language === 'vi' ? contactInfo.workingHoursVi : contactInfo.workingHoursEn)
+                : (language === 'vi' ? 'Hỗ trợ kỹ thuật khẩn cấp: 24/7' : 'Emergency support line: 24/7')}
             </span>
           </div>
         </div>
