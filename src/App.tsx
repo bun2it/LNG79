@@ -15,6 +15,7 @@ import { Contact } from './pages/Contact';
 import { VisualTextEditor } from './components/VisualTextEditor';
 import type { VisualTextEditorHandle } from './components/VisualTextEditor';
 import { VisualImageEditor } from './components/VisualImageEditor';
+import type { VisualImageEditorHandle } from './components/VisualImageEditor';
 import { translateWebsiteContent } from './features/ai/bulkTranslate';
 import { CMS_AUTH_EXPIRED_EVENT } from './features/auth/authFetch';
 import { getCurrentCmsProfile, supabase } from './lib/supabase';
@@ -164,6 +165,7 @@ export const AppContent: React.FC = () => {
   const { language } = useLanguage();
   const appRootRef = React.useRef<HTMLDivElement>(null);
   const visualEditorRef = React.useRef<VisualTextEditorHandle>(null);
+  const visualImageEditorRef = React.useRef<VisualImageEditorHandle>(null);
   const [currentView, setCurrentView] = useState<string>(() => {
     return window.location.pathname.replace(/\/+$/, '') === '/admin' ? 'admin' : 'home';
   });
@@ -175,6 +177,22 @@ export const AppContent: React.FC = () => {
   const [hasVisualDraft, setHasVisualDraft] = useState<boolean>(false);
   const [visualSaveNotice, setVisualSaveNotice] = useState<boolean>(false);
   const [visualSaving, setVisualSaving] = useState<boolean>(false);
+
+  const handleSaveVisualEdits = async () => {
+    setVisualSaving(true);
+    try {
+      await Promise.all([
+        visualEditorRef.current?.save(),
+        visualImageEditorRef.current?.save()
+      ]);
+      setVisualSaveNotice(true);
+      window.setTimeout(() => setVisualSaveNotice(false), 1800);
+    } catch (err) {
+      console.error('Failed to save visual edits:', err);
+    } finally {
+      setVisualSaving(false);
+    }
+  };
   const [cartItems, setCartItems] = useState<any[]>([]);
   const [cartOpen, setCartOpen] = useState<boolean>(false);
   const [leads, setLeads] = useState<LeadItem[]>(() => {
@@ -1157,6 +1175,7 @@ export const AppContent: React.FC = () => {
         }}
       />
       <VisualImageEditor
+        ref={visualImageEditorRef}
         rootRef={appRootRef}
         isEditing={isVisualEditing}
         currentView={currentView}
@@ -1186,8 +1205,8 @@ export const AppContent: React.FC = () => {
                   backgroundColor: isVisualEditing ? 'var(--color-orange)' : 'var(--color-teal)',
                   color: 'var(--color-white)', border: 'none', borderRadius: '4px'
                 }}
-                onClick={() => {
-                  if (isVisualEditing) visualEditorRef.current?.save();
+                onClick={async () => {
+                  if (isVisualEditing) await handleSaveVisualEdits();
                   setIsVisualEditing(!isVisualEditing);
                 }}
               >
@@ -1198,7 +1217,7 @@ export const AppContent: React.FC = () => {
                   className="btn btn-primary"
                   style={{ fontSize: '0.8rem', padding: '0.4rem 0.8rem' }}
                   disabled={visualSaving}
-                  onClick={() => visualEditorRef.current?.save()}
+                  onClick={handleSaveVisualEdits}
                 >
                   {visualSaving ? (language === 'vi' ? 'Đang lưu…' : 'Saving…') : visualSaveNotice ? 'Đã lưu' : hasVisualDraft ? 'Lưu thay đổi •' : 'Lưu thay đổi'}
                 </button>
