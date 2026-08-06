@@ -5,12 +5,12 @@ import { MapPin, Phone, Mail, Clock, ShieldCheck } from 'lucide-react';
 interface FooterProps {
   setView: (view: string) => void;
   contactInfo?: {
-    hotline: string;
+    phone: string;
     email: string;
     addressVi: string;
     addressEn: string;
-    workingHoursVi: string;
-    workingHoursEn: string;
+    hoursVi: string;
+    hoursEn: string;
   };
 }
 
@@ -85,7 +85,7 @@ export const Footer: React.FC<FooterProps> = ({ setView, contactInfo }) => {
           </div>
           <div style={styles.contactItem}>
             <Phone size={18} color="var(--color-teal)" style={{ flexShrink: 0 }} />
-            <span style={styles.contactText}>{contactInfo?.hotline || '+84 (0) 274 3801 888'}</span>
+            <span style={styles.contactText}>{contactInfo?.phone || '+84 (0) 274 3801 888'}</span>
           </div>
           <div style={styles.contactItem}>
             <Mail size={18} color="var(--color-teal)" style={{ flexShrink: 0 }} />
@@ -95,7 +95,7 @@ export const Footer: React.FC<FooterProps> = ({ setView, contactInfo }) => {
             <Clock size={18} color="var(--color-teal)" style={{ flexShrink: 0 }} />
             <span style={styles.contactText}>
               {contactInfo 
-                ? (language === 'vi' ? contactInfo.workingHoursVi : contactInfo.workingHoursEn)
+                ? (language === 'vi' ? contactInfo.hoursVi : contactInfo.hoursEn)
                 : (language === 'vi' ? 'Hỗ trợ kỹ thuật khẩn cấp: 24/7' : 'Emergency support line: 24/7')}
             </span>
           </div>

@@ -53,8 +53,34 @@ interface AdminDashboardProps {
   onUpdatePages: React.Dispatch<React.SetStateAction<any[]>>;
   isLoggedIn: boolean;
   setIsLoggedIn: React.Dispatch<React.SetStateAction<boolean>>;
-  guiSettings: { darkColor: string; darkOpacity: number; lightColor: string; lightOpacity: number; logoUrl?: string; logoHeight?: number };
-  onUpdateGuiSettings: (settings: { darkColor: string; darkOpacity: number; lightColor: string; lightOpacity: number; logoUrl?: string; logoHeight?: number }) => void;
+  guiSettings: { 
+    darkColor: string; 
+    darkOpacity: number; 
+    lightColor: string; 
+    lightOpacity: number; 
+    logoUrl?: string; 
+    logoHeight?: number; 
+    darkGradientType?: string; 
+    lightGradientType?: string;
+    darkBaseColor?: string;
+    darkCustomMesh?: Array<{ color: string; opacity: number; x: number; y: number; size: number }>;
+    lightBaseColor?: string;
+    lightCustomMesh?: Array<{ color: string; opacity: number; x: number; y: number; size: number }>;
+  };
+  onUpdateGuiSettings: (settings: { 
+    darkColor: string; 
+    darkOpacity: number; 
+    lightColor: string; 
+    lightOpacity: number; 
+    logoUrl?: string; 
+    logoHeight?: number; 
+    darkGradientType?: string; 
+    lightGradientType?: string;
+    darkBaseColor?: string;
+    darkCustomMesh?: Array<{ color: string; opacity: number; x: number; y: number; size: number }>;
+    lightBaseColor?: string;
+    lightCustomMesh?: Array<{ color: string; opacity: number; x: number; y: number; size: number }>;
+  }) => void;
   onExitCms?: () => void;
 }
 
@@ -180,6 +206,8 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
   const [authError, setAuthError] = useState('');
   const [isAuthenticating, setIsAuthenticating] = useState(false);
   const [guiLogoPickerOpen, setGuiLogoPickerOpen] = useState(false);
+  const [selectedNodeIndex, setSelectedNodeIndex] = useState(0);
+  const [previewLayout, setPreviewLayout] = useState<'canvas' | 'hero' | 'banner'>('canvas');
   const [activeTab, setActiveTab] = useState<'overview' | 'pages' | 'navigation' | 'media' | 'leads' | 'products' | 'settings' | 'articles' | 'projects' | 'seo' | 'logs' | 'trash' | 'gui'>('overview');
   const showLegacyManagers = sessionStorage.getItem('cms_debug_legacy_managers') === 'true';
   const [lngInput, setLngInput] = useState(fuelSettings.lngPrice);
@@ -1123,6 +1151,384 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
       </div>
     );
   }
+
+  const renderMeshEditor = (mode: 'dark' | 'light') => {
+    const baseColor = mode === 'dark' 
+      ? (guiSettings.darkBaseColor || '#070a13') 
+      : (guiSettings.lightBaseColor || '#ffffff');
+    const nodes = (mode === 'dark' ? guiSettings.darkCustomMesh : guiSettings.lightCustomMesh) || (mode === 'dark' ? [
+      { color: '#14b8a6', opacity: 20, x: 20, y: 30, size: 60 },
+      { color: '#3b82f6', opacity: 25, x: 80, y: 70, size: 70 },
+      { color: '#a855f7', opacity: 15, x: 50, y: 50, size: 65 }
+    ] : [
+      { color: '#06b6d4', opacity: 35, x: 15, y: 20, size: 55 },
+      { color: '#6366f1', opacity: 25, x: 80, y: 80, size: 60 },
+      { color: '#d946ef', opacity: 20, x: 50, y: 40, size: 50 }
+    ]);
+
+    const hexToRgb = (hex: string) => {
+      const result = /^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i.exec(hex);
+      return result 
+        ? { r: parseInt(result[1], 16), g: parseInt(result[2], 16), b: parseInt(result[3], 16) }
+        : { r: 7, g: 10, b: 19 };
+    };
+
+    const baseRgb = hexToRgb(baseColor);
+    const globalOpacity = mode === 'dark' ? (guiSettings.darkOpacity ?? 85) : (guiSettings.lightOpacity ?? 30);
+    const baseVal = `rgba(${baseRgb.r}, ${baseRgb.g}, ${baseRgb.b}, ${globalOpacity / 100})`;
+
+    const radialGradients = nodes.map(node => {
+      const rgb = hexToRgb(node.color);
+      const alpha = node.opacity / 100;
+      return `radial-gradient(circle at ${node.x}% ${node.y}%, rgba(${rgb.r}, ${rgb.g}, ${rgb.b}, ${alpha}) 0%, rgba(${rgb.r}, ${rgb.g}, ${rgb.b}, 0) ${node.size}%)`;
+    });
+
+    const meshGradientBackground = `${radialGradients.join(', ')}, ${baseVal}`;
+
+    const updateNodes = (newNodes: any[]) => {
+      if (mode === 'dark') {
+        onUpdateGuiSettings({ ...guiSettings, darkCustomMesh: newNodes });
+      } else {
+        onUpdateGuiSettings({ ...guiSettings, lightCustomMesh: newNodes });
+      }
+    };
+
+    const handleAddNode = () => {
+      const colors = ['#14b8a6', '#3b82f6', '#a855f7', '#f43f5e', '#eab308', '#10b981'];
+      const randomColor = colors[Math.floor(Math.random() * colors.length)];
+      const newNode = {
+        color: randomColor,
+        opacity: 30,
+        x: Math.floor(Math.random() * 60) + 20,
+        y: Math.floor(Math.random() * 60) + 20,
+        size: Math.floor(Math.random() * 30) + 40
+      };
+      const newNodes = [...nodes, newNode];
+      updateNodes(newNodes);
+      setSelectedNodeIndex(newNodes.length - 1);
+    };
+
+    const handleDeleteNode = () => {
+      if (nodes.length <= 1) return;
+      const newNodes = nodes.filter((_, idx) => idx !== selectedNodeIndex);
+      updateNodes(newNodes);
+      setSelectedNodeIndex(Math.max(0, selectedNodeIndex - 1));
+    };
+
+    const handleNodeChange = (field: string, val: any) => {
+      const updated = [...nodes];
+      updated[selectedNodeIndex] = { ...updated[selectedNodeIndex], [field]: val };
+      updateNodes(updated);
+    };
+
+    const activeNode = nodes[selectedNodeIndex] || nodes[0] || { color: '#14b8a6', opacity: 30, x: 50, y: 50, size: 50 };
+
+    const handleHandleMouseDown = (index: number, e: React.MouseEvent) => {
+      e.stopPropagation();
+      e.preventDefault();
+      setSelectedNodeIndex(index);
+
+      const handleElement = e.currentTarget as HTMLElement;
+      const canvasElement = handleElement.parentElement;
+      if (!canvasElement) return;
+
+      const rect = canvasElement.getBoundingClientRect();
+
+      const onMouseMove = (moveEvent: MouseEvent) => {
+        let newX = Math.round(((moveEvent.clientX - rect.left) / rect.width) * 100);
+        let newY = Math.round(((moveEvent.clientY - rect.top) / rect.height) * 100);
+
+        newX = Math.max(0, Math.min(100, newX));
+        newY = Math.max(0, Math.min(100, newY));
+
+        const updated = [...nodes];
+        updated[index] = { ...updated[index], x: newX, y: newY };
+        updateNodes(updated);
+      };
+
+      const onMouseUp = () => {
+        window.removeEventListener('mousemove', onMouseMove);
+        window.removeEventListener('mouseup', onMouseUp);
+      };
+
+      window.addEventListener('mousemove', onMouseMove);
+      window.addEventListener('mouseup', onMouseUp);
+    };
+
+    const homePage = pages.find((p: any) => p.slug === 'home' || p.id === 'p-1');
+    const heroBlock = homePage?.blocks?.find((b: any) => b.type === 'hero' || b.id === 'b-hero');
+    const actualHeroImage = heroBlock?.image || 'https://images.unsplash.com/photo-1581092160607-ee22621dd758?q=80&w=2070&auto=format&fit=crop';
+
+    const previewContainerStyle: React.CSSProperties = {
+      position: 'relative',
+      width: '100%',
+      height: '240px',
+      borderRadius: '8px',
+      overflow: 'hidden',
+      border: '1px solid var(--color-gray-border)',
+      backgroundColor: '#0a0d16',
+      userSelect: 'none',
+      backgroundImage: previewLayout === 'hero'
+        ? `url("${actualHeroImage}")`
+        : previewLayout === 'banner'
+          ? 'url("https://images.unsplash.com/photo-1518152006812-edab29b069ac?q=80&w=2070&auto=format&fit=crop")'
+          : 'none',
+      backgroundSize: 'cover',
+      backgroundPosition: 'center'
+    };
+
+    const backgroundLayerStyle: React.CSSProperties = {
+      position: 'absolute',
+      top: '-15%',
+      left: '-15%',
+      width: '130%',
+      height: '130%',
+      background: meshGradientBackground,
+      filter: 'blur(30px)',
+      transform: 'scale(1.1)',
+      zIndex: 1
+    };
+
+    return (
+      <div style={{ gridColumn: 'span 2', display: 'flex', flexDirection: 'column', gap: '1.5rem', marginTop: '1rem', padding: '1.25rem', backgroundColor: 'var(--color-gray-bg)', borderRadius: 'var(--border-radius-md)', border: '1px dashed var(--color-gray-border)' }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+          <h5 style={{ margin: 0, fontSize: '0.95rem', fontWeight: 600, color: 'var(--color-navy)', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+            🎨 {language === 'vi' ? 'Công cụ Thiết kế Mesh Gradient (Mesher)' : 'Custom Mesh Gradient Builder'}
+          </h5>
+          <div style={{ display: 'flex', gap: '0.5rem' }}>
+            <button 
+              type="button" 
+              className={`btn btn-sm ${previewLayout === 'canvas' ? 'btn-teal' : 'btn-outline'}`}
+              onClick={() => setPreviewLayout('canvas')}
+            >
+              {language === 'vi' ? 'Nền trơn' : 'Canvas'}
+            </button>
+            <button 
+              type="button" 
+              className={`btn btn-sm ${previewLayout === 'hero' ? 'btn-teal' : 'btn-outline'}`}
+              onClick={() => setPreviewLayout('hero')}
+            >
+              {language === 'vi' ? 'Trang chủ Hero' : 'Home Hero'}
+            </button>
+            <button 
+              type="button" 
+              className={`btn btn-sm ${previewLayout === 'banner' ? 'btn-teal' : 'btn-outline'}`}
+              onClick={() => setPreviewLayout('banner')}
+            >
+              {language === 'vi' ? 'Trang con Banner' : 'Inner Banner'}
+            </button>
+          </div>
+        </div>
+
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1.5rem', alignItems: 'start' }} className="mesher-layout-grid">
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
+            <div style={previewContainerStyle}>
+              {/* Layer 1: Raw Canvas Mesh or Warped Mesh Overlay */}
+              {previewLayout === 'canvas' ? (
+                <div style={{ position: 'absolute', width: '100%', height: '100%', background: meshGradientBackground, zIndex: 1 }} />
+              ) : (
+                <div style={backgroundLayerStyle} />
+              )}
+
+
+
+              {/* Layer 3: Text Content */}
+              {previewLayout === 'hero' && (
+                <div style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, zIndex: 3, display: 'flex', flexDirection: 'column', padding: '1rem', color: mode === 'dark' ? '#fff' : '#070a13', justifyContent: 'center', textAlign: 'left' }}>
+                  <div style={{ position: 'absolute', top: 0, left: 0, right: 0, display: 'flex', justifyContent: 'space-between', padding: '0.4rem 1rem', borderBottom: mode === 'dark' ? '1px solid rgba(255, 255, 255, 0.08)' : '1px solid rgba(0, 0, 0, 0.08)', fontSize: '0.65rem', fontWeight: 600 }}>
+                    <span>⚡ LNG 79</span>
+                    <div style={{ display: 'flex', gap: '0.5rem' }}>
+                      <span>Trang Chủ</span>
+                      <span>Thiết Kế</span>
+                      <span>Dự Án</span>
+                    </div>
+                  </div>
+                  <div style={{ marginTop: '0.5rem' }}>
+                    <span style={{ fontSize: '0.5rem', fontWeight: 700, color: 'var(--color-teal)', letterSpacing: '0.05em' }}>CÔNG NGHỆ BẾP & CENTRAL GAS</span>
+                    <h4 style={{ margin: '0.1rem 0', fontSize: '0.85rem', fontWeight: 800, lineHeight: 1.2 }}>THIẾT KẾ BẾP CÔNG NGHIỆP HIỆN ĐẠI</h4>
+                    <p style={{ margin: '0.2rem 0', fontSize: '0.55rem', opacity: 0.8, maxWidth: '200px' }}>Tối ưu hóa hiệu năng, tiết kiệm nhiên liệu cho hệ thống nhà hàng lớn.</p>
+                    <div style={{ display: 'flex', gap: '0.3rem', marginTop: '0.4rem' }}>
+                      <span style={{ fontSize: '0.5rem', padding: '0.15rem 0.4rem', backgroundColor: 'var(--color-teal)', color: '#fff', borderRadius: '2px', fontWeight: 600 }}>Khảo Sát</span>
+                      <span style={{ fontSize: '0.5rem', padding: '0.15rem 0.4rem', border: '1px solid currentColor', borderRadius: '2px' }}>Liên Hệ</span>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {previewLayout === 'banner' && (
+                <div style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, zIndex: 3, display: 'flex', flexDirection: 'column', justifyContent: 'center', padding: '2rem', color: mode === 'dark' ? '#fff' : '#070a13', textAlign: 'left' }}>
+                  <span style={{ fontSize: '0.55rem', opacity: 0.7 }}>Trang chủ / Giải pháp</span>
+                  <h3 style={{ margin: '0.2rem 0 0', fontSize: '1.1rem', fontWeight: 800 }}>Thiết Kế Central Gas</h3>
+                </div>
+              )}
+
+              {previewLayout === 'canvas' && nodes.map((node, index) => (
+                <div
+                  key={index}
+                  onMouseDown={(e) => handleHandleMouseDown(index, e)}
+                  style={{
+                    position: 'absolute',
+                    left: `${node.x}%`,
+                    top: `${node.y}%`,
+                    width: index === selectedNodeIndex ? '20px' : '16px',
+                    height: index === selectedNodeIndex ? '20px' : '16px',
+                    backgroundColor: node.color,
+                    border: '2px solid #ffffff',
+                    borderRadius: '50%',
+                    transform: 'translate(-50%, -50%)',
+                    cursor: 'move',
+                    boxShadow: '0 4px 10px rgba(0,0,0,0.5)',
+                    zIndex: 10,
+                    transition: 'width 0.1s, height 0.1s',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center'
+                  }}
+                >
+                  <span style={{ fontSize: '7px', fontWeight: 900, color: '#fff', textShadow: '0 1px 2px rgba(0,0,0,0.8)' }}>
+                    {index + 1}
+                  </span>
+                </div>
+              ))}
+            </div>
+            <small style={{ fontSize: '0.75rem', color: 'var(--color-text-muted)', textAlign: 'center' }}>
+              💡 {language === 'vi' ? 'Kéo các nút số (1, 2, 3...) trực tiếp trên Canvas để thay đổi vị trí màu' : 'Drag the numbered dots directly on the Canvas to move color spots'}
+            </small>
+          </div>
+
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem', textAlign: 'left' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', gap: '0.5rem' }}>
+              <div className="form-group" style={{ flex: 1, margin: 0 }}>
+                <label className="form-label" style={{ fontSize: '0.75rem' }}>{language === 'vi' ? 'Màu nền chính (Base Color)' : 'Base Background Color'}</label>
+                <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
+                  <input
+                    type="color"
+                    value={baseColor}
+                    onChange={(e) => {
+                      if (mode === 'dark') {
+                        onUpdateGuiSettings({ ...guiSettings, darkBaseColor: e.target.value });
+                      } else {
+                        onUpdateGuiSettings({ ...guiSettings, lightBaseColor: e.target.value });
+                      }
+                    }}
+                    style={{ width: '36px', height: '36px', padding: 0, border: '1px solid var(--color-gray-border)', borderRadius: '4px', cursor: 'pointer' }}
+                  />
+                  <input
+                    type="text"
+                    className="form-input"
+                    value={baseColor}
+                    onChange={(e) => {
+                      if (mode === 'dark') {
+                        onUpdateGuiSettings({ ...guiSettings, darkBaseColor: e.target.value });
+                      } else {
+                        onUpdateGuiSettings({ ...guiSettings, lightBaseColor: e.target.value });
+                      }
+                    }}
+                    style={{ height: '36px', padding: '0 0.5rem', fontFamily: 'var(--font-mono)', fontSize: '0.8rem' }}
+                  />
+                </div>
+              </div>
+
+              <div style={{ display: 'flex', flexDirection: 'column', justifyContent: 'flex-end', gap: '0.25rem' }}>
+                <button
+                  type="button"
+                  className="btn btn-teal btn-sm"
+                  onClick={handleAddNode}
+                  style={{ padding: '0.35rem 0.75rem', fontSize: '0.75rem' }}
+                >
+                  ➕ {language === 'vi' ? 'Thêm màu' : 'Add Spot'}
+                </button>
+                <button
+                  type="button"
+                  className="btn btn-danger btn-sm"
+                  disabled={nodes.length <= 1}
+                  onClick={handleDeleteNode}
+                  style={{ padding: '0.35rem 0.75rem', fontSize: '0.75rem', opacity: nodes.length <= 1 ? 0.5 : 1 }}
+                >
+                  🗑️ {language === 'vi' ? 'Xóa màu' : 'Delete'}
+                </button>
+              </div>
+            </div>
+
+            <div style={{ borderTop: '1px solid var(--color-gray-border)', paddingTop: '0.75rem' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '0.5rem' }}>
+                <strong style={{ fontSize: '0.8rem', color: 'var(--color-navy)' }}>
+                  {language === 'vi' ? `Hiệu chỉnh Điểm màu #${selectedNodeIndex + 1}` : `Editing Color Spot #${selectedNodeIndex + 1}`}
+                </strong>
+                <span style={{ fontSize: '0.75rem', backgroundColor: activeNode.color, color: '#fff', padding: '0.1rem 0.4rem', borderRadius: '3px', fontWeight: 700, textShadow: '0 1px 1px rgba(0,0,0,0.5)' }}>
+                  {activeNode.color}
+                </span>
+              </div>
+
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.75rem' }}>
+                <div className="form-group" style={{ margin: 0 }}>
+                  <label className="form-label" style={{ fontSize: '0.75rem', marginBottom: '0.2rem' }}>{language === 'vi' ? 'Màu sắc' : 'Color'}</label>
+                  <input
+                    type="color"
+                    value={activeNode.color}
+                    onChange={(e) => handleNodeChange('color', e.target.value)}
+                    style={{ width: '100%', height: '32px', padding: 0, border: '1px solid var(--color-gray-border)', borderRadius: '4px', cursor: 'pointer' }}
+                  />
+                </div>
+
+                <div className="form-group" style={{ margin: 0 }}>
+                  <label className="form-label" style={{ fontSize: '0.75rem', marginBottom: '0.2rem' }}>{language === 'vi' ? `Kích cỡ: ${activeNode.size}%` : `Size: ${activeNode.size}%`}</label>
+                  <input
+                    type="range"
+                    min="10"
+                    max="120"
+                    value={activeNode.size}
+                    onChange={(e) => handleNodeChange('size', parseInt(e.target.value))}
+                    className="slider"
+                    style={{ width: '100%', height: '6px', marginTop: '8px', cursor: 'pointer' }}
+                  />
+                </div>
+
+                <div className="form-group" style={{ margin: 0 }}>
+                  <label className="form-label" style={{ fontSize: '0.75rem', marginBottom: '0.2rem' }}>{language === 'vi' ? `Độ mờ: ${activeNode.opacity}%` : `Opacity: ${activeNode.opacity}%`}</label>
+                  <input
+                    type="range"
+                    min="0"
+                    max="100"
+                    value={activeNode.opacity}
+                    onChange={(e) => handleNodeChange('opacity', parseInt(e.target.value))}
+                    className="slider"
+                    style={{ width: '100%', height: '6px', marginTop: '8px', cursor: 'pointer' }}
+                  />
+                </div>
+
+                <div className="form-group" style={{ margin: 0 }}>
+                  <label className="form-label" style={{ fontSize: '0.75rem', marginBottom: '0.2rem' }}>{language === 'vi' ? `Tọa độ X: ${activeNode.x}%` : `X Position: ${activeNode.x}%`}</label>
+                  <input
+                    type="range"
+                    min="0"
+                    max="100"
+                    value={activeNode.x}
+                    onChange={(e) => handleNodeChange('x', parseInt(e.target.value))}
+                    className="slider"
+                    style={{ width: '100%', height: '6px', marginTop: '8px', cursor: 'pointer' }}
+                  />
+                </div>
+
+                <div className="form-group" style={{ margin: 0, gridColumn: 'span 2' }}>
+                  <label className="form-label" style={{ fontSize: '0.75rem', marginBottom: '0.2rem' }}>{language === 'vi' ? `Tọa độ Y: ${activeNode.y}%` : `Y Position: ${activeNode.y}%`}</label>
+                  <input
+                    type="range"
+                    min="0"
+                    max="100"
+                    value={activeNode.y}
+                    onChange={(e) => handleNodeChange('y', parseInt(e.target.value))}
+                    className="slider"
+                    style={{ width: '100%', height: '6px', marginTop: '8px', cursor: 'pointer' }}
+                  />
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  };
 
   return (
     <div style={{ display: 'flex', minHeight: '90vh', backgroundColor: '#F8FAFC', borderRadius: 'var(--border-radius-lg)', overflow: 'hidden', boxShadow: 'var(--shadow-premium)', border: '1px solid var(--color-gray-border)', width: '100%', textAlign: 'left' }}>
@@ -3141,18 +3547,35 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                 </h4>
                 <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(250px, 1fr))', gap: '1.5rem' }}>
                   <div className="form-group">
+                    <label className="form-label">{language === 'vi' ? 'Kiểu lớp phủ (Overlay Style)' : 'Overlay Style'}</label>
+                    <select
+                      className="form-select"
+                      value={guiSettings.darkGradientType || 'solid'}
+                      onChange={(e) => onUpdateGuiSettings({ ...guiSettings, darkGradientType: e.target.value })}
+                    >
+                      <option value="solid">{language === 'vi' ? 'Màu đơn sắc (Solid Color)' : 'Solid Color'}</option>
+                      <option value="aurora">{language === 'vi' ? 'Cực quang xanh ngọc (Aurora)' : 'Aurora Preset'}</option>
+                      <option value="volcano">{language === 'vi' ? 'Núi lửa nồng ấm (Volcano)' : 'Volcano Preset'}</option>
+                      <option value="steel">{language === 'vi' ? 'Ánh thép công nghệ (Techno Steel)' : 'Techno Steel Preset'}</option>
+                      <option value="custom">{language === 'vi' ? 'Tự thiết kế (Custom Mesh)' : 'Custom Mesh Builder'}</option>
+                    </select>
+                  </div>
+
+                  <div className="form-group">
                     <label className="form-label">{language === 'vi' ? 'Màu sắc lớp phủ (Overlay Color)' : 'Overlay Mask Color'}</label>
                     <div style={{ display: 'flex', gap: '0.75rem', alignItems: 'center' }}>
                       <input 
                         type="color" 
                         value={guiSettings.darkColor || '#070a13'} 
+                        disabled={(guiSettings.darkGradientType || 'solid') !== 'solid'}
                         onChange={(e) => onUpdateGuiSettings({ ...guiSettings, darkColor: e.target.value })}
-                        style={{ width: '50px', height: '40px', padding: '0', border: '1px solid var(--color-gray-border)', borderRadius: 'var(--border-radius-sm)', cursor: 'pointer' }}
+                        style={{ width: '50px', height: '40px', padding: '0', border: '1px solid var(--color-gray-border)', borderRadius: 'var(--border-radius-sm)', cursor: 'pointer', opacity: (guiSettings.darkGradientType || 'solid') !== 'solid' ? 0.5 : 1 }}
                       />
                       <input 
                         type="text" 
                         className="form-input" 
                         value={guiSettings.darkColor || '#070a13'} 
+                        disabled={(guiSettings.darkGradientType || 'solid') !== 'solid'}
                         onChange={(e) => onUpdateGuiSettings({ ...guiSettings, darkColor: e.target.value })}
                         style={{ fontFamily: 'var(--font-mono)' }}
                       />
@@ -3174,6 +3597,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                     />
                   </div>
                 </div>
+                {guiSettings.darkGradientType === 'custom' && renderMeshEditor('dark')}
               </div>
 
               {/* Light Theme Settings */}
@@ -3183,20 +3607,35 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                 </h4>
                 <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(250px, 1fr))', gap: '1.5rem' }}>
                   <div className="form-group">
+                    <label className="form-label">{language === 'vi' ? 'Kiểu lớp phủ (Overlay Style)' : 'Overlay Style'}</label>
+                    <select
+                      className="form-select"
+                      value={guiSettings.lightGradientType || 'solid'}
+                      onChange={(e) => onUpdateGuiSettings({ ...guiSettings, lightGradientType: e.target.value })}
+                    >
+                      <option value="solid">{language === 'vi' ? 'Màu đơn sắc (Solid Color)' : 'Solid Color'}</option>
+                      <option value="sky">{language === 'vi' ? 'Bầu trời ban mai (Morning Sky)' : 'Morning Sky Preset'}</option>
+                      <option value="summer">{language === 'vi' ? 'Nắng ấm mùa hè (Summer Sun)' : 'Summer Sun Preset'}</option>
+                      <option value="sage">{language === 'vi' ? 'Xanh lá xô thơm (Soft Sage)' : 'Soft Sage Preset'}</option>
+                      <option value="custom">{language === 'vi' ? 'Tự thiết kế (Custom Mesh)' : 'Custom Mesh Builder'}</option>
+                    </select>
+                  </div>
+
+                  <div className="form-group">
                     <label className="form-label">{language === 'vi' ? 'Màu sắc lớp phủ (Overlay Color)' : 'Overlay Mask Color'}</label>
                     <div style={{ display: 'flex', gap: '0.75rem', alignItems: 'center' }}>
                       <input 
                         type="color" 
                         value={guiSettings.lightColor || '#ffffff'} 
-                        disabled={(guiSettings.lightOpacity ?? 0) === 0}
+                        disabled={(guiSettings.lightOpacity ?? 0) === 0 || (guiSettings.lightGradientType || 'solid') !== 'solid'}
                         onChange={(e) => onUpdateGuiSettings({ ...guiSettings, lightColor: e.target.value })}
-                        style={{ width: '50px', height: '40px', padding: '0', border: '1px solid var(--color-gray-border)', borderRadius: 'var(--border-radius-sm)', cursor: 'pointer', opacity: (guiSettings.lightOpacity ?? 0) === 0 ? 0.5 : 1 }}
+                        style={{ width: '50px', height: '40px', padding: '0', border: '1px solid var(--color-gray-border)', borderRadius: 'var(--border-radius-sm)', cursor: 'pointer', opacity: ((guiSettings.lightOpacity ?? 0) === 0 || (guiSettings.lightGradientType || 'solid') !== 'solid') ? 0.5 : 1 }}
                       />
                       <input 
                         type="text" 
                         className="form-input" 
                         value={guiSettings.lightColor || '#ffffff'} 
-                        disabled={(guiSettings.lightOpacity ?? 0) === 0}
+                        disabled={(guiSettings.lightOpacity ?? 0) === 0 || (guiSettings.lightGradientType || 'solid') !== 'solid'}
                         onChange={(e) => onUpdateGuiSettings({ ...guiSettings, lightColor: e.target.value })}
                         style={{ fontFamily: 'var(--font-mono)' }}
                       />
@@ -3227,6 +3666,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                     </div>
                   </div>
                 </div>
+                {guiSettings.lightGradientType === 'custom' && renderMeshEditor('light')}
               </div>
 
             </div>
@@ -3625,7 +4065,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
         </div>
       )}
 
-      {showArticleDraftPreview && <div className="cms-confirm-backdrop" style={{ zIndex: 2300 }} onMouseDown={() => setShowArticleDraftPreview(false)}><article className="cms-article-preview" onMouseDown={(event) => event.stopPropagation()}><button type="button" className="image-library-close" aria-label="Close" onClick={() => setShowArticleDraftPreview(false)}>×</button>{newArt.imageURL && <img className="cms-article-preview__cover" src={newArt.imageURL} alt="" />}<div><span className={`cms-badge cms-badge--${newArt.category}`}>{newArt.category.toUpperCase()}</span> <small>{newArt.publishDate}</small></div><h2>{language === 'vi' ? newArt.titleVi : newArt.titleEn}</h2><strong>{language === 'vi' ? newArt.excerptVi : newArt.excerptEn}</strong><div className="cms-article-preview__content">{language === 'vi' ? newArt.contentVi : newArt.contentEn}</div></article></div>}
+      {showArticleDraftPreview && <div className="cms-confirm-backdrop" style={{ zIndex: 4000 }} onMouseDown={() => setShowArticleDraftPreview(false)}><article className="cms-article-preview" onMouseDown={(event) => event.stopPropagation()}><button type="button" className="image-library-close" aria-label="Close" onClick={() => setShowArticleDraftPreview(false)}>×</button>{newArt.imageURL && <img className="cms-article-preview__cover" src={newArt.imageURL} alt="" />}<div><span className={`cms-badge cms-badge--${newArt.category}`}>{newArt.category.toUpperCase()}</span> <small>{newArt.publishDate}</small></div><h2>{language === 'vi' ? newArt.titleVi : newArt.titleEn}</h2><strong>{language === 'vi' ? newArt.excerptVi : newArt.excerptEn}</strong><div className="cms-article-preview__content">{language === 'vi' ? newArt.contentVi : newArt.contentEn}</div></article></div>}
 
       {/* Add Project Modal */}
       {showAddProjectModal && (

@@ -220,6 +220,7 @@ const styles: { [key: string]: React.CSSProperties } = {
     padding: '5rem 0 4rem',
     color: 'var(--banner-text)',
     textAlign: 'left',
+    overflow: 'hidden',
   },
   bannerOverlay: {
     position: 'absolute',
@@ -227,7 +228,10 @@ const styles: { [key: string]: React.CSSProperties } = {
     left: 0,
     right: 0,
     bottom: 0,
-    backgroundColor: 'var(--banner-overlay)',
+    backgroundImage: 'var(--banner-overlay-image)',
+    backgroundColor: 'var(--banner-overlay-color)',
+    filter: 'var(--banner-overlay-filter, none)',
+    transform: 'var(--banner-overlay-transform, none)',
     zIndex: 1,
   },
   bannerContainer: {

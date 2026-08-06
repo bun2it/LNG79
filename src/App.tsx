@@ -4,7 +4,7 @@ import { Navbar } from './components/Navbar';
 import { Footer } from './components/Footer';
 import { QuoteDrawer } from './components/QuoteDrawer';
 import { Home } from './pages/Home';
-import { Solutions } from './pages/Solutions';
+import { Solutions, SOLUTIONS_PAGE_DATA } from './pages/Solutions';
 import { Products, PRODUCTS_DATA } from './pages/Products';
 import { Projects } from './pages/Projects';
 import type { ProjectItem } from './pages/Projects';
@@ -303,12 +303,16 @@ export const AppContent: React.FC = () => {
 
   const [guiSettings, setGuiSettings] = useState(() => {
     const saved = localStorage.getItem('cms_gui_settings');
-    return saved ? JSON.parse(saved) : {
+    const parsed = saved ? JSON.parse(saved) : {};
+    return {
       darkColor: '#070a13',
       darkOpacity: 85,
       lightColor: '#ffffff',
       lightOpacity: 0,
-      logoHeight: 42
+      logoHeight: 42,
+      darkGradientType: 'custom',
+      lightGradientType: 'custom',
+      ...parsed
     };
   });
 
@@ -334,13 +338,128 @@ export const AppContent: React.FC = () => {
         : '7, 10, 19';
     };
 
-    const darkVal = `rgba(${hexToRgb(guiSettings.darkColor || '#070a13')}, ${(guiSettings.darkOpacity !== undefined ? guiSettings.darkOpacity : 85) / 100})`;
-    const lightVal = (guiSettings.lightOpacity === 0 || guiSettings.lightOpacity === undefined)
-      ? 'transparent' 
-      : `rgba(${hexToRgb(guiSettings.lightColor || '#ffffff')}, ${guiSettings.lightOpacity / 100})`;
+    const MESH_GRADIENTS = {
+      dark: {
+        solid: (rgb: string, alpha: number) => ({
+          image: 'none',
+          color: `rgba(${rgb}, ${alpha})`
+        }),
+        aurora: (_rgb: string, alpha: number) => ({
+          image: `radial-gradient(circle at 10% 20%, hsla(174, 90%, 45%, ${alpha * 0.15}) 0%, transparent 60%), radial-gradient(circle at 80% 80%, hsla(213, 85%, 35%, ${alpha * 0.20}) 0%, transparent 70%), radial-gradient(circle at 50% 50%, hsla(270, 70%, 40%, ${alpha * 0.12}) 0%, transparent 65%), radial-gradient(circle at 90% 10%, hsla(150, 80%, 40%, ${alpha * 0.10}) 0%, transparent 50%)`,
+          color: `hsla(218, 76%, 8%, ${alpha})`
+        }),
+        volcano: (_rgb: string, alpha: number) => ({
+          image: `radial-gradient(circle at 85% 15%, hsla(24, 95%, 45%, ${alpha * 0.22}) 0%, transparent 60%), radial-gradient(circle at 20% 75%, hsla(355, 90%, 40%, ${alpha * 0.18}) 0%, transparent 70%), radial-gradient(circle at 50% 30%, hsla(38, 95%, 55%, ${alpha * 0.15}) 0%, transparent 50%)`,
+          color: `hsla(10, 60%, 4%, ${alpha})`
+        }),
+        steel: (_rgb: string, alpha: number) => ({
+          image: `radial-gradient(circle at 0% 100%, hsla(190, 90%, 40%, ${alpha * 0.18}) 0%, transparent 65%), radial-gradient(circle at 100% 0%, hsla(210, 80%, 50%, ${alpha * 0.18}) 0%, transparent 70%), radial-gradient(circle at 50% 80%, hsla(240, 50%, 30%, ${alpha * 0.12}) 0%, transparent 60%)`,
+          color: `hsla(225, 45%, 5%, ${alpha})`
+        }),
+        custom: (_rgb: string, alpha: number) => {
+          const baseColor = guiSettings.darkBaseColor || '#070a13';
+          const nodes = guiSettings.darkCustomMesh || [
+            { color: '#14b8a6', opacity: 20, x: 20, y: 30, size: 60 },
+            { color: '#3b82f6', opacity: 25, x: 80, y: 70, size: 70 },
+            { color: '#a855f7', opacity: 15, x: 50, y: 50, size: 65 }
+          ];
+          const baseVal = `rgba(${hexToRgb(baseColor)}, ${alpha})`;
+          if (!nodes || nodes.length === 0) {
+            return { image: 'none', color: baseVal };
+          }
+          const rads = nodes.map((node: any) => {
+            const nodeAlpha = node.opacity / 100;
+            const rgb = hexToRgb(node.color);
+            return `radial-gradient(circle at ${node.x}% ${node.y}%, rgba(${rgb}, ${nodeAlpha}) 0%, rgba(${rgb}, 0) ${node.size}%)`;
+          });
+          return { image: rads.join(', '), color: baseVal };
+        }
+      },
+      light: {
+        solid: (rgb: string, alpha: number) => ({
+          image: 'none',
+          color: alpha === 0 ? 'transparent' : `rgba(${rgb}, ${alpha})`
+        }),
+        sky: (_rgb: string, alpha: number) => ({
+          image: alpha === 0 ? 'none' : `radial-gradient(circle at 15% 15%, hsla(180, 80%, 90%, ${alpha * 0.45}) 0%, transparent 55%), radial-gradient(circle at 80% 85%, hsla(210, 85%, 93%, ${alpha * 0.45}) 0%, transparent 60%), radial-gradient(circle at 50% 40%, hsla(260, 60%, 95%, ${alpha * 0.35}) 0%, transparent 50%)`,
+          color: alpha === 0 ? 'transparent' : `rgba(255, 255, 255, ${alpha})`
+        }),
+        summer: (_rgb: string, alpha: number) => ({
+          image: alpha === 0 ? 'none' : `radial-gradient(circle at 80% 20%, hsla(35, 90%, 92%, ${alpha * 0.50}) 0%, transparent 55%), radial-gradient(circle at 20% 80%, hsla(15, 80%, 94%, ${alpha * 0.40}) 0%, transparent 60%), radial-gradient(circle at 50% 50%, hsla(45, 90%, 95%, ${alpha * 0.40}) 0%, transparent 50%)`,
+          color: alpha === 0 ? 'transparent' : `rgba(255, 255, 255, ${alpha})`
+        }),
+        sage: (_rgb: string, alpha: number) => ({
+          image: alpha === 0 ? 'none' : `radial-gradient(circle at 10% 90%, hsla(140, 60%, 92%, ${alpha * 0.45}) 0%, transparent 60%), radial-gradient(circle at 90% 10%, hsla(195, 70%, 91%, ${alpha * 0.45}) 0%, transparent 65%), radial-gradient(circle at 50% 70%, hsla(220, 40%, 93%, ${alpha * 0.35}) 0%, transparent 50%)`,
+          color: alpha === 0 ? 'transparent' : `rgba(255, 255, 255, ${alpha})`
+        }),
+        custom: (_rgb: string, alpha: number) => {
+          if (alpha === 0) return { image: 'none', color: 'transparent' };
+          const baseColor = guiSettings.lightBaseColor || '#ffffff';
+          const nodes = guiSettings.lightCustomMesh || [
+            { color: '#06b6d4', opacity: 35, x: 15, y: 20, size: 55 },
+            { color: '#6366f1', opacity: 25, x: 80, y: 80, size: 60 },
+            { color: '#d946ef', opacity: 20, x: 50, y: 40, size: 50 }
+          ];
+          const baseVal = `rgba(${hexToRgb(baseColor)}, ${alpha})`;
+          if (!nodes || nodes.length === 0) {
+            return { image: 'none', color: baseVal };
+          }
+          const rads = nodes.map((node: any) => {
+            const nodeAlpha = node.opacity / 100;
+            const rgb = hexToRgb(node.color);
+            return `radial-gradient(circle at ${node.x}% ${node.y}%, rgba(${rgb}, ${nodeAlpha}) 0%, rgba(${rgb}, 0) ${node.size}%)`;
+          });
+          return { image: rads.join(', '), color: baseVal };
+        }
+      }
+    };
 
-    document.documentElement.style.setProperty('--banner-overlay-dark', darkVal);
-    document.documentElement.style.setProperty('--banner-overlay-light', lightVal);
+    const darkType = guiSettings.darkGradientType || 'solid';
+    const lightType = guiSettings.lightGradientType || 'solid';
+    const darkColorRGB = hexToRgb(guiSettings.darkColor || '#070a13');
+    const lightColorRGB = hexToRgb(guiSettings.lightColor || '#ffffff');
+    const darkOpacityVal = (guiSettings.darkOpacity !== undefined ? guiSettings.darkOpacity : 85) / 100;
+    const lightOpacityVal = (guiSettings.lightOpacity !== undefined ? guiSettings.lightOpacity : 0) / 100;
+
+    const darkGradFunc = MESH_GRADIENTS.dark[darkType as keyof typeof MESH_GRADIENTS.dark] || MESH_GRADIENTS.dark.solid;
+    const lightGradFunc = MESH_GRADIENTS.light[lightType as keyof typeof MESH_GRADIENTS.light] || MESH_GRADIENTS.light.solid;
+
+    const darkVal = darkGradFunc(darkColorRGB, darkOpacityVal);
+    const lightVal = lightGradFunc(lightColorRGB, lightOpacityVal);
+
+    document.documentElement.style.setProperty('--banner-overlay-dark-image', darkVal.image);
+    document.documentElement.style.setProperty('--banner-overlay-dark-color', darkVal.color);
+    document.documentElement.style.setProperty('--banner-overlay-light-image', lightVal.image);
+    document.documentElement.style.setProperty('--banner-overlay-light-color', lightVal.color);
+
+    const darkFilter = darkType === 'solid' ? 'none' : darkType === 'custom' ? 'blur(40px)' : 'blur(60px)';
+    const darkTransform = darkType === 'solid' ? 'none' : darkType === 'custom' ? 'scale(1.1)' : 'scale(1.15)';
+    const lightFilter = lightType === 'solid' ? 'none' : lightType === 'custom' ? 'blur(40px)' : 'blur(60px)';
+    const lightTransform = lightType === 'solid' ? 'none' : lightType === 'custom' ? 'scale(1.1)' : 'scale(1.15)';
+
+    document.documentElement.style.setProperty('--banner-overlay-dark-filter', darkFilter);
+    document.documentElement.style.setProperty('--banner-overlay-dark-transform', darkTransform);
+    document.documentElement.style.setProperty('--banner-overlay-light-filter', lightFilter);
+    document.documentElement.style.setProperty('--banner-overlay-light-transform', lightTransform);
+
+    const darkHeroImage = darkType === 'solid'
+      ? `linear-gradient(to right, ${darkVal.color} 40%, rgba(7, 10, 19, 0.4) 100%)`
+      : darkType === 'custom'
+        ? darkVal.image
+        : `linear-gradient(to right, rgba(7, 10, 19, 0.96) 40%, rgba(7, 10, 19, 0.4) 100%), ${darkVal.image}`;
+    const darkHeroColor = darkType === 'solid' ? 'transparent' : darkVal.color;
+
+    const lightHeroImage = lightType === 'solid'
+      ? `linear-gradient(90deg, ${lightVal.color === 'transparent' ? 'rgba(239, 247, 255, 0.97)' : lightVal.color} 34%, rgba(222, 238, 255, 0.6) 62%, rgba(221, 249, 243, 0.3) 100%)`
+      : lightType === 'custom'
+        ? lightVal.image
+        : `linear-gradient(90deg, rgba(239, 247, 255, 0.97) 34%, rgba(222, 238, 255, 0.6) 62%, rgba(221, 249, 243, 0.3) 100%), ${lightVal.image}`;
+    const lightHeroColor = lightType === 'solid' ? 'transparent' : lightVal.color;
+
+    document.documentElement.style.setProperty('--home-hero-dark-image', darkHeroImage);
+    document.documentElement.style.setProperty('--home-hero-dark-color', darkHeroColor);
+    document.documentElement.style.setProperty('--home-hero-light-image', lightHeroImage);
+    document.documentElement.style.setProperty('--home-hero-light-color', lightHeroColor);
   }, [guiSettings]);
 
   const [contactInfo, setContactInfo] = useState(() => {
@@ -508,6 +627,77 @@ export const AppContent: React.FC = () => {
                 });
                 return { ...page, blocks: updatedBlocks };
               }
+
+              const pageSlug = page.slug;
+              if (['lng-solution', 'lpg-solution', 'conversion', 'kitchen-solution'].includes(pageSlug)) {
+                const updatedPage = { ...page };
+
+                const matchedTitle = data.find((row) => row.content_key === `${pageSlug}.title`);
+                if (matchedTitle) {
+                  updatedPage.title = { vi: matchedTitle.value_vi, en: matchedTitle.value_en };
+                }
+                const matchedSubtitle = data.find((row) => row.content_key === `${pageSlug}.subtitle`);
+                if (matchedSubtitle) {
+                  updatedPage.excerpt = { vi: matchedSubtitle.value_vi, en: matchedSubtitle.value_en };
+                }
+                const matchedDesc = data.find((row) => row.content_key === `${pageSlug}.desc`);
+                if (matchedDesc) {
+                  updatedPage.content = { vi: matchedDesc.value_vi, en: matchedDesc.value_en };
+                }
+
+                // Load schematic overrides
+                const schematicRows = data.filter((row) => row.content_key.startsWith(`${pageSlug}.schematic.`));
+                if (schematicRows.length > 0) {
+                  const currentSchematic = [...(page.schematic || SOLUTIONS_PAGE_DATA[pageSlug].schematic || [])];
+                  schematicRows.forEach((row) => {
+                    const parts = row.content_key.split('.');
+                    const index = parseInt(parts[2]);
+                    const fieldType = parts[3] as 'label' | 'desc';
+                    if (!isNaN(index) && currentSchematic[index]) {
+                      currentSchematic[index] = {
+                        ...currentSchematic[index],
+                        [fieldType]: { vi: row.value_vi, en: row.value_en }
+                      };
+                    }
+                  });
+                  updatedPage.schematic = currentSchematic;
+                }
+
+                // Load FAQ overrides
+                const faqRows = data.filter((row) => row.content_key.startsWith(`${pageSlug}.faq.`));
+                if (faqRows.length > 0) {
+                  const currentFaqs = [...(page.faqs || SOLUTIONS_PAGE_DATA[pageSlug].faqs || [])];
+                  faqRows.forEach((row) => {
+                    const parts = row.content_key.split('.');
+                    const index = parseInt(parts[2]);
+                    const fieldType = parts[3] as 'q' | 'a';
+                    if (!isNaN(index) && currentFaqs[index]) {
+                      currentFaqs[index] = {
+                        ...currentFaqs[index],
+                        [fieldType]: { vi: row.value_vi, en: row.value_en }
+                      };
+                    }
+                  });
+                  updatedPage.faqs = currentFaqs;
+                }
+
+                // Load equipment overrides
+                const equipmentRows = data.filter((row) => row.content_key.startsWith(`${pageSlug}.equipment.`));
+                if (equipmentRows.length > 0) {
+                  const currentEquipment = [...(page.equipment || SOLUTIONS_PAGE_DATA[pageSlug].equipment || [])];
+                  equipmentRows.forEach((row) => {
+                    const parts = row.content_key.split('.');
+                    const index = parseInt(parts[2]);
+                    if (!isNaN(index) && currentEquipment[index]) {
+                      currentEquipment[index] = { vi: row.value_vi, en: row.value_en };
+                    }
+                  });
+                  updatedPage.equipment = currentEquipment;
+                }
+
+                return updatedPage;
+              }
+
               return page;
             });
           });
@@ -691,9 +881,14 @@ export const AppContent: React.FC = () => {
             localStorage.setItem('cms_fuel_settings', JSON.stringify(fuel.value));
           }
           const gui = data.find((row) => row.key === 'gui_settings');
-          if (gui) {
-            setGuiSettings(gui.value);
-            localStorage.setItem('cms_gui_settings', JSON.stringify(gui.value));
+          if (gui?.value) {
+            const merged = {
+              darkGradientType: 'custom',
+              lightGradientType: 'custom',
+              ...gui.value
+            };
+            setGuiSettings(merged);
+            localStorage.setItem('cms_gui_settings', JSON.stringify(merged));
           }
         }
       } catch (err) {
@@ -1159,8 +1354,20 @@ export const AppContent: React.FC = () => {
     }
   };
 
+  const hasToolbar = isLoggedIn && currentView !== 'admin';
+
   return (
-    <div ref={appRootRef} style={{ display: 'flex', flexDirection: 'column', minHeight: '100vh' }}>
+    <div 
+      ref={appRootRef} 
+      className={hasToolbar ? 'visual-editor-active-container' : ''} 
+      style={{ 
+        display: 'flex', 
+        flexDirection: 'column', 
+        minHeight: '100vh',
+        paddingTop: hasToolbar ? '54px' : '0',
+        overflowX: 'clip'
+      }}
+    >
       <VisualTextEditor
         ref={visualEditorRef}
         rootRef={appRootRef}
@@ -1185,6 +1392,7 @@ export const AppContent: React.FC = () => {
         <>
           <div data-visual-editor-ui className="visual-editor-toolbar" style={{
             position: 'fixed', top: 0, left: 0, right: 0, zIndex: 99999, 
+            height: '54px', boxSizing: 'border-box',
             backgroundColor: '#0F172A', color: '#fff', 
             padding: '0.75rem 1.5rem', display: 'flex', 
             justifyContent: 'space-between', alignItems: 'center',

@@ -543,6 +543,7 @@ const styles: { [key: string]: React.CSSProperties } = {
     padding: '8rem 0 7rem',
     color: 'var(--home-on-surface)',
     textAlign: 'left',
+    overflow: 'hidden',
   },
   heroOverlay: {
     position: 'absolute',
@@ -550,7 +551,10 @@ const styles: { [key: string]: React.CSSProperties } = {
     left: 0,
     right: 0,
     bottom: 0,
-    background: 'var(--home-hero-overlay)',
+    backgroundImage: 'var(--home-hero-image)',
+    backgroundColor: 'var(--home-hero-color)',
+    filter: 'var(--banner-overlay-filter, none)',
+    transform: 'var(--banner-overlay-transform, none)',
     zIndex: 1,
   },
   heroContainer: {

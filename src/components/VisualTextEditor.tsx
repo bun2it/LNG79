@@ -122,7 +122,7 @@ export const VisualTextEditor = forwardRef<VisualTextEditorHandle, VisualTextEdi
         // 1. Check Supabase published overrides first (stable content keys)
         if (supabaseTexts && supabaseTexts[identity]) {
           const overrideValue = language === 'vi' ? supabaseTexts[identity].value_vi : supabaseTexts[identity].value_en;
-          if (overrideValue !== undefined && overrideValue !== null) {
+          if (overrideValue !== undefined && overrideValue !== null && overrideValue.trim() !== '') {
             if (hasKey && !hasComplexChildren) {
               (element as HTMLElement).innerText = overrideValue;
             } else {
@@ -140,14 +140,16 @@ export const VisualTextEditor = forwardRef<VisualTextEditorHandle, VisualTextEdi
 
         // 2. Check local draft / legacy overrides
         if (saved[identity]) {
-          if (hasKey && !hasComplexChildren) {
-            const text = saved[identity].join('');
-            (element as HTMLElement).innerText = text;
-          } else {
-            const nodes = allDirectTextNodes(element);
-            saved[identity].forEach((value, index) => {
-              if (nodes[index]) nodes[index].data = value;
-            });
+          const text = saved[identity].join('');
+          if (text.trim() !== '') {
+            if (hasKey && !hasComplexChildren) {
+              (element as HTMLElement).innerText = text;
+            } else {
+              const nodes = allDirectTextNodes(element);
+              saved[identity].forEach((value, index) => {
+                if (nodes[index]) nodes[index].data = value;
+              });
+            }
           }
         }
       });
