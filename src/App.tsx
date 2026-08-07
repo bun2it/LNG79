@@ -575,7 +575,7 @@ export const AppContent: React.FC = () => {
           }
         ]
       },
-      { id: 'p-2', title: { vi: 'Giải pháp LNG', en: 'LNG Solutions' }, slug: 'lng-solution', excerpt: { vi: 'Hệ thống cấp khí và hóa lỏng', en: 'Gas supply and liquefaction systems' }, status: 'published', visible: true, onMenu: true, searchable: true, faqs: SOLUTIONS_PAGE_DATA['lng-solution'].faqs },
+      { id: 'p-2', title: { vi: 'Giải pháp LNG', en: 'LNG Solutions' }, slug: 'lng-solution', excerpt: { vi: 'Hệ thống cấp khí và hóa lỏng', en: 'Gas supply and liquefaction systems' }, status: 'published', visible: true, onMenu: true, searchable: true },
       { id: 'p-3', title: { vi: 'Giải pháp LPG', en: 'LPG Solutions' }, slug: 'lpg-solution', excerpt: { vi: 'Hệ thống cấp gas trung tâm', en: 'Centralized gas supply systems' }, status: 'published', visible: true, onMenu: true, searchable: true },
       { id: 'p-4', title: { vi: 'Cải tạo đầu đốt', en: 'Boiler Conversion' }, slug: 'conversion', excerpt: { vi: 'Chuyển đổi sang nhiên liệu sạch', en: 'Conversion to clean fuel solutions' }, status: 'published', visible: true, onMenu: true, searchable: true },
       { id: 'p-5', title: { vi: 'Thiết kế bếp và Central gas', en: 'Commercial Kitchen' }, slug: 'kitchen-solution', excerpt: { vi: 'Hệ thống bếp công nghiệp', en: 'Commercial kitchen systems' }, status: 'published', visible: true, onMenu: true, searchable: true },
@@ -664,33 +664,7 @@ export const AppContent: React.FC = () => {
                   updatedPage.schematic = currentSchematic;
                 }
 
-                // Load FAQ overrides
-                const faqRows = data.filter((row) => row.content_key.startsWith(`${pageSlug}.faq.`));
-                if (faqRows.length > 0) {
-                  const currentFaqs: any[] = [];
-                  faqRows.forEach((row) => {
-                    const parts = row.content_key.split('.');
-                    const index = parseInt(parts[2]);
-                    const fieldType = parts[3] as 'q' | 'a';
-                    if (!isNaN(index)) {
-                      if (!currentFaqs[index]) {
-                        currentFaqs[index] = { q: { vi: '', en: '' }, a: { vi: '', en: '' } };
-                      }
-                      currentFaqs[index] = {
-                        ...currentFaqs[index],
-                        [fieldType]: { vi: row.value_vi, en: row.value_en }
-                      };
-                    }
-                  });
-                  updatedPage.faqs = currentFaqs.filter((item) => {
-                    return item && (
-                      (item.q?.vi && item.q.vi !== 'Câu hỏi mới') || 
-                      item.q?.en || 
-                      item.a?.vi || 
-                      item.a?.en
-                    );
-                  });
-                }
+                // FAQs are loaded separately from the solution_faqs table (see useEffect below)
 
                 // Load equipment overrides
                 const equipmentRows = data.filter((row) => row.content_key.startsWith(`${pageSlug}.equipment.`));
@@ -718,6 +692,46 @@ export const AppContent: React.FC = () => {
       }
     };
     void loadSiteTexts();
+    return () => { active = false; };
+  }, []);
+
+  // Load FAQs from dedicated solution_faqs table
+  React.useEffect(() => {
+    let active = true;
+    const loadSolutionFaqs = async () => {
+      const client = supabase;
+      if (!client) return;
+      try {
+        const { data, error } = await client
+          .from('solution_faqs')
+          .select('page_slug, sort_order, question_vi, question_en, answer_vi, answer_en')
+          .eq('visible', true)
+          .order('sort_order', { ascending: true });
+        if (error) throw error;
+        if (data && data.length > 0 && active) {
+          // Group by page_slug
+          const bySlug: Record<string, any[]> = {};
+          data.forEach((row) => {
+            if (!bySlug[row.page_slug]) bySlug[row.page_slug] = [];
+            bySlug[row.page_slug].push({
+              q: { vi: row.question_vi, en: row.question_en },
+              a: { vi: row.answer_vi, en: row.answer_en }
+            });
+          });
+          setPages((currentPages) =>
+            currentPages.map((page) => {
+              if (bySlug[page.slug]) {
+                return { ...page, faqs: bySlug[page.slug] };
+              }
+              return page;
+            })
+          );
+        }
+      } catch (err) {
+        console.error('Failed to load solution FAQs from Supabase:', err);
+      }
+    };
+    void loadSolutionFaqs();
     return () => { active = false; };
   }, []);
 
