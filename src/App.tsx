@@ -308,20 +308,30 @@ export const AppContent: React.FC = () => {
     return () => { cancelled = true; unsubscribe(); window.removeEventListener(CMS_AUTH_EXPIRED_EVENT, handleExpiredSession); };
   }, []);
 
+  // Only auto-redirect on initial login, not on every view change.
+  // Using a ref to track if we've already performed the post-login redirect.
+  const hasRedirectedRef = React.useRef(false);
   React.useEffect(() => {
     if (isLoggedIn && userProfile) {
+      if (hasRedirectedRef.current) return;
+      hasRedirectedRef.current = true;
       const path = window.location.pathname.replace(/\/+$/, '');
       if (userProfile.account_type === 'admin') {
+        // Only redirect to admin if they landed on the root homepage
         if (path === '') {
           setView('admin');
         }
       } else if (userProfile.account_type === 'user') {
+        // CRM users cannot access /admin, redirect them to /crm
         if (path === '/admin' || path === '') {
           setView('crm');
         }
       }
+    } else if (!isLoggedIn) {
+      // Reset flag so that next login triggers redirect again
+      hasRedirectedRef.current = false;
     }
-  }, [isLoggedIn, userProfile, currentView, setView]);
+  }, [isLoggedIn, userProfile, setView]);
 
   const handleLogout = React.useCallback(async () => {
     if (supabase) {
@@ -1779,6 +1789,10 @@ export const AppContent: React.FC = () => {
         menuItems={menuItems}
         logoUrl={guiSettings.logoUrl}
         logoHeight={guiSettings.logoHeight}
+        isLoggedIn={isLoggedIn}
+        userProfile={userProfile}
+        onGoToCms={() => setView('admin')}
+        onGoToCrm={() => setView('crm')}
       />}
       
       <main style={{ flex: 1 }}>

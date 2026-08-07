@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { useLanguage } from '../../context/LanguageContext';
 import { 
   Menu, X, ChevronDown, Flame, ChefHat, 
-  ShoppingCart, Languages, Sun, Moon
+  ShoppingCart, Languages, Sun, Moon, LayoutDashboard, Users
 } from 'lucide-react';
 
 interface NavbarProps {
@@ -15,9 +15,13 @@ interface NavbarProps {
   menuItems?: any[];
   logoUrl?: string;
   logoHeight?: number;
+  isLoggedIn?: boolean;
+  userProfile?: { account_type: string; name?: string } | null;
+  onGoToCms?: () => void;
+  onGoToCrm?: () => void;
 }
 
-export const Navbar: React.FC<NavbarProps> = ({ currentView, setView, cartCount, toggleCart, theme, toggleTheme, menuItems = [], logoUrl, logoHeight }) => {
+export const Navbar: React.FC<NavbarProps> = ({ currentView, setView, cartCount, toggleCart, theme, toggleTheme, menuItems = [], logoUrl, logoHeight, isLoggedIn, userProfile, onGoToCms, onGoToCrm }) => {
   const { language, setLanguage, t } = useLanguage();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 
@@ -196,6 +200,48 @@ export const Navbar: React.FC<NavbarProps> = ({ currentView, setView, cartCount,
             {t('btnConsult')}
           </button>
 
+          {/* CMS / CRM Login buttons (shown when logged in) */}
+          {isLoggedIn && userProfile && (
+            <div style={{ display: 'flex', gap: '0.4rem', alignItems: 'center' }}>
+              {(userProfile.account_type === 'admin') && onGoToCms && (
+                <button
+                  onClick={onGoToCms}
+                  title="Vào trang quản trị CMS"
+                  style={{
+                    display: 'flex', alignItems: 'center', gap: '0.3rem',
+                    background: 'rgba(20, 184, 166, 0.15)', border: '1px solid rgba(20,184,166,0.5)',
+                    color: '#14b8a6', borderRadius: '6px', padding: '0.35rem 0.65rem',
+                    fontSize: '0.75rem', fontWeight: 600, cursor: 'pointer',
+                    transition: 'all 0.2s',
+                  }}
+                  onMouseEnter={e => (e.currentTarget.style.background = 'rgba(20,184,166,0.3)')}
+                  onMouseLeave={e => (e.currentTarget.style.background = 'rgba(20,184,166,0.15)')}
+                >
+                  <LayoutDashboard size={13} />
+                  CMS
+                </button>
+              )}
+              {(userProfile.account_type === 'admin' || userProfile.account_type === 'user') && onGoToCrm && (
+                <button
+                  onClick={onGoToCrm}
+                  title="Vào phân hệ CRM"
+                  style={{
+                    display: 'flex', alignItems: 'center', gap: '0.3rem',
+                    background: 'rgba(99,102,241,0.15)', border: '1px solid rgba(99,102,241,0.5)',
+                    color: '#818cf8', borderRadius: '6px', padding: '0.35rem 0.65rem',
+                    fontSize: '0.75rem', fontWeight: 600, cursor: 'pointer',
+                    transition: 'all 0.2s',
+                  }}
+                  onMouseEnter={e => (e.currentTarget.style.background = 'rgba(99,102,241,0.3)')}
+                  onMouseLeave={e => (e.currentTarget.style.background = 'rgba(99,102,241,0.15)')}
+                >
+                  <Users size={13} />
+                  CRM
+                </button>
+              )}
+            </div>
+          )}
+
           {/* Mobile Menu Toggle */}
           <button className="nav-mobile-toggle" onClick={() => setMobileMenuOpen(!mobileMenuOpen)}>
             {mobileMenuOpen ? <X size={24} /> : <Menu size={24} />}
@@ -256,6 +302,36 @@ export const Navbar: React.FC<NavbarProps> = ({ currentView, setView, cartCount,
             >
               {t('btnConsult')}
             </button>
+            {isLoggedIn && userProfile && (
+              <div style={{ display: 'flex', gap: '0.5rem', width: '100%' }}>
+                {userProfile.account_type === 'admin' && onGoToCms && (
+                  <button
+                    style={{
+                      flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center',
+                      gap: '0.4rem', padding: '0.65rem', borderRadius: '8px',
+                      background: 'rgba(20,184,166,0.15)', border: '1px solid rgba(20,184,166,0.4)',
+                      color: '#14b8a6', fontSize: '0.85rem', fontWeight: 600, cursor: 'pointer'
+                    }}
+                    onClick={() => { onGoToCms(); setMobileMenuOpen(false); }}
+                  >
+                    <LayoutDashboard size={15} /> CMS
+                  </button>
+                )}
+                {(userProfile.account_type === 'admin' || userProfile.account_type === 'user') && onGoToCrm && (
+                  <button
+                    style={{
+                      flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center',
+                      gap: '0.4rem', padding: '0.65rem', borderRadius: '8px',
+                      background: 'rgba(99,102,241,0.15)', border: '1px solid rgba(99,102,241,0.4)',
+                      color: '#818cf8', fontSize: '0.85rem', fontWeight: 600, cursor: 'pointer'
+                    }}
+                    onClick={() => { onGoToCrm(); setMobileMenuOpen(false); }}
+                  >
+                    <Users size={15} /> CRM
+                  </button>
+                )}
+              </div>
+            )}
           </div>
         </div>
       )}
