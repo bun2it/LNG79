@@ -206,6 +206,10 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
   const [authError, setAuthError] = useState('');
   const [isAuthenticating, setIsAuthenticating] = useState(false);
   const [guiLogoPickerOpen, setGuiLogoPickerOpen] = useState(false);
+  const [blockHeroImagePickerOpen, setBlockHeroImagePickerOpen] = useState(false);
+  const [pageBannerImagePickerOpen, setPageBannerImagePickerOpen] = useState(false);
+  const [pickerForPageId, setPickerForPageId] = useState<string | null>(null);
+  const [expandedBannerPageId, setExpandedBannerPageId] = useState<string | null>(null);
   const [selectedNodeIndex, setSelectedNodeIndex] = useState(0);
   const [previewLayout, setPreviewLayout] = useState<'canvas' | 'hero' | 'banner'>('canvas');
   const [activeTab, setActiveTab] = useState<'overview' | 'pages' | 'navigation' | 'media' | 'leads' | 'products' | 'settings' | 'articles' | 'projects' | 'seo' | 'logs' | 'trash' | 'gui'>('overview');
@@ -799,19 +803,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
   const [auditEff, setAuditEff] = useState(82);
   const [auditPrice, setAuditPrice] = useState(20000);
 
-  // Image reader to base64
-  const handleImageFileChange = (e: React.ChangeEvent<HTMLInputElement>, callback: (base64: string) => void) => {
-    const file = e.target.files?.[0];
-    if (file) {
-      const reader = new FileReader();
-      reader.onloadend = () => {
-        if (typeof reader.result === 'string') {
-          callback(reader.result);
-        }
-      };
-      reader.readAsDataURL(file);
-    }
-  };
+
 
   // Articles management state
   const [showAddArticleModal, setShowAddArticleModal] = useState(false);
@@ -1897,81 +1889,200 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                     const titleVi = p.title?.vi || p.titleVi || p.name || '';
                     const titleEn = p.title?.en || p.titleEn || p.name || '';
                     return (
-                      <tr key={p.id} style={styles.tr}>
-                        <td style={styles.td}>
-                          <strong>{titleVi}</strong> / <span style={{ color: 'var(--color-text-muted)' }}>{titleEn}</span>
-                        </td>
-                        <td style={styles.td}>
-                          <code style={{ backgroundColor: '#F1F5F9', padding: '0.1rem 0.3rem', borderRadius: 'var(--border-radius-sm)', fontSize: '0.8rem' }}>/{p.slug}</code>
-                        </td>
-                        <td style={styles.td}>
-                          <select 
-                            value={p.status}
-                            onChange={(e) => {
-                              const newStatus = e.target.value;
-                              setPages(prev => prev.map(item => item.id === p.id ? { ...item, status: newStatus } : item));
-                              logAction(`Changed page "${titleVi}" status to ${newStatus}`);
-                            }}
-                            style={{ padding: '0.2rem 0.4rem', fontSize: '0.8rem', borderRadius: 'var(--border-radius-sm)', border: '1px solid var(--color-gray-border)' }}
-                          >
-                            <option value="published">Published</option>
-                            <option value="draft">Draft</option>
-                            <option value="hidden">Hidden</option>
-                          </select>
-                        </td>
-                        <td style={styles.td}>
-                          <input 
-                            type="checkbox" 
-                            checked={p.onMenu !== false}
-                            onChange={(e) => {
-                              const checked = e.target.checked;
-                              setPages(prev => prev.map(item => item.id === p.id ? { ...item, onMenu: checked } : item));
-                              logAction(`Changed page "${titleVi}" menu option to ${checked}`);
-                            }}
-                          />
-                        </td>
-                        <td style={styles.td}>
-                          <input 
-                            type="checkbox" 
-                            checked={p.searchable !== false}
-                            onChange={(e) => {
-                              const checked = e.target.checked;
-                              setPages(prev => prev.map(item => item.id === p.id ? { ...item, searchable: checked } : item));
-                              logAction(`Changed page "${titleVi}" search indexing to ${checked}`);
-                            }}
-                          />
-                        </td>
-                        <td style={styles.td}>
-                          <button 
-                            className="btn btn-outline btn-sm"
-                            style={{ padding: '0.2rem 0.4rem', fontSize: '0.75rem' }}
-                            onClick={() => {
-                              const newTitle = prompt('Nhập tên trang tiếng Việt:', titleVi);
-                              if (newTitle) {
-                                setPages(prev => prev.map(item => item.id === p.id ? { ...item, title: { ...(item.title || {}), vi: newTitle } } : item));
-                                logAction(`Renamed page to "${newTitle}"`);
-                              }
-                            }}
-                          >
-                            Sửa tên
-                          </button>
-                          <button 
-                            className="btn btn-teal btn-sm"
-                            style={{ padding: '0.2rem 0.4rem', fontSize: '0.75rem', marginLeft: '0.5rem' }}
-                            onClick={() => {
-                              setEditingBlocksPageId(p.id);
-                              const blocks = getPageBlocks(p.id);
-                              if (blocks.length > 0) {
-                                setSelectedBlockId(blocks[0].id);
-                              } else {
-                                setSelectedBlockId(null);
-                              }
-                            }}
-                          >
-                            {language === 'vi' ? 'Thiết kế block' : 'Page Blocks'}
-                          </button>
-                        </td>
-                      </tr>
+                      <React.Fragment key={p.id}>
+                        <tr style={styles.tr}>
+                          <td style={styles.td}>
+                            <strong>{titleVi}</strong> / <span style={{ color: 'var(--color-text-muted)' }}>{titleEn}</span>
+                          </td>
+                          <td style={styles.td}>
+                            <code style={{ backgroundColor: '#F1F5F9', padding: '0.1rem 0.3rem', borderRadius: 'var(--border-radius-sm)', fontSize: '0.8rem' }}>/{p.slug}</code>
+                          </td>
+                          <td style={styles.td}>
+                            <select 
+                              value={p.status}
+                              onChange={(e) => {
+                                const newStatus = e.target.value;
+                                setPages(prev => prev.map(item => item.id === p.id ? { ...item, status: newStatus } : item));
+                                logAction(`Changed page "${titleVi}" status to ${newStatus}`);
+                              }}
+                              style={{ padding: '0.2rem 0.4rem', fontSize: '0.8rem', borderRadius: 'var(--border-radius-sm)', border: '1px solid var(--color-gray-border)' }}
+                            >
+                              <option value="published">Published</option>
+                              <option value="draft">Draft</option>
+                              <option value="hidden">Hidden</option>
+                            </select>
+                          </td>
+                          <td style={styles.td}>
+                            <input 
+                              type="checkbox" 
+                              checked={p.onMenu !== false}
+                              onChange={(e) => {
+                                const checked = e.target.checked;
+                                setPages(prev => prev.map(item => item.id === p.id ? { ...item, onMenu: checked } : item));
+                                logAction(`Changed page "${titleVi}" menu option to ${checked}`);
+                              }}
+                            />
+                          </td>
+                          <td style={styles.td}>
+                            <input 
+                              type="checkbox" 
+                              checked={p.searchable !== false}
+                              onChange={(e) => {
+                                const checked = e.target.checked;
+                                setPages(prev => prev.map(item => item.id === p.id ? { ...item, searchable: checked } : item));
+                                logAction(`Changed page "${titleVi}" search indexing to ${checked}`);
+                              }}
+                            />
+                          </td>
+                          <td style={styles.td}>
+                            <button 
+                              className="btn btn-outline btn-sm"
+                              style={{ padding: '0.2rem 0.4rem', fontSize: '0.75rem' }}
+                              onClick={() => {
+                                const newTitle = prompt('Nhập tên trang tiếng Việt:', titleVi);
+                                if (newTitle) {
+                                  setPages(prev => prev.map(item => item.id === p.id ? { ...item, title: { ...(item.title || {}), vi: newTitle } } : item));
+                                  logAction(`Renamed page to "${newTitle}"`);
+                                }
+                              }}
+                            >
+                              Sửa tên
+                            </button>
+                            <button 
+                              className="btn btn-teal btn-sm"
+                              style={{ padding: '0.2rem 0.4rem', fontSize: '0.75rem', marginLeft: '0.5rem' }}
+                              onClick={() => {
+                                setEditingBlocksPageId(p.id);
+                                const blocks = getPageBlocks(p.id);
+                                if (blocks.length > 0) {
+                                  setSelectedBlockId(blocks[0].id);
+                                } else {
+                                  setSelectedBlockId(null);
+                                }
+                              }}
+                            >
+                              {language === 'vi' ? 'Thiết kế block' : 'Page Blocks'}
+                            </button>
+                            {p.id !== 'p-1' && (
+                              <button 
+                                className={`btn btn-sm ${expandedBannerPageId === p.id ? 'btn-teal' : 'btn-outline'}`}
+                                style={{ padding: '0.2rem 0.4rem', fontSize: '0.75rem', marginLeft: '0.5rem' }}
+                                onClick={() => setExpandedBannerPageId(expandedBannerPageId === p.id ? null : p.id)}
+                              >
+                                🖼️ {language === 'vi' ? 'Ảnh bìa' : 'Banner'}
+                              </button>
+                            )}
+                          </td>
+                        </tr>
+                      {expandedBannerPageId === p.id && (
+                        <tr style={{ backgroundColor: '#F8FAFC' }}>
+                          <td colSpan={6} style={{ padding: '1rem', borderBottom: '1px solid var(--color-gray-border)' }}>
+                            <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem', maxWidth: '500px' }}>
+                              <strong style={{ fontSize: '0.85rem', color: 'var(--color-navy)' }}>
+                                {language === 'vi' ? 'Cấu hình Ảnh bìa (Banner) của trang' : 'Page Banner Configuration'}
+                              </strong>
+                              <div style={{ display: 'flex', gap: '1rem', alignItems: 'center' }}>
+                                <div style={{
+                                  width: '120px',
+                                  height: '40px',
+                                  borderRadius: 'var(--border-radius-sm)',
+                                  border: '1px solid var(--color-gray-border)',
+                                  backgroundImage: `url(${p.bannerImage || (
+                                    p.id === 'p-2' || p.id === 'p-3' || p.id === 'p-4' || p.id === 'p-5'
+                                      ? 'https://images.unsplash.com/photo-1518152006812-edab29b069ac?q=80&w=2070&auto=format&fit=crop'
+                                      : p.id === 'p-6'
+                                        ? 'https://images.unsplash.com/photo-1581092160607-ee22621dd758?q=80&w=2070&auto=format&fit=crop'
+                                        : p.id === 'p-7'
+                                          ? 'https://images.unsplash.com/photo-1541888946425-d81bb19240f5?q=80&w=2070&auto=format&fit=crop'
+                                          : p.id === 'p-8'
+                                            ? 'https://images.unsplash.com/photo-1454165804606-c3d57bc86b40?q=80&w=2070&auto=format&fit=crop'
+                                            : 'https://images.unsplash.com/photo-1423666639041-f56000c27a9a?q=80&w=2070&auto=format&fit=crop'
+                                  )})`,
+                                  backgroundSize: p.bannerScale !== undefined ? `${p.bannerScale}%` : 'cover',
+                                  backgroundPosition: `center ${p.bannerAlignmentY !== undefined ? p.bannerAlignmentY : 50}%`
+                                }} />
+                                <div style={{ display: 'flex', gap: '0.5rem' }}>
+                                  <button 
+                                    type="button" 
+                                    className="btn btn-teal btn-sm"
+                                    onClick={() => {
+                                      setPickerForPageId(p.id);
+                                      setPageBannerImagePickerOpen(true);
+                                    }}
+                                  >
+                                    {language === 'vi' ? 'Chọn từ Media Vault' : 'Choose from Media'}
+                                  </button>
+                                  {p.bannerImage && (
+                                    <button 
+                                      type="button" 
+                                      className="btn btn-outline btn-sm"
+                                      onClick={() => {
+                                        setPages(prev => prev.map(item => item.id === p.id ? { ...item, bannerImage: undefined, bannerScale: undefined } : item));
+                                        logAction(`Reset banner image for page ID: ${p.id}`);
+                                      }}
+                                    >
+                                      {language === 'vi' ? 'Xóa (Dùng mặc định)' : 'Reset to Default'}
+                                    </button>
+                                  )}
+                                </div>
+                              </div>
+                              
+                              {p.bannerImage && (
+                                <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
+                                  {/* Focal Y */}
+                                  <div style={{ display: 'flex', flexDirection: 'column', gap: '0.25rem' }}>
+                                    <label className="form-label" style={{ fontSize: '0.75rem', display: 'flex', justifyContent: 'space-between', marginBottom: 0 }}>
+                                      <span>{language === 'vi' ? 'Cắt & Căn dọc ảnh bìa (Ultrawide Crop)' : 'Vertical Crop & Focus'}</span>
+                                      <span style={{ fontWeight: 'bold', color: 'var(--color-teal)' }}>{p.bannerAlignmentY !== undefined ? p.bannerAlignmentY : 50}%</span>
+                                    </label>
+                                    <input 
+                                      type="range" 
+                                      min="0" 
+                                      max="100" 
+                                      value={p.bannerAlignmentY !== undefined ? p.bannerAlignmentY : 50}
+                                      onChange={(e) => {
+                                        const val = parseInt(e.target.value);
+                                        setPages(prev => prev.map(item => item.id === p.id ? { ...item, bannerAlignmentY: val } : item));
+                                      }}
+                                      style={{ width: '100%', cursor: 'pointer' }}
+                                    />
+                                    <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.65rem', color: '#94a3b8' }}>
+                                      <span>{language === 'vi' ? 'Trên (Top)' : 'Top'}</span>
+                                      <span>{language === 'vi' ? 'Giữa' : 'Center'}</span>
+                                      <span>{language === 'vi' ? 'Dưới (Bottom)' : 'Bottom'}</span>
+                                    </div>
+                                  </div>
+
+                                  {/* Scale / Zoom */}
+                                  <div style={{ display: 'flex', flexDirection: 'column', gap: '0.25rem', borderTop: '1px solid rgba(0,0,0,0.05)', paddingTop: '0.5rem' }}>
+                                    <label className="form-label" style={{ fontSize: '0.75rem', display: 'flex', justifyContent: 'space-between', marginBottom: 0 }}>
+                                      <span>{language === 'vi' ? 'Thu phóng hình ảnh (Zoom)' : 'Zoom / Scale'}</span>
+                                      <span style={{ fontWeight: 'bold', color: 'var(--color-teal)' }}>{p.bannerScale !== undefined ? p.bannerScale : 100}%</span>
+                                    </label>
+                                    <input 
+                                      type="range" 
+                                      min="100" 
+                                      max="200" 
+                                      value={p.bannerScale !== undefined ? p.bannerScale : 100}
+                                      onChange={(e) => {
+                                        const val = parseInt(e.target.value);
+                                        setPages(prev => prev.map(item => item.id === p.id ? { ...item, bannerScale: val } : item));
+                                      }}
+                                      style={{ width: '100%', cursor: 'pointer' }}
+                                    />
+                                    <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.65rem', color: '#94a3b8' }}>
+                                      <span>100% (Cover)</span>
+                                      <span>150%</span>
+                                      <span>200%</span>
+                                    </div>
+                                  </div>
+                                </div>
+                              )}
+                            </div>
+                          </td>
+                        </tr>
+                      )}
+                      </React.Fragment>
                     );
                   })}
                 </tbody>
@@ -2361,18 +2472,72 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                       {selectedBlock.type === 'hero' && (
                         <div className="form-group" style={{ marginBottom: 0 }}>
                           <label className="form-label">{language === 'vi' ? 'Hình ảnh nền trạm khí' : 'Hero Background Image'}</label>
-                          <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
-                            <input 
-                              type="file" 
-                              accept="image/*" 
-                              className="form-input"
-                              onChange={(e) => handleImageFileChange(e, (base64) => {
-                                const list = blocksList.map((b: any) => b.id === selectedBlock.id ? { ...b, image: base64 } : b);
-                                handleSavePageBlocks(editingBlocksPageId, list);
-                              })}
-                            />
+                          <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
+                            <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
+                              <button
+                                type="button"
+                                className="btn btn-outline btn-sm"
+                                onClick={() => setBlockHeroImagePickerOpen(true)}
+                              >
+                                {language === 'vi' ? 'Chọn từ Media Vault' : 'Choose from Media Vault'}
+                              </button>
+                              {selectedBlock.image && (
+                                <img src={selectedBlock.image} alt="Thumbnail preview" style={{ width: '40px', height: '30px', objectFit: 'cover', borderRadius: 'var(--border-radius-xs)', border: '1px solid var(--color-gray-border)' }} />
+                              )}
+                            </div>
+                            
                             {selectedBlock.image && (
-                              <img src={selectedBlock.image} alt="Thumbnail preview" style={{ width: '40px', height: '30px', objectFit: 'cover', borderRadius: 'var(--border-radius-xs)', border: '1px solid var(--color-gray-border)' }} />
+                              <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem', backgroundColor: 'rgba(0,0,0,0.03)', padding: '0.75rem', borderRadius: 'var(--border-radius-sm)', border: '1px solid var(--color-gray-border)' }}>
+                                {/* Focal Y */}
+                                <div style={{ display: 'flex', flexDirection: 'column', gap: '0.25rem' }}>
+                                  <label className="form-label" style={{ fontSize: '0.75rem', display: 'flex', justifyContent: 'space-between', marginBottom: '0.25rem' }}>
+                                    <span>{language === 'vi' ? 'Cắt & Căn dọc ảnh bìa (Ultrawide Crop)' : 'Vertical Crop & Focus'}</span>
+                                    <span style={{ fontWeight: 'bold', color: 'var(--color-teal)' }}>{selectedBlock.imageAlignmentY !== undefined ? selectedBlock.imageAlignmentY : 50}%</span>
+                                  </label>
+                                  <input
+                                    type="range"
+                                    min="0"
+                                    max="100"
+                                    value={selectedBlock.imageAlignmentY !== undefined ? selectedBlock.imageAlignmentY : 50}
+                                    onChange={(e) => {
+                                      const val = parseInt(e.target.value);
+                                      const list = blocksList.map((b: any) => b.id === selectedBlock.id ? { ...b, imageAlignmentY: val } : b);
+                                      handleSavePageBlocks(editingBlocksPageId, list);
+                                    }}
+                                    style={{ width: '100%', cursor: 'pointer' }}
+                                  />
+                                  <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.65rem', color: '#94a3b8' }}>
+                                    <span>{language === 'vi' ? 'Trên (Top)' : 'Top'}</span>
+                                    <span>{language === 'vi' ? 'Giữa' : 'Center'}</span>
+                                    <span>{language === 'vi' ? 'Dưới (Bottom)' : 'Bottom'}</span>
+                                  </div>
+                                </div>
+
+                                {/* Zoom / Scale */}
+                                <div style={{ display: 'flex', flexDirection: 'column', gap: '0.25rem', borderTop: '1px solid rgba(0,0,0,0.08)', paddingTop: '0.5rem' }}>
+                                  <label className="form-label" style={{ fontSize: '0.75rem', display: 'flex', justifyContent: 'space-between', marginBottom: '0.25rem' }}>
+                                    <span>{language === 'vi' ? 'Thu phóng hình ảnh (Zoom)' : 'Zoom / Scale'}</span>
+                                    <span style={{ fontWeight: 'bold', color: 'var(--color-teal)' }}>{selectedBlock.imageScale !== undefined ? selectedBlock.imageScale : 100}%</span>
+                                  </label>
+                                  <input
+                                    type="range"
+                                    min="100"
+                                    max="200"
+                                    value={selectedBlock.imageScale !== undefined ? selectedBlock.imageScale : 100}
+                                    onChange={(e) => {
+                                      const val = parseInt(e.target.value);
+                                      const list = blocksList.map((b: any) => b.id === selectedBlock.id ? { ...b, imageScale: val } : b);
+                                      handleSavePageBlocks(editingBlocksPageId, list);
+                                    }}
+                                    style={{ width: '100%', cursor: 'pointer' }}
+                                  />
+                                  <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.65rem', color: '#94a3b8' }}>
+                                    <span>100% (Cover)</span>
+                                    <span>150%</span>
+                                    <span>200%</span>
+                                  </div>
+                                </div>
+                              </div>
                             )}
                           </div>
                         </div>
@@ -4465,6 +4630,33 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
       <MediaPickerDialog open={projectMediaPickerOpen} value={newProj.imageURL} language={language} onClose={() => setProjectMediaPickerOpen(false)} onSelect={(url) => setNewProj((current) => ({ ...current, imageURL: current.imageURL || url, galleryImages: Array.from(new Set([...current.galleryImages, url])) }))} />
       <MediaPickerDialog open={blockLogoPickerOpen} language={language} onClose={() => setBlockLogoPickerOpen(false)} onSelect={async (url) => { if (!editingBlocksPageId || !selectedBlockId) return; const blocksList = getPageBlocks(editingBlocksPageId); const selectedBlock = blocksList.find((b: any) => b.id === selectedBlockId); const client = supabase; if (client) { try { const path = decodeURIComponent(url.split('/').pop() || ''); const currentLogosLength = selectedBlock?.logos?.length || 0; await client.from('media_assets').update({ media_role: 'logo', visible: true, sort_order: currentLogosLength }).eq('storage_path', path); } catch (err) { console.error('Failed to save partner logo to Supabase:', err); } } handleSavePageBlocks(editingBlocksPageId, blocksList.map((block: any) => block.id === selectedBlockId ? { ...block, logos: Array.from(new Set([...(block.logos || []), url])) } : block)); }} />
       <MediaPickerDialog open={guiLogoPickerOpen} language={language} onClose={() => setGuiLogoPickerOpen(false)} onSelect={(url) => { onUpdateGuiSettings({ ...guiSettings, logoUrl: url }); setGuiLogoPickerOpen(false); }} />
+      <MediaPickerDialog 
+        open={blockHeroImagePickerOpen} 
+        language={language} 
+        onClose={() => setBlockHeroImagePickerOpen(false)} 
+        onSelect={(url) => {
+          if (!editingBlocksPageId || !selectedBlockId) return;
+          const blocksList = getPageBlocks(editingBlocksPageId);
+          const list = blocksList.map((b: any) => b.id === selectedBlockId ? { ...b, image: url } : b);
+          handleSavePageBlocks(editingBlocksPageId, list);
+          setBlockHeroImagePickerOpen(false);
+        }} 
+      />
+      <MediaPickerDialog 
+        open={pageBannerImagePickerOpen} 
+        language={language} 
+        onClose={() => {
+          setPageBannerImagePickerOpen(false);
+          setPickerForPageId(null);
+        }} 
+        onSelect={(url) => {
+          if (!pickerForPageId) return;
+          setPages(prev => prev.map(item => item.id === pickerForPageId ? { ...item, bannerImage: url } : item));
+          logAction(`Selected banner image from Media Vault for page ID: ${pickerForPageId}`);
+          setPageBannerImagePickerOpen(false);
+          setPickerForPageId(null);
+        }} 
+      />
     </div>
   );
 };

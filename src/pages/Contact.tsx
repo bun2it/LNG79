@@ -15,10 +15,12 @@ interface ContactProps {
   };
   setContactInfo?: React.Dispatch<React.SetStateAction<any>>;
   isVisualEditing?: boolean;
+  pages?: any[];
 }
 
-export const Contact: React.FC<ContactProps> = ({ onSubmitLead, contactInfo, setContactInfo, isVisualEditing }) => {
+export const Contact: React.FC<ContactProps> = ({ onSubmitLead, contactInfo, setContactInfo, isVisualEditing, pages }) => {
   const { language, t } = useLanguage();
+  const pageObj = pages?.find(p => p.id === 'p-9');
 
   const defaultContact = {
     addressVi: 'Lô CN-08, Khu Công Nghiệp Sóng Thần 3, Thủ Dầu Một, Bình Dương, Việt Nam',
@@ -34,7 +36,12 @@ export const Contact: React.FC<ContactProps> = ({ onSubmitLead, contactInfo, set
   return (
     <div style={{ width: '100%' }}>
       {/* Banner */}
-      <section style={styles.banner}>
+      <section style={{
+        ...styles.banner,
+        backgroundImage: pageObj?.bannerImage ? `url(${pageObj.bannerImage})` : styles.banner.backgroundImage,
+        backgroundPosition: pageObj?.bannerAlignmentY !== undefined ? `center ${pageObj.bannerAlignmentY}%` : 'center',
+        backgroundSize: pageObj?.bannerScale !== undefined ? `${pageObj.bannerScale}%` : 'cover'
+      }}>
         <div style={styles.bannerOverlay}></div>
         <div className="container" style={styles.bannerContainer}>
           <h1 style={styles.bannerTitle}>{t('navContact')}</h1>

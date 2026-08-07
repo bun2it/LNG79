@@ -21,6 +21,7 @@ interface ProductsProps {
   products?: any[];
   setProducts?: React.Dispatch<React.SetStateAction<any[]>>;
   isVisualEditing?: boolean;
+  pages?: any[];
 }
 
 export const PRODUCTS_DATA: ProductItem[] = [
@@ -139,11 +140,13 @@ export const PRODUCTS_DATA: ProductItem[] = [
   }
 ];
 
-export const Products: React.FC<ProductsProps> = ({ onAddProduct, cartItems, products = [], setProducts, isVisualEditing }) => {
+export const Products: React.FC<ProductsProps> = ({ onAddProduct, cartItems, products = [], setProducts, isVisualEditing, pages }) => {
   const { language, t } = useLanguage();
   const [activeTab, setActiveTab] = useState<string>('all');
   const [searchQuery, setSearchQuery] = useState<string>('');
   const [selectedProduct, setSelectedProduct] = useState<ProductItem | null>(null);
+
+  const pageObj = pages?.find(p => p.id === 'p-6');
 
   const tabs = [
     { id: 'all', label: t('prodFilterAll') },
@@ -166,7 +169,12 @@ export const Products: React.FC<ProductsProps> = ({ onAddProduct, cartItems, pro
   return (
     <div style={{ width: '100%' }}>
       {/* Banner */}
-      <section style={styles.banner}>
+      <section style={{
+        ...styles.banner,
+        backgroundImage: pageObj?.bannerImage ? `url(${pageObj.bannerImage})` : styles.banner.backgroundImage,
+        backgroundPosition: pageObj?.bannerAlignmentY !== undefined ? `center ${pageObj.bannerAlignmentY}%` : 'center',
+        backgroundSize: pageObj?.bannerScale !== undefined ? `${pageObj.bannerScale}%` : 'cover'
+      }}>
         <div style={styles.bannerOverlay}></div>
         <div className="container" style={styles.bannerContainer}>
           <h1 style={styles.bannerTitle}>{t('prodCenterTitle')}</h1>

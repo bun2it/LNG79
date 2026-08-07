@@ -19,12 +19,15 @@ interface KnowledgeProps {
   articles: ArticleItem[];
   setArticles?: React.Dispatch<React.SetStateAction<ArticleItem[]>>;
   isVisualEditing?: boolean;
+  pages?: any[];
 }
 
-export const Knowledge: React.FC<KnowledgeProps> = ({ articles, setArticles, isVisualEditing }) => {
+export const Knowledge: React.FC<KnowledgeProps> = ({ articles, setArticles, isVisualEditing, pages }) => {
   const { language } = useLanguage();
   const [activeCategory, setActiveCategory] = useState<string>('all');
   const [readingArticle, setReadingArticle] = useState<ArticleItem | null>(null);
+
+  const pageObj = pages?.find(p => p.id === 'p-8');
 
   const categories = [
     { id: 'all', label: { vi: 'Tất cả chủ đề', en: 'All Topics' } },
@@ -41,7 +44,12 @@ export const Knowledge: React.FC<KnowledgeProps> = ({ articles, setArticles, isV
   return (
     <div style={{ width: '100%' }}>
       {/* Banner */}
-      <section style={styles.banner}>
+      <section style={{
+        ...styles.banner,
+        backgroundImage: pageObj?.bannerImage ? `url(${pageObj.bannerImage})` : styles.banner.backgroundImage,
+        backgroundPosition: pageObj?.bannerAlignmentY !== undefined ? `center ${pageObj.bannerAlignmentY}%` : 'center',
+        backgroundSize: pageObj?.bannerScale !== undefined ? `${pageObj.bannerScale}%` : 'cover'
+      }}>
         <div style={styles.bannerOverlay}></div>
         <div className="container" style={styles.bannerContainer}>
           <h1 style={styles.bannerTitle}>{language === 'vi' ? 'Thư Viện Kiến Thức Kỹ Thuật' : 'Technical Knowledge Library'}</h1>

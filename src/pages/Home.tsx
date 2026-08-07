@@ -150,7 +150,7 @@ export const Home: React.FC<HomeProps> = ({ setView, onAddProduct, cartItems, pa
                 );
               }
               return (
-                <section key={block.id || idx} style={{ ...styles.hero, backgroundImage: block.image ? `url(${block.image})` : undefined, minHeight: '80vh', display: 'flex', alignItems: 'center', position: 'relative' }}>
+                <section key={block.id || idx} style={{ ...styles.hero, backgroundImage: block.image ? `url(${block.image})` : undefined, backgroundPosition: block.imageAlignmentY !== undefined ? `center ${block.imageAlignmentY}%` : 'center', backgroundSize: block.imageScale !== undefined ? `${block.imageScale}%` : 'cover', minHeight: '80vh', display: 'flex', alignItems: 'center', position: 'relative' }}>
                   <div style={styles.heroOverlay}></div>
                   <div className="container" style={styles.heroContainer}>
                     <div style={styles.heroText}>

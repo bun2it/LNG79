@@ -21,11 +21,14 @@ interface ProjectsProps {
   projects: ProjectItem[];
   setProjects?: React.Dispatch<React.SetStateAction<ProjectItem[]>>;
   isVisualEditing?: boolean;
+  pages?: any[];
 }
 
-export const Projects: React.FC<ProjectsProps> = ({ projects, setProjects, isVisualEditing }) => {
+export const Projects: React.FC<ProjectsProps> = ({ projects, setProjects, isVisualEditing, pages }) => {
   const { language, t } = useLanguage();
   const [activeFilter, setActiveFilter] = useState<string>('all');
+
+  const pageObj = pages?.find(p => p.id === 'p-7');
 
   const filters = [
     { id: 'all', label: t('projFilterAll') },
@@ -43,7 +46,12 @@ export const Projects: React.FC<ProjectsProps> = ({ projects, setProjects, isVis
   return (
     <div style={{ width: '100%' }}>
       {/* Banner */}
-      <section style={styles.banner}>
+      <section style={{
+        ...styles.banner,
+        backgroundImage: pageObj?.bannerImage ? `url(${pageObj.bannerImage})` : styles.banner.backgroundImage,
+        backgroundPosition: pageObj?.bannerAlignmentY !== undefined ? `center ${pageObj.bannerAlignmentY}%` : 'center',
+        backgroundSize: pageObj?.bannerScale !== undefined ? `${pageObj.bannerScale}%` : 'cover'
+      }}>
         <div style={styles.bannerOverlay}></div>
         <div className="container" style={styles.bannerContainer}>
           <h1 style={styles.bannerTitle}>{t('projTitle')}</h1>

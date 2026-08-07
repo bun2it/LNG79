@@ -289,7 +289,12 @@ export const Solutions: React.FC<SolutionsProps> = ({ subView, setView, pages, s
   return (
     <div style={{ width: '100%' }}>
       {/* Banner */}
-      <section style={styles.banner}>
+      <section style={{
+        ...styles.banner,
+        backgroundImage: pageObj?.bannerImage ? `url(${pageObj.bannerImage})` : styles.banner.backgroundImage,
+        backgroundPosition: pageObj?.bannerAlignmentY !== undefined ? `center ${pageObj.bannerAlignmentY}%` : 'center',
+        backgroundSize: pageObj?.bannerScale !== undefined ? `${pageObj.bannerScale}%` : 'cover'
+      }}>
         <div style={styles.bannerOverlay}></div>
         <div className="container" style={styles.bannerContainer}>
           <span style={styles.bannerTag}>{language === 'vi' ? 'Phạm vi Kỹ thuật EPC' : 'EPC Scope of Engineering'}</span>

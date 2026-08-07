@@ -581,7 +581,8 @@ export const AppContent: React.FC = () => {
       { id: 'p-5', title: { vi: 'Thiết kế bếp và Central gas', en: 'Commercial Kitchen' }, slug: 'kitchen-solution', excerpt: { vi: 'Hệ thống bếp công nghiệp', en: 'Commercial kitchen systems' }, status: 'published', visible: true, onMenu: true, searchable: true },
       { id: 'p-6', title: { vi: 'Sản phẩm', en: 'Products' }, slug: 'products', excerpt: { vi: 'Danh mục thiết bị ngành khí và bếp', en: 'Equipment inventory for gas & kitchen systems' }, status: 'published', visible: true, onMenu: true, searchable: true },
       { id: 'p-7', title: { vi: 'Dự án', en: 'Projects' }, slug: 'projects', excerpt: { vi: 'Dự án đã làm', en: 'Projects completed' }, status: 'published', visible: true, onMenu: true, searchable: true },
-      { id: 'p-8', title: { vi: 'Thư viện', en: 'Knowledge' }, slug: 'knowledge', excerpt: { vi: 'Tài liệu kỹ thuật và an toàn', en: 'Technical and safety manuals' }, status: 'published', visible: true, onMenu: true, searchable: true }
+      { id: 'p-8', title: { vi: 'Thư viện', en: 'Knowledge' }, slug: 'knowledge', excerpt: { vi: 'Tài liệu kỹ thuật và an toàn', en: 'Technical and safety manuals' }, status: 'published', visible: true, onMenu: true, searchable: true },
+      { id: 'p-9', title: { vi: 'Liên hệ', en: 'Contact' }, slug: 'contact', excerpt: { vi: 'Liên hệ LNG79', en: 'Contact LNG79' }, status: 'published', visible: true, onMenu: false, searchable: true }
     ];
   });
 
@@ -1295,9 +1296,9 @@ export const AppContent: React.FC = () => {
       case 'kitchen-solution':
         return <Solutions subView="kitchen-solution" setView={setView} pages={pages} setPages={setPages} isVisualEditing={isVisualEditing} />;
       case 'products':
-        return <Products onAddProduct={handleAddProduct} cartItems={cartItems} products={products} setProducts={setProducts} isVisualEditing={isVisualEditing} />;
+        return <Products onAddProduct={handleAddProduct} cartItems={cartItems} products={products} setProducts={setProducts} isVisualEditing={isVisualEditing} pages={pages} />;
       case 'projects':
-        return <Projects projects={projects} setProjects={setProjects} isVisualEditing={isVisualEditing} />;
+        return <Projects projects={projects} setProjects={setProjects} isVisualEditing={isVisualEditing} pages={pages} />;
       case 'calculator':
         return (
           <div className="container" style={{ padding: '4rem 1.5rem' }}>
@@ -1305,7 +1306,7 @@ export const AppContent: React.FC = () => {
           </div>
         );
       case 'knowledge':
-        return <Knowledge articles={articles} setArticles={setArticles} isVisualEditing={isVisualEditing} />;
+        return <Knowledge articles={articles} setArticles={setArticles} isVisualEditing={isVisualEditing} pages={pages} />;
       case 'contact':
         return (
           <Contact 
@@ -1313,6 +1314,7 @@ export const AppContent: React.FC = () => {
             contactInfo={contactInfo}
             setContactInfo={setContactInfo}
             isVisualEditing={isVisualEditing}
+            pages={pages}
           />
         );
       case 'admin':
