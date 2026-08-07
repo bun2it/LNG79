@@ -8,7 +8,13 @@ import { type CmsProfile, supabase } from '../shared/supabase/supabase';
 import { LeadInbox } from './components/LeadInbox';
 import { CrmCompanies } from './components/CrmCompanies';
 import { CrmContacts } from './components/CrmContacts';
-import { CrmOpportunities } from './components/CrmOpportunities';
+import { CrmPipeline } from './components/CrmPipeline';
+import { CrmTasks } from './components/CrmTasks';
+import { CrmCalendar } from './components/CrmCalendar';
+import { CrmQuotes } from './components/CrmQuotes';
+import { CrmContracts } from './components/CrmContracts';
+import { CrmDashboard } from './components/CrmDashboard';
+import { CrmReports } from './components/CrmReports';
 
 interface CrmAppProps {
   language: 'vi' | 'en';
@@ -97,6 +103,20 @@ export const CrmApp: React.FC<CrmAppProps> = ({ language, userProfile, onLogout,
 
   const renderActiveView = () => {
     switch (activeMenu) {
+      case 'dashboard':
+        return (
+          <CrmDashboard
+            language={language}
+            userProfile={userProfile}
+            onNavigate={(menuId) => setActiveMenu(menuId)}
+          />
+        );
+      case 'reports':
+        return (
+          <CrmReports
+            language={language}
+          />
+        );
       case 'inbox':
         return (
           <LeadInbox 
@@ -121,8 +141,41 @@ export const CrmApp: React.FC<CrmAppProps> = ({ language, userProfile, onLogout,
         );
       case 'pipeline':
         return (
-          <CrmOpportunities 
+          <CrmPipeline
             language={language}
+            userProfile={userProfile}
+            onLogAction={(msg) => console.log('CRM Log:', msg)}
+          />
+        );
+      case 'tasks':
+        return (
+          <CrmTasks
+            language={language}
+            userProfile={userProfile}
+            onLogAction={(msg) => console.log('CRM Log:', msg)}
+          />
+        );
+      case 'calendar':
+        return (
+          <CrmCalendar
+            language={language}
+            userProfile={userProfile}
+            onNavigateToTasks={() => setActiveMenu('tasks')}
+          />
+        );
+      case 'quotes':
+        return (
+          <CrmQuotes
+            language={language}
+            userProfile={userProfile}
+            onLogAction={(msg) => console.log('CRM Log:', msg)}
+          />
+        );
+      case 'contracts':
+        return (
+          <CrmContracts
+            language={language}
+            userProfile={userProfile}
             onLogAction={(msg) => console.log('CRM Log:', msg)}
           />
         );
@@ -133,9 +186,7 @@ export const CrmApp: React.FC<CrmAppProps> = ({ language, userProfile, onLogout,
               {menuItems.find((m) => m.id === activeMenu)?.label[language]}
             </h2>
             <p style={{ color: 'var(--color-text-muted)', fontSize: '0.875rem', marginTop: '0.25rem' }}>
-              {activeMenu === 'dashboard' ? (language === 'vi' ? 'Tổng quan hiệu suất bán hàng B2B, doanh số dự báo và nhắc việc hàng ngày.' : 'Overview of B2B sales performance, forecast revenue, and follow-ups.') : 
-               activeMenu === 'tasks' ? (language === 'vi' ? 'Đầu việc cần làm, cuộc gọi, cuộc hẹn khảo sát.' : 'To-do tasks, calls, and site visits.') :
-               language === 'vi' ? 'Mô-đun đang trong lộ trình phát triển. Vui lòng quay lại sau.' : 'Module layout is being mapped. Please check back later.'}
+              {language === 'vi' ? 'Mô-đun đang trong lộ trình phát triển. Vui lòng quay lại sau.' : 'Module layout is being mapped. Please check back later.'}
             </p>
             <div style={styles.placeholderContainer}>
               <Briefcase size={48} color="#e2e8f0" style={{ marginBottom: '1rem' }} />
