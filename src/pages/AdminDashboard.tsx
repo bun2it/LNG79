@@ -9,6 +9,7 @@ import type { ProjectItem } from './Projects';
 import type { ProductItem } from './Products';
 import { ArticleManager, ProductManager, ProjectManager } from '../components/admin/ContentManagers';
 import { MediaPickerDialog } from '../components/admin/MediaPickerDialog';
+import { SOLUTIONS_PAGE_DATA } from './Solutions';
 import { createCmsBackup, downloadCmsBackup, restoreCmsBackup, validateCmsBackup } from '../features/cms/backup';
 import { authFetch } from '../features/auth/authFetch';
 import { getCurrentCmsProfile, getSupabaseClient, supabaseConfiguration, supabase } from '../lib/supabase';
@@ -772,6 +773,42 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
   const handleSavePageBlocks = (pageId: string, blocksList: any[]) => {
     setPages(prev => prev.map(p => p.id === pageId ? { ...p, blocks: blocksList } : p));
     logAction(`Saved page blocks layout for page ID: ${pageId}`);
+  };
+
+  const persistFaqsToSupabase = async (pageId: string, faqsList: any[]) => {
+    const client = supabase;
+    if (!client) return;
+    const pageObj = pages.find(p => p.id === pageId);
+    const pageSlug = pageObj?.slug;
+    if (!pageSlug) return;
+    try {
+      await client
+        .from('site_texts')
+        .delete()
+        .like('content_key', `${pageSlug}.faq.%`);
+      if (faqsList && faqsList.length > 0) {
+        const rowsToInsert = [];
+        for (let i = 0; i < faqsList.length; i++) {
+          const item = faqsList[i];
+          rowsToInsert.push({
+            content_key: `${pageSlug}.faq.${i}.q`,
+            value_vi: item.q?.vi || '',
+            value_en: item.q?.en || '',
+            status: 'published'
+          });
+          rowsToInsert.push({
+            content_key: `${pageSlug}.faq.${i}.a`,
+            value_vi: item.a?.vi || '',
+            value_en: item.a?.en || '',
+            status: 'published'
+          });
+        }
+        const { error } = await client.from('site_texts').insert(rowsToInsert);
+        if (error) throw error;
+      }
+    } catch (err) {
+      console.error('Failed to save FAQs to Supabase:', err);
+    }
   };
 
   const handleRestoreFromTrash = (item: any) => {
@@ -2114,8 +2151,10 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                                       q: { vi: 'Câu hỏi mới', en: 'New question' }, 
                                       a: { vi: 'Nội dung trả lời mới', en: 'New answer details' } 
                                     };
-                                    setPages(prev => prev.map(item => item.id === p.id ? { ...item, faqs: [...(item.faqs || []), newFaq] } : item));
+                                    const updated = [...(p.faqs || []), newFaq];
+                                    setPages(prev => prev.map(item => item.id === p.id ? { ...item, faqs: updated } : item));
                                     logAction(`Added new FAQ item to page ID: ${p.id}`);
+                                    void persistFaqsToSupabase(p.id, updated);
                                   }}
                                 >
                                   + {language === 'vi' ? 'Thêm câu hỏi' : 'Add FAQ'}
@@ -2123,9 +2162,26 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                               </div>
                               
                               {(!p.faqs || p.faqs.length === 0) ? (
-                                <p style={{ fontSize: '0.85rem', color: 'var(--color-text-muted)', margin: 0 }}>
-                                  {language === 'vi' ? 'Chưa có câu hỏi nào được cấu hình cho trang này.' : 'No FAQs configured for this page.'}
-                                </p>
+                                <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
+                                  <p style={{ fontSize: '0.85rem', color: 'var(--color-text-muted)', margin: 0 }}>
+                                    {language === 'vi' ? 'Chưa có câu hỏi nào được cấu hình cho trang này.' : 'No FAQs configured for this page.'}
+                                  </p>
+                                  {p.id === 'p-2' && (
+                                    <button
+                                      type="button"
+                                      className="btn btn-outline btn-sm"
+                                      style={{ width: 'fit-content', display: 'flex', alignItems: 'center', gap: '0.25rem' }}
+                                      onClick={() => {
+                                        const defaultFaqs = SOLUTIONS_PAGE_DATA['lng-solution']?.faqs || [];
+                                        setPages(prev => prev.map(item => item.id === p.id ? { ...item, faqs: defaultFaqs } : item));
+                                        logAction(`Seeded default LNG FAQs locally`);
+                                        void persistFaqsToSupabase(p.id, defaultFaqs);
+                                      }}
+                                    >
+                                      📥 {language === 'vi' ? 'Khởi tạo 10 câu hỏi mẫu từ mã nguồn lên database' : 'Seed 10 default LNG FAQs to database'}
+                                    </button>
+                                  )}
+                                </div>
                               ) : (
                                 <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
                                   {(p.faqs || []).map((faq: any, faqIdx: number) => (
@@ -2152,6 +2208,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                                               const updated = (p.faqs || []).filter((_: any, idx: number) => idx !== faqIdx);
                                               setPages(prev => prev.map(item => item.id === p.id ? { ...item, faqs: updated } : item));
                                               logAction(`Deleted FAQ #${faqIdx + 1} for page ID: ${p.id}`);
+                                              void persistFaqsToSupabase(p.id, updated);
                                             }
                                           }}
                                         >
@@ -2167,6 +2224,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                                             className="form-input" 
                                             style={{ fontSize: '0.85rem', padding: '0.25rem 0.5rem' }} 
                                             value={faq.q?.vi || ''}
+                                            onBlur={() => persistFaqsToSupabase(p.id, p.faqs || [])}
                                             onChange={(e) => {
                                               const updated = [...(p.faqs || [])];
                                               updated[faqIdx] = { ...faq, q: { ...(faq.q || {}), vi: e.target.value } };
@@ -2181,6 +2239,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                                             className="form-input" 
                                             style={{ fontSize: '0.85rem', padding: '0.25rem 0.5rem' }} 
                                             value={faq.q?.en || ''}
+                                            onBlur={() => persistFaqsToSupabase(p.id, p.faqs || [])}
                                             onChange={(e) => {
                                               const updated = [...(p.faqs || [])];
                                               updated[faqIdx] = { ...faq, q: { ...(faq.q || {}), en: e.target.value } };
@@ -2197,6 +2256,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                                             className="form-input" 
                                             style={{ fontSize: '0.85rem', padding: '0.25rem 0.5rem', height: '60px', resize: 'vertical' }} 
                                             value={faq.a?.vi || ''}
+                                            onBlur={() => persistFaqsToSupabase(p.id, p.faqs || [])}
                                             onChange={(e) => {
                                               const updated = [...(p.faqs || [])];
                                               updated[faqIdx] = { ...faq, a: { ...(faq.a || {}), vi: e.target.value } };
@@ -2210,6 +2270,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                                             className="form-input" 
                                             style={{ fontSize: '0.85rem', padding: '0.25rem 0.5rem', height: '60px', resize: 'vertical' }} 
                                             value={faq.a?.en || ''}
+                                            onBlur={() => persistFaqsToSupabase(p.id, p.faqs || [])}
                                             onChange={(e) => {
                                               const updated = [...(p.faqs || [])];
                                               updated[faqIdx] = { ...faq, a: { ...(faq.a || {}), en: e.target.value } };

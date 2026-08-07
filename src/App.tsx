@@ -575,7 +575,7 @@ export const AppContent: React.FC = () => {
           }
         ]
       },
-      { id: 'p-2', title: { vi: 'Giải pháp LNG', en: 'LNG Solutions' }, slug: 'lng-solution', excerpt: { vi: 'Hệ thống cấp khí và hóa lỏng', en: 'Gas supply and liquefaction systems' }, status: 'published', visible: true, onMenu: true, searchable: true },
+      { id: 'p-2', title: { vi: 'Giải pháp LNG', en: 'LNG Solutions' }, slug: 'lng-solution', excerpt: { vi: 'Hệ thống cấp khí và hóa lỏng', en: 'Gas supply and liquefaction systems' }, status: 'published', visible: true, onMenu: true, searchable: true, faqs: SOLUTIONS_PAGE_DATA['lng-solution'].faqs },
       { id: 'p-3', title: { vi: 'Giải pháp LPG', en: 'LPG Solutions' }, slug: 'lpg-solution', excerpt: { vi: 'Hệ thống cấp gas trung tâm', en: 'Centralized gas supply systems' }, status: 'published', visible: true, onMenu: true, searchable: true },
       { id: 'p-4', title: { vi: 'Cải tạo đầu đốt', en: 'Boiler Conversion' }, slug: 'conversion', excerpt: { vi: 'Chuyển đổi sang nhiên liệu sạch', en: 'Conversion to clean fuel solutions' }, status: 'published', visible: true, onMenu: true, searchable: true },
       { id: 'p-5', title: { vi: 'Thiết kế bếp và Central gas', en: 'Commercial Kitchen' }, slug: 'kitchen-solution', excerpt: { vi: 'Hệ thống bếp công nghiệp', en: 'Commercial kitchen systems' }, status: 'published', visible: true, onMenu: true, searchable: true },
@@ -667,19 +667,29 @@ export const AppContent: React.FC = () => {
                 // Load FAQ overrides
                 const faqRows = data.filter((row) => row.content_key.startsWith(`${pageSlug}.faq.`));
                 if (faqRows.length > 0) {
-                  const currentFaqs = [...(page.faqs || SOLUTIONS_PAGE_DATA[pageSlug].faqs || [])];
+                  const currentFaqs: any[] = [];
                   faqRows.forEach((row) => {
                     const parts = row.content_key.split('.');
                     const index = parseInt(parts[2]);
                     const fieldType = parts[3] as 'q' | 'a';
-                    if (!isNaN(index) && currentFaqs[index]) {
+                    if (!isNaN(index)) {
+                      if (!currentFaqs[index]) {
+                        currentFaqs[index] = { q: { vi: '', en: '' }, a: { vi: '', en: '' } };
+                      }
                       currentFaqs[index] = {
                         ...currentFaqs[index],
                         [fieldType]: { vi: row.value_vi, en: row.value_en }
                       };
                     }
                   });
-                  updatedPage.faqs = currentFaqs;
+                  updatedPage.faqs = currentFaqs.filter((item) => {
+                    return item && (
+                      (item.q?.vi && item.q.vi !== 'Câu hỏi mới') || 
+                      item.q?.en || 
+                      item.a?.vi || 
+                      item.a?.en
+                    );
+                  });
                 }
 
                 // Load equipment overrides
