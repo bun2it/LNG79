@@ -1,5 +1,5 @@
 import React from 'react';
-import { useLanguage } from '../context/LanguageContext';
+import { useLanguage } from '../../context/LanguageContext';
 import { MapPin, Phone, Mail, Clock, ShieldAlert } from 'lucide-react';
 import { ProjectWizard } from '../components/ProjectWizard';
 

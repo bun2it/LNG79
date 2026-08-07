@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { useLanguage } from '../context/LanguageContext';
+import { useLanguage } from '../../context/LanguageContext';
 import { BookOpen, AlertTriangle, ShieldCheck, Flame, ChefHat } from 'lucide-react';
 
 export interface ArticleItem {

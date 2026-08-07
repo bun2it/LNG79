@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { useLanguage } from '../context/LanguageContext';
+import { useLanguage } from '../../context/LanguageContext';
 import { X, Trash2, Send, CheckCircle } from 'lucide-react';
 
 interface ProductItem {
@@ -31,10 +31,13 @@ export const QuoteDrawer: React.FC<QuoteDrawerProps> = ({
     message: ''
   });
 
-  if (!isOpen) return null;
-
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
     setForm({ ...form, [e.target.name]: e.target.value });
+  };
+
+  const handleClose = () => {
+    setSubmitted(false);
+    onClose();
   };
 
   const handleSubmit = (e: React.FormEvent) => {
@@ -58,17 +61,34 @@ export const QuoteDrawer: React.FC<QuoteDrawerProps> = ({
     setTimeout(() => {
       onClearCart();
       setSubmitted(false);
-      onClose();
+      setForm({ company: '', contactName: '', phone: '', email: '', message: '' });
+      handleClose();
     }, 4000);
   };
 
   return (
-    <div style={styles.overlay}>
-      <div style={styles.drawer} className="animate-fade-in">
+    <div
+      style={{
+        ...styles.overlay,
+        opacity: isOpen ? 1 : 0,
+        pointerEvents: isOpen ? 'all' : 'none',
+        visibility: isOpen ? 'visible' : 'hidden',
+        transition: 'opacity 0.2s ease, visibility 0.2s ease',
+      }}
+      onClick={handleClose}
+    >
+      <div
+        style={{
+          ...styles.drawer,
+          transform: isOpen ? 'translateX(0)' : 'translateX(100%)',
+          transition: 'transform 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
+        }}
+        onClick={(e) => e.stopPropagation()}
+      >
         {/* Drawer Header */}
         <div style={styles.header}>
           <h3 style={{ margin: 0, fontSize: '1.2rem' }}>{t('quoteTitle')}</h3>
-          <button onClick={onClose} style={styles.closeBtn}><X size={24} /></button>
+          <button onClick={handleClose} style={styles.closeBtn}><X size={24} /></button>
         </div>
 
         {/* Drawer Content */}
@@ -87,7 +107,21 @@ export const QuoteDrawer: React.FC<QuoteDrawerProps> = ({
             </div>
           ) : cartItems.length === 0 ? (
             <div style={styles.emptyContainer}>
-              <p style={{ color: 'var(--color-text-muted)' }}>{t('quoteEmpty')}</p>
+              <div style={{ textAlign: 'center' }}>
+                <p style={{ color: 'var(--color-text-muted)', marginBottom: '1.5rem' }}>{t('quoteEmpty')}</p>
+                <p style={{ fontSize: '0.8rem', color: 'var(--color-text-muted)', marginBottom: '1.5rem' }}>
+                  {language === 'vi'
+                    ? 'Hãy vào trang Sản phẩm và nhấn "Thêm vào giỏ báo giá" để chọn thiết bị bạn muốn.'
+                    : 'Go to Products page and click "Add to Quote" to select equipment.'}
+                </p>
+                <button
+                  onClick={handleClose}
+                  className="btn btn-outline"
+                  style={{ width: '100%' }}
+                >
+                  {language === 'vi' ? 'Đóng và khám phá sản phẩm' : 'Close & Browse Products'}
+                </button>
+              </div>
             </div>
           ) : (
             <>
@@ -208,6 +242,7 @@ const styles: { [key: string]: React.CSSProperties } = {
     boxShadow: 'var(--shadow-premium)',
     display: 'flex',
     flexDirection: 'column',
+    overflowY: 'auto',
   },
   header: {
     padding: '1.25rem 1.5rem',
@@ -217,6 +252,7 @@ const styles: { [key: string]: React.CSSProperties } = {
     alignItems: 'center',
     backgroundColor: 'var(--color-navy)',
     color: 'var(--color-white)',
+    flexShrink: 0,
   },
   closeBtn: {
     background: 'none',
@@ -233,10 +269,11 @@ const styles: { [key: string]: React.CSSProperties } = {
     padding: '1.5rem',
   },
   emptyContainer: {
-    height: '200px',
+    height: '300px',
     display: 'flex',
     alignItems: 'center',
     justifyContent: 'center',
+    padding: '2rem',
   },
   successContainer: {
     display: 'flex',

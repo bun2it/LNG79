@@ -1,6 +1,6 @@
 import React, { useCallback, useEffect, useState, forwardRef, useImperativeHandle, useRef } from 'react';
-import { MediaPickerDialog } from './admin/MediaPickerDialog';
-import { supabase } from '../lib/supabase';
+import { MediaPickerDialog } from '../../cms/components/MediaPickerDialog';
+import { supabase } from '../supabase/supabase';
 
 const STORAGE_KEY = 'cms_visual_image_overrides_v1';
 

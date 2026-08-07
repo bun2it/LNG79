@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { useLanguage } from '../context/LanguageContext';
+import { useLanguage } from '../../context/LanguageContext';
 import { 
   Building2, Cylinder, Flame, ChefHat, Check, 
   ArrowRight, ArrowLeft, Upload, Send 

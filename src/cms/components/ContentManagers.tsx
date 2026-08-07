@@ -1,8 +1,8 @@
 import React from 'react';
 import { Edit, Eye, Plus, Search, Trash2 } from 'lucide-react';
-import type { ArticleItem } from '../../pages/Knowledge';
-import type { ProductItem } from '../../pages/Products';
-import type { ProjectItem } from '../../pages/Projects';
+import type { ArticleItem } from '../../public/pages/Knowledge';
+import type { ProductItem } from '../../public/pages/Products';
+import type { ProjectItem } from '../../public/pages/Projects';
 import { CmsBadge, CmsConfirmDialog, CmsIconButton, CmsManagerShell, CmsStatusButton, CmsTable } from './CmsManagerShell';
 import { MediaPickerDialog } from './MediaPickerDialog';
 

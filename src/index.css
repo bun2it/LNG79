@@ -7,10 +7,10 @@
 
   /* Color Palette */
   --color-navy-dark: #070A13;
-  --color-navy: #0B0F19;
-  --color-navy-light: #121829;
+  --color-navy: #2e4889;
+  --color-navy-light: #384260;
   --color-navy-accent: #1E293B;
-  --color-teal: #00DF89;
+  --color-teal: #098f64;
   --color-teal-hover: #00C276;
   --color-teal-light: rgba(0, 223, 137, 0.08);
   --color-teal-glow: rgba(0, 223, 137, 0.2);
@@ -18,7 +18,7 @@
   --color-orange-hover: #005BC2;
   --color-orange-light: rgba(0, 112, 243, 0.08);
   --color-orange-glow: rgba(0, 112, 243, 0.2);
-  --color-gray-bg: #070A13;
+  --color-gray-bg: #0f1b3f;
   --color-gray-card: #121829;
   --color-gray-border: rgba(255, 255, 255, 0.07);
   --color-text-main: #F1F5F9;
@@ -68,8 +68,8 @@
  * Energy Blue is intentionally limited to light mode; dark keeps LNG79's
  * original palette and component treatment unchanged. */
 :root[data-theme='light'] {
-  --color-navy-dark: #061C3D;
-  --color-navy: #082D5C;
+  --color-navy-dark: #183155;
+  --color-navy: #2053b2;
   --color-navy-light: #E8F2FF;
   --color-navy-accent: #9FC3EC;
   --color-teal: #0AAF9A;

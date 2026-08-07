@@ -1,6 +1,6 @@
 import React from 'react';
 import { authFetch } from '../../features/auth/authFetch';
-import { supabase } from '../../lib/supabase';
+import { supabase } from '../../shared/supabase/supabase';
 
 export interface MediaLibraryImage { name: string; url: string }
 

@@ -36,7 +36,7 @@ export const getSupabaseClient = (): SupabaseClient => {
   return supabase;
 };
 
-export type CmsRole = 'owner' | 'admin' | 'editor' | 'translator';
+export type CmsRole = 'owner' | 'admin' | 'editor' | 'translator' | 'marketing' | 'sales' | 'manager';
 
 export interface CmsProfile {
   id: string;

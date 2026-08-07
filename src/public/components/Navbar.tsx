@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { useLanguage } from '../context/LanguageContext';
+import { useLanguage } from '../../context/LanguageContext';
 import { 
   Menu, X, ChevronDown, Flame, ChefHat, 
   ShoppingCart, Languages, Sun, Moon

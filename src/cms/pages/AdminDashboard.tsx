@@ -1,17 +1,18 @@
 import React, { useState } from 'react';
-import { useLanguage } from '../context/LanguageContext';
+import { useLanguage } from '../../context/LanguageContext';
 import { 
   Users, Layers, Settings, FileSpreadsheet, 
   Trash2, Plus, Edit, RefreshCw, TrendingUp, Flame, ChefHat, FileText, Briefcase, History 
 } from 'lucide-react';
-import type { ArticleItem } from './Knowledge';
-import type { ProjectItem } from './Projects';
-import type { ProductItem } from './Products';
-import { ArticleManager, ProductManager, ProjectManager } from '../components/admin/ContentManagers';
-import { MediaPickerDialog } from '../components/admin/MediaPickerDialog';
-import { createCmsBackup, downloadCmsBackup, restoreCmsBackup, validateCmsBackup } from '../features/cms/backup';
-import { authFetch } from '../features/auth/authFetch';
-import { getCurrentCmsProfile, getSupabaseClient, supabaseConfiguration, supabase } from '../lib/supabase';
+import type { ArticleItem } from '../../public/pages/Knowledge';
+import type { ProjectItem } from '../../public/pages/Projects';
+import type { ProductItem } from '../../public/pages/Products';
+import { ArticleManager, ProductManager, ProjectManager } from '../components/ContentManagers';
+import { MediaPickerDialog } from '../components/MediaPickerDialog';
+import { SeoAssistant } from '../components/SeoAssistant';
+import { createCmsBackup, downloadCmsBackup, restoreCmsBackup, validateCmsBackup } from '../../features/cms/backup';
+import { authFetch } from '../../features/auth/authFetch';
+import { getCurrentCmsProfile, getSupabaseClient, supabaseConfiguration, supabase } from '../../shared/supabase/supabase';
 
 interface LeadItem {
   id: string;
@@ -214,6 +215,32 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
   const [selectedNodeIndex, setSelectedNodeIndex] = useState(0);
   const [previewLayout, setPreviewLayout] = useState<'canvas' | 'hero' | 'banner'>('canvas');
   const [activeTab, setActiveTab] = useState<'overview' | 'pages' | 'navigation' | 'media' | 'leads' | 'products' | 'settings' | 'articles' | 'projects' | 'seo' | 'logs' | 'trash' | 'gui'>('overview');
+  const [seoSubTab, setSeoSubTab] = useState<'assistant' | 'redirects' | 'global'>('assistant');
+  const [gscPropUrlInput, setGscPropUrlInput] = useState('');
+  const [gscJsonInput, setGscJsonInput] = useState('');
+
+  React.useEffect(() => {
+    const fetchGscConfig = async () => {
+      const client = supabase;
+      if (!client) return;
+      try {
+        const { data, error } = await client
+          .from('site_settings')
+          .select('*')
+          .eq('key', 'gsc_config')
+          .maybeSingle();
+        if (!error && data) {
+          const val = data.value || {};
+          setGscPropUrlInput(val.property_url || '');
+          setGscJsonInput(val.service_account_json || '');
+        }
+      } catch (err) {
+        console.error('Failed to load GSC config:', err);
+      }
+    };
+    void fetchGscConfig();
+  }, []);
+
   const showLegacyManagers = sessionStorage.getItem('cms_debug_legacy_managers') === 'true';
   const [lngInput, setLngInput] = useState(fuelSettings.lngPrice);
   const [lpgInput, setLpgInput] = useState(fuelSettings.lpgPrice);
@@ -1649,7 +1676,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
               }}
             >
               <Users size={16} />
-              <span>{language === 'vi' ? 'Yêu cầu tư vấn' : 'Leads CRM'}</span>
+              <span>{language === 'vi' ? 'Quản lý khách hàng' : 'Leads CRM'}</span>
             </button>
 
             {/* Products */}
@@ -3726,37 +3753,52 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
           <div className="animate-fade-in" style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
             <div>
               <h3 style={{ fontSize: '1.2rem', color: 'var(--color-navy)', margin: 0 }}>
-                {language === 'vi' ? 'Cấu Hùi SEO & Bảng Chuyển Hướng Link (Redirects)' : 'SEO Metadata & URL Redirect Manager'}
+                {language === 'vi' ? 'Quản Trị & Tối Ưu SEO Web' : 'SEO Management & Optimization'}
               </h3>
               <p style={{ margin: '0.25rem 0 0 0', fontSize: '0.85rem', color: 'var(--color-text-muted)' }}>
-                {language === 'vi' ? 'Thiết lập thẻ Google Analytics ID và quản lý các liên kết chuyển hướng 301/302.' : 'Configure Google Analytics tags and setup permanent URL rewrites.'}
+                {language === 'vi' ? 'Sử dụng trợ lý SEO hoặc quản lý các liên kết chuyển hướng 301/302.' : 'Use virtual SEO Assistant or manage sitemaps and permanent redirects.'}
               </p>
             </div>
 
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1.2fr', gap: '2rem' }}>
-              {/* Global SEO form */}
-              <div style={{ backgroundColor: 'var(--color-gray-card)', border: '1px solid var(--color-gray-border)', borderRadius: 'var(--border-radius-md)', padding: '1.5rem', display: 'flex', flexDirection: 'column', gap: '1rem' }}>
-                <h4 style={{ margin: 0, fontSize: '0.95rem', color: 'var(--color-navy)' }}>Global SEO Tags</h4>
-                <div className="form-group" style={{ marginBottom: 0 }}>
-                  <label className="form-label">Default SEO Title *</label>
-                  <input type="text" className="form-input" defaultValue="LNG79 - Industrial Energy & Kitchen Solutions" />
-                </div>
-                <div className="form-group" style={{ marginBottom: 0 }}>
-                  <label className="form-label">Google Analytics ID (G-XXXXXX)</label>
-                  <input type="text" className="form-input" placeholder="G-A1B2C3D4" />
-                </div>
-                <button 
-                  className="btn btn-teal"
-                  onClick={() => {
-                    logAction('Updated Google Analytics Tag and global SEO configurations');
-                    alert('Đã cập nhật SEO thành công!');
-                  }}
-                >
-                  Save Settings
-                </button>
-              </div>
+            {/* SEO Sub-tabs navigation links */}
+            <div style={{ display: 'flex', gap: '1rem', borderBottom: '1px solid var(--color-gray-border)', paddingBottom: '0.5rem' }}>
+              <button 
+                type="button"
+                className={`btn btn-sm ${seoSubTab === 'assistant' ? 'btn-teal' : 'btn-outline'}`}
+                onClick={() => setSeoSubTab('assistant')}
+              >
+                🤖 {language === 'vi' ? 'Trợ lý SEO thông minh' : 'SEO Assistant'}
+              </button>
+              <button 
+                type="button"
+                className={`btn btn-sm ${seoSubTab === 'redirects' ? 'btn-teal' : 'btn-outline'}`}
+                onClick={() => setSeoSubTab('redirects')}
+              >
+                🔗 {language === 'vi' ? 'URL Chuyển hướng (301/302)' : 'URL Redirects'}
+              </button>
+              <button 
+                type="button"
+                className={`btn btn-sm ${seoSubTab === 'global' ? 'btn-teal' : 'btn-outline'}`}
+                onClick={() => setSeoSubTab('global')}
+              >
+                ⚙️ {language === 'vi' ? 'Cấu hình chung' : 'Global Settings'}
+              </button>
+            </div>
 
-              {/* Redirect table */}
+            {/* SEO Assistant Sub-tab */}
+            {seoSubTab === 'assistant' && (
+              <SeoAssistant 
+                language={language}
+                logAction={logAction}
+                pages={pages}
+                products={products}
+                projects={projects}
+                articles={articles}
+              />
+            )}
+
+            {/* Redirects Sub-tab */}
+            {seoSubTab === 'redirects' && (
               <div style={{ backgroundColor: 'var(--color-gray-card)', border: '1px solid var(--color-gray-border)', borderRadius: 'var(--border-radius-md)', padding: '1.5rem', display: 'flex', flexDirection: 'column', gap: '1rem' }}>
                 <h4 style={{ margin: 0, fontSize: '0.95rem', color: 'var(--color-navy)' }}>URL Redirects List</h4>
                 <div style={styles.tableResponsive}>
@@ -3814,7 +3856,108 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                   </button>
                 </div>
               </div>
-            </div>
+            )}
+
+            {/* Global settings Sub-tab */}
+            {seoSubTab === 'global' && (
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '2rem' }}>
+                
+                {/* Global SEO form */}
+                <div style={{ backgroundColor: 'var(--color-gray-card)', border: '1px solid var(--color-gray-border)', borderRadius: 'var(--border-radius-md)', padding: '1.5rem', display: 'flex', flexDirection: 'column', gap: '1rem', textAlign: 'left' }}>
+                  <h4 style={{ margin: 0, fontSize: '0.95rem', color: 'var(--color-navy)' }}>Global SEO Tags</h4>
+                  <div className="form-group" style={{ marginBottom: 0 }}>
+                    <label className="form-label">Default SEO Title *</label>
+                    <input type="text" className="form-input" defaultValue="LNG79 - Industrial Energy & Kitchen Solutions" />
+                  </div>
+                  <div className="form-group" style={{ marginBottom: 0 }}>
+                    <label className="form-label">Google Analytics ID (G-XXXXXX)</label>
+                    <input type="text" className="form-input" placeholder="G-A1B2C3D4" />
+                  </div>
+                  <button 
+                    className="btn btn-teal"
+                    onClick={() => {
+                      logAction('Updated Google Analytics Tag and global SEO configurations');
+                      alert('Đã cập nhật SEO thành công!');
+                    }}
+                  >
+                    Save Settings
+                  </button>
+                </div>
+
+                {/* GSC Integration form */}
+                <div style={{ backgroundColor: 'var(--color-gray-card)', border: '1px solid var(--color-gray-border)', borderRadius: 'var(--border-radius-md)', padding: '1.5rem', display: 'flex', flexDirection: 'column', gap: '1rem', textAlign: 'left' }}>
+                  <h4 style={{ margin: 0, fontSize: '0.95rem', color: 'var(--color-navy)', display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
+                    Google Search Console API Link
+                  </h4>
+                  <p style={{ margin: 0, fontSize: '0.75rem', color: 'var(--color-text-muted)', lineHeight: 1.4 }}>
+                    {language === 'vi' 
+                      ? 'Nhập thông tin tên miền đã đăng ký và Khóa JSON của tài khoản Google Service Account để thu thập số liệu thực tế.'
+                      : 'Provide your verified property domain and Google Service Account JSON credentials to load real metrics.'}
+                  </p>
+                  
+                  <div className="form-group" style={{ marginBottom: 0 }}>
+                    <label className="form-label">GSC Property URL *</label>
+                    <input 
+                      type="text" 
+                      className="form-input" 
+                      placeholder="sc-domain:lng79.com.vn hoặc https://lng79.com.vn" 
+                      value={gscPropUrlInput}
+                      onChange={(e) => setGscPropUrlInput(e.target.value)}
+                    />
+                  </div>
+                  
+                  <div className="form-group" style={{ marginBottom: 0 }}>
+                    <label className="form-label">Google Service Account Key (JSON) *</label>
+                    <textarea 
+                      className="form-input" 
+                      style={{ height: '90px', fontSize: '0.75rem', fontFamily: 'monospace' }}
+                      placeholder='{ "type": "service_account", "project_id": ... }'
+                      value={gscJsonInput}
+                      onChange={(e) => setGscJsonInput(e.target.value)}
+                    />
+                  </div>
+
+                  <button 
+                    className="btn btn-teal"
+                    onClick={async () => {
+                      const client = supabase;
+                      if (!client) return;
+                      try {
+                        if (!gscPropUrlInput || !gscJsonInput) {
+                          alert(language === 'vi' ? 'Vui lòng điền đầy đủ Property URL và Khóa JSON!' : 'Please supply both Property URL and JSON Key!');
+                          return;
+                        }
+                        // Validate JSON syntax briefly
+                        try {
+                          JSON.parse(gscJsonInput);
+                        } catch (je) {
+                          alert(language === 'vi' ? 'Khóa JSON không đúng định dạng!' : 'JSON format is invalid!');
+                          return;
+                        }
+
+                        const { error } = await client
+                          .from('site_settings')
+                          .upsert({
+                            key: 'gsc_config',
+                            value: {
+                              property_url: gscPropUrlInput,
+                              service_account_json: gscJsonInput
+                            }
+                          });
+                        if (error) throw error;
+                        
+                        logAction(`Updated Google Search Console config for property ${gscPropUrlInput}`);
+                        alert(language === 'vi' ? 'Đã liên kết Google Search Console thành công!' : 'Linked Google Search Console successfully!');
+                      } catch (err: any) {
+                        alert('Error: ' + err.message);
+                      }
+                    }}
+                  >
+                    {language === 'vi' ? 'Liên kết tài khoản GSC' : 'Save & Link GSC'}
+                  </button>
+                </div>
+              </div>
+            )}
           </div>
         )}
 

@@ -1,5 +1,5 @@
 import { authFetch } from '../auth/authFetch';
-import { supabase } from '../../lib/supabase';
+import { supabase } from '../../shared/supabase/supabase';
 
 export interface TranslationEntry { id: string; text: string }
 

@@ -1,26 +1,28 @@
 import React, { Suspense, useState } from 'react';
 import { LanguageProvider, useLanguage } from './context/LanguageContext';
-import { Navbar } from './components/Navbar';
-import { Footer } from './components/Footer';
-import { QuoteDrawer } from './components/QuoteDrawer';
-import { Home } from './pages/Home';
-import { Solutions, SOLUTIONS_PAGE_DATA } from './pages/Solutions';
-import { Products, PRODUCTS_DATA } from './pages/Products';
-import { Projects } from './pages/Projects';
-import type { ProjectItem } from './pages/Projects';
-import { FuelCalculator } from './components/FuelCalculator';
-import { Knowledge } from './pages/Knowledge';
-import type { ArticleItem } from './pages/Knowledge';
-import { Contact } from './pages/Contact';
-import { VisualTextEditor } from './components/VisualTextEditor';
-import type { VisualTextEditorHandle } from './components/VisualTextEditor';
-import { VisualImageEditor } from './components/VisualImageEditor';
-import type { VisualImageEditorHandle } from './components/VisualImageEditor';
+import { Navbar } from './public/components/Navbar';
+import { Footer } from './public/components/Footer';
+import { QuoteDrawer } from './public/components/QuoteDrawer';
+import { Home } from './public/pages/Home';
+import { Solutions, SOLUTIONS_PAGE_DATA } from './public/pages/Solutions';
+import { Products, PRODUCTS_DATA } from './public/pages/Products';
+import { Projects } from './public/pages/Projects';
+import type { ProjectItem } from './public/pages/Projects';
+import { FuelCalculator } from './public/components/FuelCalculator';
+import { Knowledge } from './public/pages/Knowledge';
+import type { ArticleItem } from './public/pages/Knowledge';
+import { Contact } from './public/pages/Contact';
+import { VisualTextEditor } from './shared/components/VisualTextEditor';
+import type { VisualTextEditorHandle } from './shared/components/VisualTextEditor';
+import { VisualImageEditor } from './shared/components/VisualImageEditor';
+import type { VisualImageEditorHandle } from './shared/components/VisualImageEditor';
 import { translateWebsiteContent } from './features/ai/bulkTranslate';
 import { CMS_AUTH_EXPIRED_EVENT } from './features/auth/authFetch';
-import { getCurrentCmsProfile, supabase } from './lib/supabase';
+import { getCurrentCmsProfile, supabase } from './shared/supabase/supabase';
+import { LoginPortal } from './shared/components/LoginPortal';
 
-const AdminDashboard = React.lazy(() => import('./pages/AdminDashboard').then((module) => ({ default: module.AdminDashboard })));
+const AdminDashboard = React.lazy(() => import('./cms/pages/AdminDashboard').then((module) => ({ default: module.AdminDashboard })));
+const CrmApp = React.lazy(() => import('./crm/CrmApp').then((module) => ({ default: module.CrmApp })));
 
 interface LeadItem {
   id: string;
@@ -167,12 +169,16 @@ export const AppContent: React.FC = () => {
   const visualEditorRef = React.useRef<VisualTextEditorHandle>(null);
   const visualImageEditorRef = React.useRef<VisualImageEditorHandle>(null);
   const [currentView, setCurrentView] = useState<string>(() => {
-    return window.location.pathname.replace(/\/+$/, '') === '/admin' ? 'admin' : 'home';
+    const path = window.location.pathname.replace(/\/+$/, '');
+    if (path === '/admin') return 'admin';
+    if (path === '/crm') return 'crm';
+    return 'home';
   });
   const [theme, setTheme] = useState<'light' | 'dark'>(() => {
     return localStorage.getItem('lng79_theme') === 'light' ? 'light' : 'dark';
   });
   const [isLoggedIn, setIsLoggedIn] = useState(false);
+  const [userProfile, setUserProfile] = useState<any | null>(null);
   const [isVisualEditing, setIsVisualEditing] = useState<boolean>(false);
   const [hasVisualDraft, setHasVisualDraft] = useState<boolean>(false);
   const [visualSaveNotice, setVisualSaveNotice] = useState<boolean>(false);
@@ -216,20 +222,30 @@ export const AppContent: React.FC = () => {
     const saved = localStorage.getItem('cms_products');
     return saved ? JSON.parse(saved) : PRODUCTS_DATA;
   });
+  const [seoMetadata, setSeoMetadata] = useState<any[]>([]);
 
   const setView = React.useCallback((view: string) => {
     setCurrentView(view);
-    const isAdminPath = window.location.pathname.replace(/\/+$/, '') === '/admin';
-    if (view === 'admin' && !isAdminPath) {
+    const path = window.location.pathname.replace(/\/+$/, '');
+    if (view === 'admin' && path !== '/admin') {
       window.history.pushState({ view: 'admin' }, '', '/admin');
-    } else if (view !== 'admin' && isAdminPath) {
+    } else if (view === 'crm' && path !== '/crm') {
+      window.history.pushState({ view: 'crm' }, '', '/crm');
+    } else if (view !== 'admin' && view !== 'crm' && (path === '/admin' || path === '/crm')) {
       window.history.pushState({ view }, '', '/');
     }
   }, []);
 
   React.useEffect(() => {
     const handlePopState = () => {
-      setCurrentView(window.location.pathname.replace(/\/+$/, '') === '/admin' ? 'admin' : 'home');
+      const path = window.location.pathname.replace(/\/+$/, '');
+      if (path === '/admin') {
+        setCurrentView('admin');
+      } else if (path === '/crm') {
+        setCurrentView('crm');
+      } else {
+        setCurrentView('home');
+      }
     };
     window.addEventListener('popstate', handlePopState);
     return () => window.removeEventListener('popstate', handlePopState);
@@ -241,29 +257,66 @@ export const AppContent: React.FC = () => {
     if (supabase) {
       supabase.auth.getSession().then(async ({ data }) => {
         const profile = data.session ? await getCurrentCmsProfile() : null;
-        if (!cancelled) setIsLoggedIn(Boolean(profile));
-      }).catch(() => { if (!cancelled) setIsLoggedIn(false); });
+        if (!cancelled) {
+          setIsLoggedIn(Boolean(profile));
+          setUserProfile(profile);
+        }
+      }).catch(() => { if (!cancelled) { setIsLoggedIn(false); setUserProfile(null); } });
       const listener = supabase.auth.onAuthStateChange((_event, session) => {
         if (!session) {
-          if (!cancelled) setIsLoggedIn(false);
+          if (!cancelled) {
+            setIsLoggedIn(false);
+            setUserProfile(null);
+          }
           return;
         }
         window.setTimeout(() => {
           void getCurrentCmsProfile().then((profile) => {
-            if (!cancelled) setIsLoggedIn(Boolean(profile));
+            if (!cancelled) {
+              setIsLoggedIn(Boolean(profile));
+              setUserProfile(profile);
+            }
           });
         }, 0);
       });
       unsubscribe = () => listener.data.subscription.unsubscribe();
     } else {
-      fetch('/api/auth/status').then((response) => response.json()).then((result) => { if (!cancelled) setIsLoggedIn(Boolean(result.authenticated)); }).catch(() => undefined);
+      fetch('/api/auth/status').then((response) => response.json()).then((result) => { 
+        if (!cancelled) {
+          setIsLoggedIn(Boolean(result.authenticated));
+          if (result.authenticated) {
+            setUserProfile({
+              id: 'legacy-admin',
+              email: 'admin',
+              display_name: 'System Admin (Local)',
+              role: 'owner',
+              status: 'active'
+            });
+          } else {
+            setUserProfile(null);
+          }
+        } 
+      }).catch(() => undefined);
     }
     const handleExpiredSession = () => {
       setIsLoggedIn(false);
+      setUserProfile(null);
       if (supabase) void supabase.auth.signOut({ scope: 'local' });
     };
     window.addEventListener(CMS_AUTH_EXPIRED_EVENT, handleExpiredSession);
     return () => { cancelled = true; unsubscribe(); window.removeEventListener(CMS_AUTH_EXPIRED_EVENT, handleExpiredSession); };
+  }, []);
+
+  const handleLogout = React.useCallback(async () => {
+    if (supabase) {
+      await supabase.auth.signOut({ scope: 'local' }).catch(() => undefined);
+    } else {
+      await fetch('/api/auth/logout', { method: 'POST' }).catch(() => undefined);
+    }
+    setIsLoggedIn(false);
+    setUserProfile(null);
+    setCurrentView('home');
+    window.history.pushState({}, '', '/');
   }, []);
 
   React.useEffect(() => {
@@ -843,6 +896,124 @@ export const AppContent: React.FC = () => {
   }, []);
 
   React.useEffect(() => {
+    const fetchSeo = async () => {
+      const client = supabase;
+      if (!client) return;
+      try {
+        const { data, error } = await client
+          .from('seo_pages')
+          .select('*')
+          .eq('locale', language);
+        if (error) throw error;
+        if (data) {
+          setSeoMetadata(data);
+        }
+      } catch (err) {
+        console.error('Failed to load SEO meta tags:', err);
+      }
+    };
+    void fetchSeo();
+  }, [language]);
+
+  React.useEffect(() => {
+    if (seoMetadata.length === 0) return;
+    
+    const activeSeo = seoMetadata.find((item) => item.page_id === currentView);
+    if (activeSeo) {
+      if (activeSeo.seo_title) {
+        document.title = activeSeo.seo_title;
+      }
+
+      let descEl = document.querySelector('meta[name="description"]');
+      if (!descEl) {
+        descEl = document.createElement('meta');
+        descEl.setAttribute('name', 'description');
+        document.head.appendChild(descEl);
+      }
+      descEl.setAttribute('content', activeSeo.meta_description || '');
+
+      let robotsEl = document.querySelector('meta[name="robots"]');
+      if (!robotsEl) {
+        robotsEl = document.createElement('meta');
+        robotsEl.setAttribute('name', 'robots');
+        document.head.appendChild(robotsEl);
+      }
+      const robotsContent = `${activeSeo.robots_index ? 'index' : 'noindex'}, ${activeSeo.robots_follow ? 'follow' : 'nofollow'}`;
+      robotsEl.setAttribute('content', robotsContent);
+
+      let canonicalEl = document.querySelector('link[rel="canonical"]');
+      if (!canonicalEl) {
+        canonicalEl = document.createElement('link');
+        canonicalEl.setAttribute('rel', 'canonical');
+        document.head.appendChild(canonicalEl);
+      }
+      canonicalEl.setAttribute('href', activeSeo.canonical || `https://lng79.com.vn/${currentView === 'home' ? '' : currentView}`);
+
+      let schemaEl = document.getElementById('seo-json-ld') as HTMLScriptElement;
+      if (!schemaEl) {
+        schemaEl = document.createElement('script');
+        schemaEl.id = 'seo-json-ld';
+        schemaEl.type = 'application/ld+json';
+        document.head.appendChild(schemaEl);
+      }
+
+      const structuredData: Record<string, any> = {
+        '@context': 'https://schema.org',
+        '@type': activeSeo.schema_type || 'WebPage',
+        'name': activeSeo.seo_title,
+        'description': activeSeo.meta_description,
+        'url': activeSeo.canonical
+      };
+
+      if (activeSeo.schema_type === 'Organization') {
+        structuredData.logo = 'https://lng79.com.vn/favicon.svg';
+        structuredData.contactPoint = {
+          '@type': 'ContactPoint',
+          'telephone': contactInfo.phone || '+84 (0) 274 3801 888',
+          'contactType': 'customer service'
+        };
+      }
+
+      schemaEl.text = JSON.stringify(structuredData);
+    }
+  }, [currentView, language, seoMetadata, contactInfo]);
+
+  React.useEffect(() => {
+    if (!isLoggedIn) return;
+    const fetchLeads = async () => {
+      const client = supabase;
+      if (!client) return;
+      try {
+        const { data, error } = await client
+          .from('leads')
+          .select('*')
+          .order('created_at', { ascending: false });
+        
+        if (error) throw error;
+        if (data) {
+          const mapped = data.map((item) => ({
+            id: item.id,
+            type: item.type,
+            company: item.company,
+            name: item.name,
+            phone: item.phone,
+            email: item.email,
+            location: item.location,
+            date: item.created_at ? new Date(item.created_at).toISOString().split('T')[0] : new Date().toISOString().split('T')[0],
+            status: item.status,
+            details: item.details
+          }));
+          setLeads(mapped);
+          localStorage.setItem('cms_leads', JSON.stringify(mapped));
+        }
+      } catch (err) {
+        console.error('Failed to fetch leads from Supabase:', err);
+      }
+    };
+    void fetchLeads();
+  }, [isLoggedIn]);
+
+  React.useEffect(() => {
     const loadLogos = async () => {
       const client = supabase;
       if (!client) return;
@@ -1086,7 +1257,7 @@ export const AppContent: React.FC = () => {
     setCartItems([]);
   };
 
-  const handleCreateLead = (type: 'calculator' | 'wizard' | 'quote', data: any) => {
+  const handleCreateLead = async (type: 'calculator' | 'wizard' | 'quote', data: any) => {
     const newLead: LeadItem = {
       id: 'lead-' + Date.now(),
       type,
@@ -1100,20 +1271,90 @@ export const AppContent: React.FC = () => {
       details: data.details || ''
     };
     setLeads((prev) => [newLead, ...prev]);
+
+    const client = supabase;
+    if (client) {
+      try {
+        const { error } = await client
+          .from('leads')
+          .insert({
+            id: newLead.id,
+            type: newLead.type,
+            company: newLead.company,
+            name: newLead.name,
+            phone: newLead.phone,
+            email: newLead.email,
+            location: newLead.location,
+            status: newLead.status,
+            details: newLead.details
+          });
+        if (error) throw error;
+      } catch (err) {
+        console.error('Failed to create lead in Supabase:', err);
+      }
+    }
   };
 
-  const handleUpdateLeadStatus = (id: string, status: LeadItem['status']) => {
+  const handleUpdateLeadStatus = async (id: string, status: LeadItem['status']) => {
     setLeads((prev) => 
       prev.map((lead) => (lead.id === id ? { ...lead, status } : lead))
     );
+
+    const client = supabase;
+    if (client) {
+      try {
+        const { error } = await client
+          .from('leads')
+          .update({ status })
+          .eq('id', id);
+        if (error) throw error;
+      } catch (err) {
+        console.error('Failed to update lead status in Supabase:', err);
+      }
+    }
   };
 
-  const handleDeleteLead = (id: string) => {
+  const handleDeleteLead = async (id: string) => {
     setLeads((prev) => prev.filter((lead) => lead.id !== id));
+
+    const client = supabase;
+    if (client) {
+      try {
+        const { error } = await client
+          .from('leads')
+          .delete()
+          .eq('id', id);
+        if (error) throw error;
+      } catch (err) {
+        console.error('Failed to delete lead from Supabase:', err);
+      }
+    }
   };
 
-  const handleAddLead = (lead: LeadItem) => {
+  const handleAddLead = async (lead: LeadItem) => {
     setLeads((prev) => [lead, ...prev]);
+
+    const client = supabase;
+    if (client) {
+      try {
+        const { error } = await client
+          .from('leads')
+          .insert({
+            id: lead.id,
+            type: lead.type,
+            company: lead.company,
+            name: lead.name,
+            phone: lead.phone,
+            email: lead.email,
+            location: lead.location,
+            status: lead.status,
+            details: lead.details
+          });
+        if (error) throw error;
+      } catch (err) {
+        console.error('Failed to save lead in Supabase:', err);
+      }
+    }
   };
 
   // Article handlers
@@ -1380,7 +1621,48 @@ export const AppContent: React.FC = () => {
     }
   };
 
-  const hasToolbar = isLoggedIn && currentView !== 'admin';
+  const hasToolbar = isLoggedIn && currentView !== 'admin' && currentView !== 'crm';
+
+  if (currentView === 'crm') {
+    if (!isLoggedIn) {
+      return (
+        <LoginPortal 
+          portalType="crm" 
+          language={language} 
+          onLoginSuccess={(profile) => {
+            setIsLoggedIn(true);
+            setUserProfile(profile);
+          }} 
+        />
+      );
+    }
+    
+    const isCrmAuthorized = userProfile && ['owner', 'admin', 'manager', 'sales'].includes(userProfile.role);
+    if (!isCrmAuthorized) {
+      return (
+        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', minHeight: '100vh', background: '#0f172a', color: '#fff', padding: '1rem', fontFamily: 'Inter, sans-serif' }}>
+          <h3 style={{ margin: 0 }}>{language === 'vi' ? 'Truy Cập Bị Từ Chối' : 'Access Denied'}</h3>
+          <p style={{ color: '#94a3b8', fontSize: '0.875rem', marginTop: '0.5rem', textAlign: 'center', maxWidth: '360px' }}>
+            {language === 'vi' ? 'Tài khoản của bạn không có quyền truy cập phân hệ CRM.' : 'Your account does not have permission to access the CRM.'}
+          </p>
+          <button className="btn btn-teal" style={{ marginTop: '1.25rem', padding: '0.5rem 1.25rem' }} onClick={() => { window.history.pushState({}, '', '/'); setCurrentView('home'); }}>
+            {language === 'vi' ? 'Quay lại Trang Chủ' : 'Back to Home'}
+          </button>
+        </div>
+      );
+    }
+    
+    return (
+      <Suspense fallback={<div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', minHeight: '100vh', background: '#f8fafc', color: '#0f172a' }}><strong>{language === 'vi' ? 'Đang tải CRM…' : 'Loading CRM…'}</strong></div>}>
+        <CrmApp 
+          language={language} 
+          userProfile={userProfile} 
+          onLogout={handleLogout} 
+          onExitCrm={() => { window.history.pushState({}, '', '/'); setCurrentView('home'); }} 
+        />
+      </Suspense>
+    );
+  }
 
   return (
     <div 
@@ -1414,7 +1696,7 @@ export const AppContent: React.FC = () => {
         currentView={currentView}
         language={language}
       />
-      {isLoggedIn && currentView !== 'admin' && (
+      {isLoggedIn && currentView !== 'admin' && currentView !== 'crm' && (
         <>
           <div data-visual-editor-ui className="visual-editor-toolbar" style={{
             position: 'fixed', top: 0, left: 0, right: 0, zIndex: 99999, 
@@ -1428,7 +1710,7 @@ export const AppContent: React.FC = () => {
             <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
               <span style={{ fontSize: '1rem', fontWeight: 800, color: 'var(--color-teal)' }}>🛠️ LNG79 Live Editor</span>
               <span style={{ fontSize: '0.75rem', backgroundColor: 'rgba(255,255,255,0.1)', padding: '0.1rem 0.4rem', borderRadius: '3px' }}>
-                Logged in as Administrator
+                Logged in as {userProfile?.display_name || 'Administrator'}
               </span>
             </div>
             <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
@@ -1471,7 +1753,7 @@ export const AppContent: React.FC = () => {
           <div style={{ height: '50px' }} />
         </>
       )}
-      {currentView !== 'admin' && <Navbar
+      {currentView !== 'admin' && currentView !== 'crm' && <Navbar
         currentView={currentView} 
         setView={setView} 
         cartCount={cartItems.length} 
@@ -1487,9 +1769,9 @@ export const AppContent: React.FC = () => {
         {renderView()}
       </main>
 
-      {currentView !== 'admin' && <Footer setView={setView} contactInfo={contactInfo} />}
+      {currentView !== 'admin' && currentView !== 'crm' && <Footer setView={setView} contactInfo={contactInfo} />}
 
-      {currentView !== 'admin' && <QuoteDrawer
+      {currentView !== 'admin' && currentView !== 'crm' && <QuoteDrawer
         isOpen={cartOpen} 
         onClose={() => setCartOpen(false)} 
         cartItems={cartItems} 

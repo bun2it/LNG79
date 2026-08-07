@@ -1,4 +1,4 @@
-import { supabase } from '../../lib/supabase';
+import { supabase } from '../../shared/supabase/supabase';
 
 export const CMS_AUTH_EXPIRED_EVENT = 'lng79:auth-expired';
 

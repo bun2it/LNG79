@@ -1,6 +1,6 @@
 import React, { forwardRef, useCallback, useEffect, useRef } from 'react';
-import { authFetch } from '../features/auth/authFetch';
-import { supabase } from '../lib/supabase';
+import { authFetch } from '../../features/auth/authFetch';
+import { supabase } from '../supabase/supabase';
 
 const STORAGE_KEY = 'cms_visual_text_overrides_v1';
 const TEXT_SELECTOR = 'h1,h2,h3,h4,h5,h6,p,span,div,li,button,a,label,small,strong,em,b,th,td,option';

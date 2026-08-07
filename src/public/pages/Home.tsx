@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { useLanguage } from '../context/LanguageContext';
+import { useLanguage } from '../../context/LanguageContext';
 import { 
   ArrowRight, Settings, CheckCircle2, Factory, 
   Flame, HardHat, Search, PenTool, Shield, Play, 

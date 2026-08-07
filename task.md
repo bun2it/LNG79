@@ -1,0 +1,40 @@
+# B2B CRM Integration Task List
+
+- `[x]` Phase 1: Database Migration
+  - `[x]` Alter `profiles` check constraint to support CRM roles (`sales`, `manager`, `marketing`)
+  - `[x]` Create lookups: `crm_lead_sources`, `crm_industries`
+  - `[x]` Seed default lead sources and industries lookup options
+  - `[x]` Create B2B tables: `crm_companies`, `crm_contacts`, `crm_opportunities`, `crm_tasks`, `crm_activities`, `crm_attachments`, `crm_quotes`, `crm_contracts`, `crm_notifications`, `crm_audit_logs`
+  - `[x]` Enable RLS and define policies on all new tables for sales/manager/owner permissions
+  - `[x]` Alter `public.leads` status validations and add conversion target fields
+  - `[x]` Setup auto-increment sequences and triggers for `CUS-XXXXX` and `OP-YYYY-XXXXX`
+  - `[x]` Run `supabase db push` to apply migrations on Supabase Cloud
+- `[x]` Phase 2: Code Restructuring & Router setup
+  - `[x]` Create `src/shared` and move reusable components/utils/types/supabase clients
+  - `[x]` Restructure website files to `src/public`
+  - `[x]` Setup routing mapping in `App.tsx` (Separate `/`, `/admin`, `/crm`)
+  - `[x]` Implement shared authentication routing (Single Login access)
+- `[x]` Phase 3: CRM Shell & CRM Inbox (Qualify/Merge Flow)
+  - `[x]` Build CRM App Navigation layout (Hubspot/Pipedrive style)
+  - `[x]` Build CRM Inbox tab loading incoming Leads from `public.leads`
+  - `[x]` Build auto-duplicate detector scanning email/phone/company name
+  - `[x]` Build 1-click Conversion modal creating Company + Contact + Opportunity
+  - `[x]` Support manual entry for Companies, Contacts, Opportunities directly
+- `[ ]` Phase 4: Pipeline Kanban Board & Interaction Drawer
+  - `[ ]` Build interactive Kanban Board of Opportunities split by stages (Qualified, Contacted, Survey, Design, Proposal, Negotiation, Review, Dormant, Won, Lost)
+  - `[ ]` Support deal movement (Drag-and-drop or quick click transition buttons)
+  - `[ ]` Implement Opportunity Detail Drawer showing polymorphic Activity logs and Attachments
+  - `[ ]` Enable adding custom logs (Calls, Meetings, Survey notes, Price deals)
+- `[ ]` Phase 5: Task Management & Calendar
+  - `[ ]` Build Task Manager listing Call, Survey, Meeting, Document requests (Todo, Doing, Done, Overdue)
+  - `[ ]` Connect Task reminders with Notifications panel
+- `[ ]` Phase 6: Document Uploads, Quotes & Contracts
+  - `[ ]` Tách crm_attachments table and integrate with Supabase Storage bucket
+  - `[ ]` Build PDF viewer for Quotes and Contracts
+- `[ ]` Phase 7: Analytics Reports & Sales Dashboard
+  - `[ ]` Expected revenue forecast reports (Deal value * probability)
+  - `[ ]` Win Rate counter and funnel charts
+  - `[ ]` Alerts panel: "Deals with no activity > 14 days"
+- `[ ]` Phase 8: Verification & Walkthrough
+  - `[ ]` Verify CRM end-to-end flow
+  - `[ ]` Build walkthrough documentation
