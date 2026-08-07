@@ -1,9 +1,11 @@
 import React, { useState } from 'react';
 import { useLanguage } from '../../context/LanguageContext';
 import { 
-  Users, Layers, Settings, FileSpreadsheet, 
-  Trash2, Plus, Edit, RefreshCw, TrendingUp, Flame, ChefHat, FileText, Briefcase, History 
+  Layers, Settings, 
+  Trash2, Plus, Edit, RefreshCw, TrendingUp, Flame, ChefHat, FileText, Briefcase, History,
+  Shield
 } from 'lucide-react';
+import { createClient } from '@supabase/supabase-js';
 import type { ArticleItem } from '../../public/pages/Knowledge';
 import type { ProjectItem } from '../../public/pages/Projects';
 import type { ProductItem } from '../../public/pages/Products';
@@ -193,8 +195,19 @@ const calculateSEOScore = (
   return { score, rules };
 };
 
+const getTempAuthClient = () => {
+  const supabaseUrl = import.meta.env.VITE_SUPABASE_URL || '';
+  const supabasePublishableKey = import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY || '';
+  if (supabaseUrl && supabasePublishableKey) {
+    return createClient(supabaseUrl, supabasePublishableKey, {
+      auth: { persistSession: false }
+    });
+  }
+  return null;
+};
+
 export const AdminDashboard: React.FC<AdminDashboardProps> = ({
-  leads, onUpdateStatus, onDeleteLead, onAddLead, fuelSettings, onUpdateSettings,
+  leads: _leads, onUpdateStatus: _onUpdateStatus, onDeleteLead: _onDeleteLead, onAddLead: _onAddLead, fuelSettings, onUpdateSettings,
   products, onAddProduct, onEditProduct, onDeleteProduct, onToggleProduct, onTranslateAllContent,
   articles, onAddArticle, onDeleteArticle, onToggleArticle,
   projects, onAddProject, onDeleteProject, onToggleProject, onEditProject,
@@ -214,7 +227,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
   const [expandedFaqPageId, setExpandedFaqPageId] = useState<string | null>(null);
   const [selectedNodeIndex, setSelectedNodeIndex] = useState(0);
   const [previewLayout, setPreviewLayout] = useState<'canvas' | 'hero' | 'banner'>('canvas');
-  const [activeTab, setActiveTab] = useState<'overview' | 'pages' | 'navigation' | 'media' | 'leads' | 'products' | 'settings' | 'articles' | 'projects' | 'seo' | 'logs' | 'trash' | 'gui'>('overview');
+  const [activeTab, setActiveTab] = useState<'overview' | 'pages' | 'navigation' | 'media' | 'authorization' | 'products' | 'settings' | 'articles' | 'projects' | 'seo' | 'logs' | 'trash' | 'gui'>('overview');
   const [seoSubTab, setSeoSubTab] = useState<'assistant' | 'redirects' | 'global'>('assistant');
   const [gscPropUrlInput, setGscPropUrlInput] = useState('');
   const [gscJsonInput, setGscJsonInput] = useState('');
@@ -244,7 +257,6 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
   const showLegacyManagers = sessionStorage.getItem('cms_debug_legacy_managers') === 'true';
   const [lngInput, setLngInput] = useState(fuelSettings.lngPrice);
   const [lpgInput, setLpgInput] = useState(fuelSettings.lpgPrice);
-  const [selectedLead, setSelectedLead] = useState<LeadItem | null>(null);
   const [translationProgress, setTranslationProgress] = useState<{ done: number; total: number } | null>(null);
   const [translationMessage, setTranslationMessage] = useState('');
   const [backupMessage, setBackupMessage] = useState('');
@@ -841,8 +853,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
       onAddProject(item.originalData);
       logAction(`Restored project case study from Trash Bin: "${item.name}"`);
     } else if (item.type === 'lead') {
-      onAddLead(item.originalData);
-      logAction(`Restored client lead from Trash Bin: "${item.name}"`);
+      alert(language === 'vi' ? 'Khôi phục lead từ CMS cũ không được hỗ trợ. Vui lòng quản lý leads trong CRM.' : 'Restoring leads inside CMS is not supported. Please manage leads in CRM.');
     } else if (item.type === 'product') {
       onAddProduct(item.originalData);
       logAction(`Restored product from Trash Bin: "${item.name}"`);
@@ -1103,8 +1114,184 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
     setIsLoggedIn(false);
   };
 
+  // --- AUTHORIZATION STATE & METHODS ---
+  const [users, setUsers] = useState<any[]>([]);
+  const [usersLoading, setUsersLoading] = useState(false);
+  const [userModalOpen, setUserModalOpen] = useState(false);
+  const [editingUser, setEditingUser] = useState<any | null>(null);
+  const [userFormType, setUserFormType] = useState<'admin' | 'user'>('admin');
+  const [userForm, setUserForm] = useState({
+    name: '',
+    email: '',
+    username: '',
+    password: '',
+    company: '',
+    department: '',
+    status: 'active' as 'active' | 'disabled' | 'pending'
+  });
+  const [resetPassModalOpen, setResetPassModalOpen] = useState(false);
+  const [resetPassUser, setResetPassUser] = useState<any | null>(null);
+  const [newPassword, setNewPassword] = useState('');
+
+  const fetchUsers = async () => {
+    const client = supabase;
+    if (!client) return;
+    setUsersLoading(true);
+    try {
+      const { data, error } = await client
+        .from('users')
+        .select('*')
+        .order('created_at', { ascending: false });
+      if (!error && data) {
+        setUsers(data);
+      }
+    } catch (err) {
+      console.error('Failed to fetch users:', err);
+    } finally {
+      setUsersLoading(false);
+    }
+  };
+
+  React.useEffect(() => {
+    if (isLoggedIn) {
+      void fetchUsers();
+    }
+  }, [isLoggedIn]);
+
+  const handleSaveUser = async (e: React.FormEvent) => {
+    e.preventDefault();
+    const client = getSupabaseClient();
+    if (!client) return;
+    try {
+      if (editingUser) {
+        const { error } = await client
+          .from('users')
+          .update({
+            name: userForm.name,
+            username: userForm.username,
+            status: userForm.status,
+            company: userFormType === 'user' ? userForm.company : null,
+            department: userFormType === 'user' ? userForm.department : null,
+            updated_at: new Date().toISOString(),
+          })
+          .eq('id', editingUser.id);
+        if (error) throw error;
+        logAction(`Updated user account: ${userForm.username}`);
+      } else {
+        const tempClient = getTempAuthClient();
+        if (!tempClient) throw new Error('Supabase client not configured.');
+        
+        // SignUp user in Auth
+        const { data: authData, error: authError } = await tempClient.auth.signUp({
+          email: userForm.email.trim(),
+          password: userForm.password,
+          options: {
+            data: {
+              display_name: userForm.name,
+              username: userForm.username,
+            }
+          }
+        });
+        if (authError) throw authError;
+        if (!authData.user) throw new Error('Failed to register auth user.');
+
+        // Update database record fields
+        const { error: dbError } = await client
+          .from('users')
+          .update({
+            name: userForm.name,
+            username: userForm.username,
+            account_type: userFormType,
+            status: userForm.status,
+            company: userFormType === 'user' ? userForm.company : null,
+            department: userFormType === 'user' ? userForm.department : null,
+            password_hash: userForm.password, // for mock fallback authentication compatibility
+          })
+          .eq('id', authData.user.id);
+        if (dbError) throw dbError;
+        
+        logAction(`Created new ${userFormType} account: ${userForm.username}`);
+      }
+      setUserModalOpen(false);
+      void fetchUsers();
+    } catch (err: any) {
+      alert(err.message || 'Error occurred while saving user.');
+    }
+  };
+
+  const handleDisableUser = async (user: any) => {
+    const client = getSupabaseClient();
+    if (!client) return;
+    const newStatus = user.status === 'disabled' ? 'active' : 'disabled';
+    try {
+      const { error } = await client
+        .from('users')
+        .update({ status: newStatus })
+        .eq('id', user.id);
+      if (error) throw error;
+      logAction(`Changed user ${user.username} status to ${newStatus}`);
+      void fetchUsers();
+    } catch (err: any) {
+      alert(err.message || 'Error updating status.');
+    }
+  };
+
+  const handleResetPassword = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!newPassword || newPassword.length < 6) {
+      alert(language === 'vi' ? 'Mật khẩu tối thiểu 6 ký tự.' : 'Password must be at least 6 characters.');
+      return;
+    }
+    const client = getSupabaseClient();
+    if (!client) return;
+    try {
+      // For local compatibility, update DB password_hash
+      const { error } = await client
+        .from('users')
+        .update({ password_hash: newPassword })
+        .eq('id', resetPassUser.id);
+      if (error) throw error;
+
+      // Note: Admin-level password resets in Supabase are normally managed via triggers, Auth API or password reset links
+      // We will send a reset password email link as well if configured
+      if (supabaseConfiguration.configured) {
+        await client.auth.resetPasswordForEmail(resetPassUser.email, {
+          redirectTo: `${window.location.origin}/reset-password`
+        });
+      }
+
+      alert(language === 'vi' ? 'Đã cập nhật mật khẩu fallback & gửi email đặt lại!' : 'Password reset link sent & fallback updated!');
+      setResetPassModalOpen(false);
+      setNewPassword('');
+      logAction(`Reset password for user ${resetPassUser.username}`);
+    } catch (err: any) {
+      alert(err.message || 'Error resetting password');
+    }
+  };
+
+  const handleDeleteUser = async (user: any) => {
+    const confirmMsg = language === 'vi' 
+      ? `Bạn có chắc chắn muốn xóa tài khoản ${user.username}? Người dùng này sẽ không thể đăng nhập.`
+      : `Are you sure you want to delete ${user.username}? They will lose login access.`;
+    if (!window.confirm(confirmMsg)) return;
+
+    const client = getSupabaseClient();
+    if (!client) return;
+    try {
+      const { error } = await client
+        .from('users')
+        .delete()
+        .eq('id', user.id);
+      if (error) throw error;
+      logAction(`Deleted user account: ${user.username}`);
+      void fetchUsers();
+    } catch (err: any) {
+      alert(err.message || 'Error deleting user.');
+    }
+  };
+
   // Statistics
-  const newLeads = leads.filter(l => l.status === 'new').length;
+  const totalAccounts = users.length;
 
 
   const handleSaveSettings = (e: React.FormEvent) => {
@@ -1136,15 +1323,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
     }
   };
 
-  const getStatusLabel = (status: LeadItem['status']) => {
-    const labels = {
-      new: { vi: 'Mới nhận', en: 'New Lead', color: '#3B82F6', bg: '#EFF6FF' },
-      contacted: { vi: 'Đã liên hệ', en: 'Contacted', color: '#F59E0B', bg: '#FEF3C7' },
-      survey: { vi: 'Lịch khảo sát', en: 'Site Survey', color: '#8B5CF6', bg: '#F5F3FF' },
-      closed: { vi: 'Thành công', en: 'Closed Won', color: '#10B981', bg: '#ECFDF5' }
-    };
-    return labels[status];
-  };
+
 
   if (!isLoggedIn) {
     return (
@@ -1666,17 +1845,17 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
               <span>{language === 'vi' ? 'Thư viện file' : 'Media Vault'}</span>
             </button>
 
-            {/* Leads */}
+            {/* Authorization */}
             <button 
-              onClick={() => setActiveTab('leads')}
+              onClick={() => setActiveTab('authorization')}
               style={{
                 display: 'flex', alignItems: 'center', gap: '0.75rem', background: 'none', border: 'none', padding: '0.75rem 1rem', width: '100%', cursor: 'pointer', fontSize: '0.85rem', fontWeight: 600, textAlign: 'left', borderRadius: 'var(--border-radius-sm)', transition: 'var(--transition-fast)',
-                color: activeTab === 'leads' ? 'var(--color-white)' : 'rgba(255, 255, 255, 0.7)',
-                backgroundColor: activeTab === 'leads' ? 'var(--color-teal)' : 'transparent'
+                color: activeTab === 'authorization' ? 'var(--color-white)' : 'rgba(255, 255, 255, 0.7)',
+                backgroundColor: activeTab === 'authorization' ? 'var(--color-teal)' : 'transparent'
               }}
             >
-              <Users size={16} />
-              <span>{language === 'vi' ? 'Quản lý khách hàng' : 'Leads CRM'}</span>
+              <Shield size={16} />
+              <span>{language === 'vi' ? 'Phân quyền' : 'Authorization'}</span>
             </button>
 
             {/* Products */}
@@ -1856,10 +2035,10 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                 </div>
               </div>
               <div style={styles.statCard}>
-                <Users size={24} color="#3B82F6" />
+                <Shield size={24} color="#3B82F6" />
                 <div>
-                  <span style={styles.statLabel}>{language === 'vi' ? 'Yêu cầu Leads mới' : 'New Leads'}</span>
-                  <span style={styles.statValue}>{newLeads}</span>
+                  <span style={styles.statLabel}>{language === 'vi' ? 'Tài khoản hệ thống' : 'System Accounts'}</span>
+                  <span style={styles.statValue}>{totalAccounts}</span>
                 </div>
               </div>
               <div style={styles.statCard}>
@@ -3067,174 +3246,383 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
           </div>
         )}
 
-        {/* LEADS TAB */}
-        {activeTab === 'leads' && (
-          <div className="animate-fade-in">
+        {/* AUTHORIZATION TAB */}
+        {activeTab === 'authorization' && (
+          <div className="animate-fade-in" style={{ display: 'flex', flexDirection: 'column', gap: '2rem' }}>
+            {/* Header / Intro */}
             <div style={styles.tableHeader}>
-              <h3 style={{ fontSize: '1.2rem' }}>{language === 'vi' ? 'Danh Sách Lead Khách Hàng' : 'Customer Inquiries & Leads'}</h3>
-              <button 
-                className="btn btn-outline btn-sm"
-                onClick={() => alert(language === 'vi' ? 'Đang xuất báo cáo CSV...' : 'Exporting leads to CSV...')}
-              >
-                <FileSpreadsheet size={16} /> {language === 'vi' ? 'Xuất Excel (CSV)' : 'Export CSV'}
-              </button>
-            </div>
-            
-            <div style={styles.tableResponsive}>
-              <table style={styles.table}>
-                <thead>
-                  <tr style={styles.thRow}>
-                    <th style={styles.th}>{language === 'vi' ? 'Khách hàng' : 'Customer'}</th>
-                    <th style={styles.th}>{language === 'vi' ? 'Loại' : 'Type'}</th>
-                    <th style={styles.th}>{language === 'vi' ? 'Thông tin liên lạc' : 'Contact'}</th>
-                    <th style={styles.th}>{language === 'vi' ? 'Ngày gửi' : 'Date'}</th>
-                    <th style={styles.th}>{language === 'vi' ? 'Trạng thái' : 'Status'}</th>
-                    <th style={styles.th}>{language === 'vi' ? 'Thao tác' : 'Actions'}</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {leads.map((lead) => {
-                    const status = getStatusLabel(lead.status);
-                    return (
-                      <tr key={lead.id} style={styles.tr}>
-                        <td style={styles.td}>
-                          <strong>{lead.name}</strong>
-                          <div style={{ fontSize: '0.75rem', color: 'var(--color-text-muted)', marginTop: '0.2rem' }}>
-                            {lead.company}
-                          </div>
-                        </td>
-                        <td style={styles.td}>
-                          <span style={{
-                            fontSize: '0.75rem', fontWeight: 600, padding: '0.1rem 0.4rem', borderRadius: 'var(--border-radius-sm)',
-                            backgroundColor: lead.type === 'calculator' ? '#FEF3C7' : lead.type === 'wizard' ? '#E0F2FE' : '#F5F3FF',
-                            color: lead.type === 'calculator' ? '#B45309' : lead.type === 'wizard' ? '#0369A1' : '#6D28D9'
-                          }}>
-                            {lead.type === 'calculator' ? 'CALC' : lead.type === 'wizard' ? 'WIZ' : 'QUOTE'}
-                          </span>
-                        </td>
-                        <td style={styles.td}>
-                          <div style={{ fontSize: '0.85rem' }}>📞 {lead.phone}</div>
-                          <div style={{ fontSize: '0.8rem', color: 'var(--color-text-muted)', marginTop: '0.1rem' }}>✉️ {lead.email}</div>
-                          <div style={{ fontSize: '0.75rem', color: 'var(--color-text-muted)' }}>📍 {lead.location}</div>
-                        </td>
-                        <td style={styles.td}>{lead.date}</td>
-                        <td style={styles.td}>
-                          <span style={{
-                            ...styles.badge,
-                            backgroundColor: status.bg,
-                            color: status.color
-                          }}>
-                            {status[language === 'vi' ? 'vi' : 'en']}
-                          </span>
-                        </td>
-                        <td style={styles.td}>
-                          <div style={{ display: 'flex', gap: '0.25rem' }}>
-                            <button 
-                              className="btn btn-outline btn-sm"
-                              style={{ padding: '0.2rem 0.4rem', fontSize: '0.75rem' }}
-                              onClick={() => setSelectedLead(lead)}
-                            >
-                              Chi tiết
-                            </button>
-                            <button 
-                              className="btn btn-outline btn-sm"
-                              style={{ color: '#EF4444', padding: '0.2rem 0.4rem', fontSize: '0.75rem', borderColor: '#FCA5A5' }}
-                              onClick={() => {
-                                if (confirm(language === 'vi' ? 'Bạn có muốn xoá lead này không?' : 'Do you want to delete this lead?')) {
-                                  const trashItem = {
-                                    id: 'trash-' + Date.now(),
-                                    type: 'lead',
-                                    name: lead.company + " (" + lead.name + ")",
-                                    deletedAt: new Date().toISOString(),
-                                    originalData: lead
-                                  };
-                                  setTrashBin(prev => [trashItem, ...prev]);
-                                  onDeleteLead(lead.id);
-                                  logAction(`Deleted client lead from ${lead.name}`);
-                                }
-                              }}
-                            >
-                              <Trash2 size={12} />
-                            </button>
-                          </div>
-                        </td>
-                      </tr>
-                    );
-                  })}
-                </tbody>
-              </table>
+              <div>
+                <h3 style={{ fontSize: '1.25rem', color: 'var(--color-navy)', margin: 0 }}>
+                  {language === 'vi' ? 'Quản Lý Tài Khoản & Phân Quyền' : 'Accounts & Authorization'}
+                </h3>
+                <p style={{ fontSize: '0.825rem', color: 'var(--color-text-muted)', marginTop: '0.25rem', marginBottom: 0 }}>
+                  {language === 'vi' 
+                    ? 'Phân cấp quyền truy cập hệ thống dành cho Admin (CMS) và CRM Users (CRM).' 
+                    : 'System-wide access controls for Admin (CMS) and CRM Users (CRM).'}
+                </p>
+              </div>
+              <div style={{ display: 'flex', gap: '0.5rem' }}>
+                <button 
+                  className="btn btn-teal btn-sm"
+                  onClick={() => {
+                    setEditingUser(null);
+                    setUserFormType('admin');
+                    setUserForm({ name: '', email: '', username: '', password: '', company: '', department: '', status: 'active' });
+                    setUserModalOpen(true);
+                  }}
+                >
+                  <Plus size={14} style={{ marginRight: '0.25rem' }} /> {language === 'vi' ? 'Thêm Admin' : 'Add Admin'}
+                </button>
+                <button 
+                  className="btn btn-outline btn-sm"
+                  style={{ color: 'var(--color-teal)', borderColor: 'var(--color-teal)' }}
+                  onClick={() => {
+                    setEditingUser(null);
+                    setUserFormType('user');
+                    setUserForm({ name: '', email: '', username: '', password: '', company: '', department: '', status: 'active' });
+                    setUserModalOpen(true);
+                  }}
+                >
+                  <Plus size={14} style={{ marginRight: '0.25rem' }} /> {language === 'vi' ? 'Thêm nhân viên CRM' : 'Add CRM User'}
+                </button>
+              </div>
             </div>
 
-            {/* Lead details Modal */}
-            {selectedLead && (
+            {usersLoading ? (
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '3rem', color: 'var(--color-text-muted)' }}>
+                <RefreshCw size={24} style={{ animation: 'spin 1s linear infinite', marginRight: '0.5rem' }} />
+                <span>{language === 'vi' ? 'Đang tải danh sách tài khoản...' : 'Loading accounts...'}</span>
+              </div>
+            ) : (
+              <>
+                {/* 1. ADMIN ACCOUNTS SECTION */}
+                <div style={{ backgroundColor: 'var(--color-white)', borderRadius: 'var(--border-radius-md)', border: '1px solid var(--color-gray-border)', padding: '1.25rem' }}>
+                  <h4 style={{ margin: '0 0 1rem 0', color: 'var(--color-navy)', fontSize: '1rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                    <Shield size={16} color="var(--color-teal)" />
+                    {language === 'vi' ? 'Tài khoản Quản trị (Admin)' : 'Admin Accounts'}
+                  </h4>
+                  <div style={styles.tableResponsive}>
+                    <table style={styles.table}>
+                      <thead>
+                        <tr style={styles.thRow}>
+                          <th style={styles.th}></th>
+                          <th style={styles.th}>{language === 'vi' ? 'Họ tên' : 'Name'}</th>
+                          <th style={styles.th}>{language === 'vi' ? 'Email' : 'Email'}</th>
+                          <th style={styles.th}>{language === 'vi' ? 'Username' : 'Username'}</th>
+                          <th style={styles.th}>{language === 'vi' ? 'Trạng thái' : 'Status'}</th>
+                          <th style={styles.th}>{language === 'vi' ? 'Lần cuối đăng nhập' : 'Last Login'}</th>
+                          <th style={styles.th}>{language === 'vi' ? 'Thao tác' : 'Actions'}</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {users.filter(u => u.account_type === 'admin').length === 0 ? (
+                          <tr><td colSpan={7} style={{ textAlign: 'center', padding: '2rem', color: 'var(--color-text-muted)' }}>{language === 'vi' ? 'Chưa có tài khoản Admin nào.' : 'No Admin accounts found.'}</td></tr>
+                        ) : (
+                          users.filter(u => u.account_type === 'admin').map((u) => (
+                            <tr key={u.id} style={styles.tr}>
+                              <td style={{ ...styles.td, width: '40px' }}>
+                                <div style={{ width: '32px', height: '32px', borderRadius: '50%', backgroundColor: 'var(--color-teal)', color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 'bold', fontSize: '0.85rem' }}>
+                                  {(u.name || u.username || 'A')[0].toUpperCase()}
+                                </div>
+                              </td>
+                              <td style={styles.td}><strong>{u.name}</strong></td>
+                              <td style={styles.td}>{u.email}</td>
+                              <td style={styles.td}><span style={{ fontFamily: 'var(--font-mono)', fontSize: '0.8rem', backgroundColor: 'var(--color-gray-bg)', padding: '0.15rem 0.4rem', borderRadius: 'var(--border-radius-sm)' }}>{u.username}</span></td>
+                              <td style={styles.td}>
+                                <span style={{
+                                  ...styles.badge,
+                                  backgroundColor: u.status === 'active' ? '#ECFDF5' : u.status === 'disabled' ? '#FEF2F2' : '#FFFBEB',
+                                  color: u.status === 'active' ? '#059669' : u.status === 'disabled' ? '#DC2626' : '#D97706'
+                                }}>
+                                  {u.status}
+                                </span>
+                              </td>
+                              <td style={styles.td}>{u.last_login ? new Date(u.last_login).toLocaleString(language === 'vi' ? 'vi-VN' : 'en-US') : '—'}</td>
+                              <td style={styles.td}>
+                                <div style={{ display: 'flex', gap: '0.35rem' }}>
+                                  <button 
+                                    className="btn btn-outline btn-sm"
+                                    onClick={() => {
+                                      setEditingUser(u);
+                                      setUserFormType('admin');
+                                      setUserForm({
+                                        name: u.name || '',
+                                        email: u.email || '',
+                                        username: u.username || '',
+                                        password: '',
+                                        company: '',
+                                        department: '',
+                                        status: u.status
+                                      });
+                                      setUserModalOpen(true);
+                                    }}
+                                  >
+                                    {language === 'vi' ? 'Sửa' : 'Edit'}
+                                  </button>
+                                  <button 
+                                    className="btn btn-outline btn-sm"
+                                    style={{ color: u.status === 'disabled' ? '#059669' : '#D97706' }}
+                                    onClick={() => handleDisableUser(u)}
+                                  >
+                                    {u.status === 'disabled' ? (language === 'vi' ? 'Mở khóa' : 'Enable') : (language === 'vi' ? 'Tạm khóa' : 'Disable')}
+                                  </button>
+                                  <button 
+                                    className="btn btn-outline btn-sm"
+                                    onClick={() => {
+                                      setResetPassUser(u);
+                                      setNewPassword('');
+                                      setResetPassModalOpen(true);
+                                    }}
+                                  >
+                                    🔑
+                                  </button>
+                                  <button 
+                                    className="btn btn-outline btn-sm"
+                                    style={{ color: '#EF4444' }}
+                                    onClick={() => handleDeleteUser(u)}
+                                  >
+                                    <Trash2 size={12} />
+                                  </button>
+                                </div>
+                              </td>
+                            </tr>
+                          ))
+                        )}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+
+                {/* 2. CRM USERS SECTION */}
+                <div style={{ backgroundColor: 'var(--color-white)', borderRadius: 'var(--border-radius-md)', border: '1px solid var(--color-gray-border)', padding: '1.25rem' }}>
+                  <h4 style={{ margin: '0 0 1rem 0', color: 'var(--color-navy)', fontSize: '1rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                    <Briefcase size={16} color="var(--color-orange)" />
+                    {language === 'vi' ? 'Nhân sự Kinh doanh (CRM Users)' : 'CRM Users'}
+                  </h4>
+                  <div style={styles.tableResponsive}>
+                    <table style={styles.table}>
+                      <thead>
+                        <tr style={styles.thRow}>
+                          <th style={styles.th}></th>
+                          <th style={styles.th}>{language === 'vi' ? 'Họ tên' : 'Name'}</th>
+                          <th style={styles.th}>{language === 'vi' ? 'Công ty' : 'Company'}</th>
+                          <th style={styles.th}>{language === 'vi' ? 'Phòng ban' : 'Department'}</th>
+                          <th style={styles.th}>{language === 'vi' ? 'Email' : 'Email'}</th>
+                          <th style={styles.th}>{language === 'vi' ? 'Username' : 'Username'}</th>
+                          <th style={styles.th}>{language === 'vi' ? 'Trạng thái' : 'Status'}</th>
+                          <th style={styles.th}>{language === 'vi' ? 'Lần cuối đăng nhập' : 'Last Login'}</th>
+                          <th style={styles.th}>{language === 'vi' ? 'Thao tác' : 'Actions'}</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {users.filter(u => u.account_type === 'user').length === 0 ? (
+                          <tr><td colSpan={9} style={{ textAlign: 'center', padding: '2rem', color: 'var(--color-text-muted)' }}>{language === 'vi' ? 'Chưa có tài khoản CRM nào.' : 'No CRM users found.'}</td></tr>
+                        ) : (
+                          users.filter(u => u.account_type === 'user').map((u) => (
+                            <tr key={u.id} style={styles.tr}>
+                              <td style={{ ...styles.td, width: '40px' }}>
+                                <div style={{ width: '32px', height: '32px', borderRadius: '50%', backgroundColor: 'var(--color-orange)', color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 'bold', fontSize: '0.85rem' }}>
+                                  {(u.name || u.username || 'U')[0].toUpperCase()}
+                                </div>
+                              </td>
+                              <td style={styles.td}><strong>{u.name}</strong></td>
+                              <td style={styles.td}>{u.company || '—'}</td>
+                              <td style={styles.td}>{u.department || '—'}</td>
+                              <td style={styles.td}>{u.email}</td>
+                              <td style={styles.td}><span style={{ fontFamily: 'var(--font-mono)', fontSize: '0.8rem', backgroundColor: 'var(--color-gray-bg)', padding: '0.15rem 0.4rem', borderRadius: 'var(--border-radius-sm)' }}>{u.username}</span></td>
+                              <td style={styles.td}>
+                                <span style={{
+                                  ...styles.badge,
+                                  backgroundColor: u.status === 'active' ? '#ECFDF5' : u.status === 'disabled' ? '#FEF2F2' : '#FFFBEB',
+                                  color: u.status === 'active' ? '#059669' : u.status === 'disabled' ? '#DC2626' : '#D97706'
+                                }}>
+                                  {u.status}
+                                </span>
+                              </td>
+                              <td style={styles.td}>{u.last_login ? new Date(u.last_login).toLocaleString(language === 'vi' ? 'vi-VN' : 'en-US') : '—'}</td>
+                              <td style={styles.td}>
+                                <div style={{ display: 'flex', gap: '0.35rem' }}>
+                                  <button 
+                                    className="btn btn-outline btn-sm"
+                                    onClick={() => {
+                                      setEditingUser(u);
+                                      setUserFormType('user');
+                                      setUserForm({
+                                        name: u.name || '',
+                                        email: u.email || '',
+                                        username: u.username || '',
+                                        password: '',
+                                        company: u.company || '',
+                                        department: u.department || '',
+                                        status: u.status
+                                      });
+                                      setUserModalOpen(true);
+                                    }}
+                                  >
+                                    {language === 'vi' ? 'Sửa' : 'Edit'}
+                                  </button>
+                                  <button 
+                                    className="btn btn-outline btn-sm"
+                                    style={{ color: u.status === 'disabled' ? '#059669' : '#D97706' }}
+                                    onClick={() => handleDisableUser(u)}
+                                  >
+                                    {u.status === 'disabled' ? (language === 'vi' ? 'Mở khóa' : 'Enable') : (language === 'vi' ? 'Tạm khóa' : 'Disable')}
+                                  </button>
+                                  <button 
+                                    className="btn btn-outline btn-sm"
+                                    onClick={() => {
+                                      setResetPassUser(u);
+                                      setNewPassword('');
+                                      setResetPassModalOpen(true);
+                                    }}
+                                  >
+                                    🔑
+                                  </button>
+                                  <button 
+                                    className="btn btn-outline btn-sm"
+                                    style={{ color: '#EF4444' }}
+                                    onClick={() => handleDeleteUser(u)}
+                                  >
+                                    <Trash2 size={12} />
+                                  </button>
+                                </div>
+                              </td>
+                            </tr>
+                          ))
+                        )}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              </>
+            )}
+
+            {/* Create/Edit User Modal */}
+            {userModalOpen && (
               <div style={styles.modalOverlay}>
-                <div style={styles.modalCard} className="animate-fade-in">
+                <div style={{ ...styles.modalCard, width: '480px' }} className="animate-fade-in">
                   <div style={styles.modalHeader}>
                     <h3 style={{ margin: 0, fontSize: '1.15rem', color: 'var(--color-white)' }}>
-                      {language === 'vi' ? 'Chi Tiết Yêu Cầu Tư Vấn' : 'Lead Enquiry Details'}
+                      {editingUser 
+                        ? (language === 'vi' ? `Chỉnh sửa: ${editingUser.username}` : `Edit: ${editingUser.username}`) 
+                        : (userFormType === 'admin' 
+                            ? (language === 'vi' ? 'Thêm Quản trị viên mới' : 'Add New Admin') 
+                            : (language === 'vi' ? 'Thêm nhân viên CRM mới' : 'Add New CRM User'))}
                     </h3>
-                    <button onClick={() => setSelectedLead(null)} style={styles.closeBtn}>Close</button>
+                    <button onClick={() => setUserModalOpen(false)} style={styles.closeBtn}>Close</button>
                   </div>
-                  
-                  <div style={{ padding: '1.5rem' }}>
-                    <div style={styles.modalMetaGrid}>
-                      <div>
-                        <strong>{language === 'vi' ? 'Tên khách hàng' : 'Name'}:</strong>
-                        <div>{selectedLead.name}</div>
-                      </div>
-                      <div>
-                        <strong>{language === 'vi' ? 'Tên công ty' : 'Company'}:</strong>
-                        <div>{selectedLead.company}</div>
-                      </div>
-                      <div>
-                        <strong>Email:</strong>
-                        <div>{selectedLead.email}</div>
-                      </div>
-                      <div>
-                        <strong>{language === 'vi' ? 'Số điện thoại' : 'Phone'}:</strong>
-                        <div>{selectedLead.phone}</div>
-                      </div>
-                      <div>
-                        <strong>{language === 'vi' ? 'Địa điểm' : 'Location'}:</strong>
-                        <div>{selectedLead.location}</div>
-                      </div>
-                      <div>
-                        <strong>{language === 'vi' ? 'Ngày gửi' : 'Enquiry Date'}:</strong>
-                        <div>{selectedLead.date}</div>
-                      </div>
+                  <form onSubmit={handleSaveUser} style={{ padding: '1.5rem', display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+                    <div className="form-group">
+                      <label className="form-label">{language === 'vi' ? 'Họ và tên *' : 'Full Name *'}</label>
+                      <input 
+                        type="text" required className="form-input"
+                        value={userForm.name} onChange={e => setUserForm({ ...userForm, name: e.target.value })}
+                        placeholder="John Doe"
+                      />
                     </div>
-
-                    <div style={{ marginTop: '1.25rem', borderTop: '1px solid var(--color-gray-border)', paddingTop: '1rem' }}>
-                      <strong>{language === 'vi' ? 'Chi tiết yêu cầu kỹ thuật' : 'Technical Specifications / Details'}:</strong>
-                      <div style={{ backgroundColor: '#F8FAFC', border: '1px solid #E2E8F0', padding: '1rem', borderRadius: 'var(--border-radius-sm)', marginTop: '0.5rem', fontSize: '0.85rem', whiteSpace: 'pre-wrap' }}>
-                        {selectedLead.details}
-                      </div>
+                    <div className="form-group">
+                      <label className="form-label">Email *</label>
+                      <input 
+                        type="email" required className="form-input" disabled={!!editingUser}
+                        value={userForm.email} onChange={e => setUserForm({ ...userForm, email: e.target.value })}
+                        placeholder="example@lng79.com.vn"
+                      />
                     </div>
-
-                    <div style={{ marginTop: '1.25rem', borderTop: '1px solid var(--color-gray-border)', paddingTop: '1rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                      <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
-                        <span style={{ fontSize: '0.85rem', fontWeight: 600 }}>{language === 'vi' ? 'Trạng thái xử lý' : 'Progress State'}:</span>
-                        <select 
-                          className="form-select"
-                          style={{ width: 'auto', padding: '0.25rem 0.5rem', fontSize: '0.85rem' }}
-                          value={selectedLead.status}
-                          onChange={(e) => {
-                            onUpdateStatus(selectedLead.id, e.target.value as any);
-                            setSelectedLead({ ...selectedLead, status: e.target.value as any });
-                            logAction(`Updated lead status for ${selectedLead.name} to ${e.target.value}`);
-                          }}
-                        >
-                          <option value="new">New Lead</option>
-                          <option value="contacted">Contacted</option>
-                          <option value="survey">Site Survey Scheduled</option>
-                          <option value="closed">Closed Won</option>
-                        </select>
+                    <div className="form-group">
+                      <label className="form-label">Username *</label>
+                      <input 
+                        type="text" required className="form-input"
+                        value={userForm.username} onChange={e => setUserForm({ ...userForm, username: e.target.value.toLowerCase().replace(/[^a-z0-9_-]/g, '') })}
+                        placeholder="johndoe"
+                      />
+                    </div>
+                    {!editingUser && (
+                      <div className="form-group">
+                        <label className="form-label">{language === 'vi' ? 'Mật khẩu khởi tạo *' : 'Initial Password *'}</label>
+                        <input 
+                          type="password" required className="form-input" minLength={6}
+                          value={userForm.password} onChange={e => setUserForm({ ...userForm, password: e.target.value })}
+                          placeholder="••••••"
+                        />
                       </div>
-                      <button className="btn btn-teal btn-sm" onClick={() => setSelectedLead(null)}>
-                        OK
+                    )}
+                    {userFormType === 'user' && (
+                      <>
+                        <div className="form-group">
+                          <label className="form-label">{language === 'vi' ? 'Công ty tác nghiệp' : 'Work Company'}</label>
+                          <input 
+                            type="text" className="form-input"
+                            value={userForm.company} onChange={e => setUserForm({ ...userForm, company: e.target.value })}
+                            placeholder="LNG79 Joint Stock"
+                          />
+                        </div>
+                        <div className="form-group">
+                          <label className="form-label">{language === 'vi' ? 'Phòng ban' : 'Department'}</label>
+                          <input 
+                            type="text" className="form-input"
+                            value={userForm.department} onChange={e => setUserForm({ ...userForm, department: e.target.value })}
+                            placeholder="B2B Sales / Tech Division"
+                          />
+                        </div>
+                      </>
+                    )}
+                    <div className="form-group">
+                      <label className="form-label">{language === 'vi' ? 'Trạng thái hoạt động' : 'Account Status'}</label>
+                      <select 
+                        className="form-select"
+                        value={userForm.status} onChange={e => setUserForm({ ...userForm, status: e.target.value as any })}
+                      >
+                        <option value="active">Active</option>
+                        <option value="disabled">Disabled (Blocked)</option>
+                        <option value="pending">Pending Activation</option>
+                      </select>
+                    </div>
+                    <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '0.5rem', marginTop: '1rem' }}>
+                      <button type="button" className="btn btn-outline" onClick={() => setUserModalOpen(false)}>
+                        {language === 'vi' ? 'Hủy' : 'Cancel'}
+                      </button>
+                      <button type="submit" className="btn btn-teal">
+                        {language === 'vi' ? 'Lưu thông tin' : 'Save'}
                       </button>
                     </div>
+                  </form>
+                </div>
+              </div>
+            )}
+
+            {/* Reset Password Modal */}
+            {resetPassModalOpen && resetPassUser && (
+              <div style={styles.modalOverlay}>
+                <div style={{ ...styles.modalCard, width: '400px' }} className="animate-fade-in">
+                  <div style={styles.modalHeader}>
+                    <h3 style={{ margin: 0, fontSize: '1.15rem', color: 'var(--color-white)' }}>
+                      🔑 {language === 'vi' ? 'Đặt lại mật khẩu' : 'Reset Password'}
+                    </h3>
+                    <button onClick={() => setResetPassModalOpen(false)} style={styles.closeBtn}>Close</button>
                   </div>
+                  <form onSubmit={handleResetPassword} style={{ padding: '1.5rem', display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+                    <p style={{ fontSize: '0.825rem', color: 'var(--color-text-muted)', margin: 0 }}>
+                      {language === 'vi' 
+                        ? `Nhập mật khẩu mới cho tài khoản ${resetPassUser.username} (${resetPassUser.email}).`
+                        : `Enter a new password for account ${resetPassUser.username} (${resetPassUser.email}).`}
+                    </p>
+                    <div className="form-group">
+                      <label className="form-label">{language === 'vi' ? 'Mật khẩu mới *' : 'New Password *'}</label>
+                      <input 
+                        type="password" required className="form-input" minLength={6} autoFocus
+                        value={newPassword} onChange={e => setNewPassword(e.target.value)}
+                        placeholder="••••••"
+                      />
+                    </div>
+                    <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '0.5rem', marginTop: '1rem' }}>
+                      <button type="button" className="btn btn-outline" onClick={() => setResetPassModalOpen(false)}>
+                        {language === 'vi' ? 'Hủy' : 'Cancel'}
+                      </button>
+                      <button type="submit" className="btn btn-teal">
+                        {language === 'vi' ? 'Đặt lại mật khẩu' : 'Reset'}
+                      </button>
+                    </div>
+                  </form>
                 </div>
               </div>
             )}

@@ -78,13 +78,13 @@ export const CrmReports: React.FC<CrmReportsProps> = ({ language }) => {
 
       // 2. Fetch all profiles to map users properly
       const { data: profiles, error: profsError } = await client
-        .from('profiles')
-        .select('id, display_name, email');
+        .from('users')
+        .select('id, name, email');
 
       if (profsError) throw profsError;
 
       const oppList = opportunities || [];
-      const profList = profiles || [];
+      const profList = (profiles || []).map(p => ({ id: p.id, display_name: p.name, email: p.email }));
 
       // Group by Owner
       const ownerMap: Record<string, OwnerPerformance> = {};

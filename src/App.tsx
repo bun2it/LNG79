@@ -287,9 +287,10 @@ export const AppContent: React.FC = () => {
           if (result.authenticated) {
             setUserProfile({
               id: 'legacy-admin',
-              email: 'admin',
-              display_name: 'System Admin (Local)',
-              role: 'owner',
+              name: 'System Admin (Local)',
+              email: 'admin@lng79.com.vn',
+              username: 'admin',
+              account_type: 'admin',
               status: 'active'
             });
           } else {
@@ -306,6 +307,21 @@ export const AppContent: React.FC = () => {
     window.addEventListener(CMS_AUTH_EXPIRED_EVENT, handleExpiredSession);
     return () => { cancelled = true; unsubscribe(); window.removeEventListener(CMS_AUTH_EXPIRED_EVENT, handleExpiredSession); };
   }, []);
+
+  React.useEffect(() => {
+    if (isLoggedIn && userProfile) {
+      const path = window.location.pathname.replace(/\/+$/, '');
+      if (userProfile.account_type === 'admin') {
+        if (path === '') {
+          setView('admin');
+        }
+      } else if (userProfile.account_type === 'user') {
+        if (path === '/admin' || path === '') {
+          setView('crm');
+        }
+      }
+    }
+  }, [isLoggedIn, userProfile, currentView, setView]);
 
   const handleLogout = React.useCallback(async () => {
     if (supabase) {
@@ -1637,7 +1653,7 @@ export const AppContent: React.FC = () => {
       );
     }
     
-    const isCrmAuthorized = userProfile && ['owner', 'admin', 'manager', 'sales'].includes(userProfile.role);
+    const isCrmAuthorized = userProfile && (userProfile.account_type === 'user' || userProfile.account_type === 'admin');
     if (!isCrmAuthorized) {
       return (
         <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', minHeight: '100vh', background: '#0f172a', color: '#fff', padding: '1rem', fontFamily: 'Inter, sans-serif' }}>
@@ -1710,7 +1726,7 @@ export const AppContent: React.FC = () => {
             <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
               <span style={{ fontSize: '1rem', fontWeight: 800, color: 'var(--color-teal)' }}>🛠️ LNG79 Live Editor</span>
               <span style={{ fontSize: '0.75rem', backgroundColor: 'rgba(255,255,255,0.1)', padding: '0.1rem 0.4rem', borderRadius: '3px' }}>
-                Logged in as {userProfile?.display_name || 'Administrator'}
+                Logged in as {userProfile?.name || 'Administrator'}
               </span>
             </div>
             <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>

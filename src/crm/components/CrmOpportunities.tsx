@@ -62,9 +62,9 @@ export const CrmOpportunities: React.FC<CrmOpportunitiesProps> = ({ language, on
 
       if (error) throw error;
       
-      // Load salesperson profile metadata from profiles table
-      const { data: profs } = await client.from('profiles').select('id, display_name, email');
-      const profileMap = new Map((profs || []).map((p: any) => [p.id, p]));
+      // Load salesperson profile metadata from users table
+      const { data: profs } = await client.from('users').select('id, name, email');
+      const profileMap = new Map((profs || []).map((p: any) => [p.id, { id: p.id, display_name: p.name, email: p.email }]));
       
       const mapped: CrmOpportunity[] = (oppData || []).map((o: any) => {
         const assignedProfile = o.assigned_to ? profileMap.get(o.assigned_to) : null;
@@ -88,8 +88,8 @@ export const CrmOpportunities: React.FC<CrmOpportunitiesProps> = ({ language, on
       setLeadSources(srcData || []);
 
       // 5. Fetch salespersons profiles
-      const { data: salesData } = await client.from('profiles').select('id, display_name').eq('status', 'active');
-      setProfiles(salesData || []);
+      const { data: salesData } = await client.from('users').select('id, name').eq('status', 'active');
+      setProfiles((salesData || []).map((p: any) => ({ id: p.id, display_name: p.name })));
     } catch (err) {
       console.error('Error fetching opportunities:', err);
     } finally {

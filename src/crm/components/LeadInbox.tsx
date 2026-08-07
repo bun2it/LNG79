@@ -83,8 +83,8 @@ export const LeadInbox: React.FC<LeadInboxProps> = ({ language, onNavigateToDeal
       setLeadSources(srcData || []);
 
       // 4. Fetch profiles for assignment
-      const { data: profData } = await client.from('profiles').select('id, display_name, email').eq('status', 'active');
-      setProfiles(profData || []);
+      const { data: profData } = await client.from('users').select('id, name, email').eq('status', 'active');
+      setProfiles((profData || []).map(p => ({ id: p.id, display_name: p.name, email: p.email })));
     } catch (err) {
       console.error('Error fetching leads:', err);
     } finally {

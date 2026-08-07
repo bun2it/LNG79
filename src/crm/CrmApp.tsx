@@ -99,7 +99,7 @@ export const CrmApp: React.FC<CrmAppProps> = ({ language, userProfile, onLogout,
     { id: 'settings', label: { vi: 'Cấu hình CRM', en: 'CRM Settings' }, icon: Settings },
   ];
 
-  const isManagerOrOwner = userProfile?.role && ['owner', 'admin', 'manager'].includes(userProfile.role);
+  const isManagerOrOwner = userProfile?.account_type === 'admin' || userProfile?.account_type === 'user';
 
   const renderActiveView = () => {
     switch (activeMenu) {
@@ -211,7 +211,7 @@ export const CrmApp: React.FC<CrmAppProps> = ({ language, userProfile, onLogout,
       }}>
         <div style={styles.sidebarHeader}>
           <div style={styles.logoBox}>
-            <Briefcase size={20} color="var(--color-teal)" />
+            <Briefcase size={20} color="var(--color-navy)" />
             {!sidebarCollapsed && <span style={styles.logoText}>LNG79 CRM</span>}
           </div>
           <button 
@@ -227,14 +227,13 @@ export const CrmApp: React.FC<CrmAppProps> = ({ language, userProfile, onLogout,
         {!sidebarCollapsed && (
           <div style={styles.profileBox}>
             <div style={styles.avatar}>
-              {(userProfile?.display_name || userProfile?.email || 'A')[0].toUpperCase()}
+              {(userProfile?.name || userProfile?.email || 'A')[0].toUpperCase()}
             </div>
             <div style={styles.profileMeta}>
-              <div style={styles.profileName}>{userProfile?.display_name || 'CRM User'}</div>
+              <div style={styles.profileName}>{userProfile?.name || 'CRM User'}</div>
               <div style={styles.profileRole}>
-                {userProfile?.role === 'owner' ? 'System Owner' : 
-                 userProfile?.role === 'admin' ? 'Administrator' : 
-                 userProfile?.role === 'manager' ? 'Sales Manager' : 'Sales Representative'}
+                {userProfile?.account_type === 'admin' ? 'System Admin' : 
+                 userProfile?.company ? `${userProfile.company} (${userProfile.department || 'CRM'})` : 'CRM User'}
               </div>
             </div>
           </div>
@@ -385,7 +384,7 @@ export const CrmApp: React.FC<CrmAppProps> = ({ language, userProfile, onLogout,
             {/* View status */}
             <div style={styles.roleBadge}>
               <Shield size={12} />
-              <span>{userProfile?.role.toUpperCase()}</span>
+              <span>{(userProfile?.account_type || 'user').toUpperCase()}</span>
             </div>
           </div>
         </header>

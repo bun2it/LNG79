@@ -36,8 +36,8 @@ export const LoginPortal: React.FC<LoginPortalProps> = ({ portalType, language, 
         }
 
         // Check portal authorization
-        const isCrmAuthorized = ['owner', 'admin', 'manager', 'sales'].includes(profile.role);
-        const isCmsAuthorized = ['owner', 'admin', 'editor', 'translator', 'marketing'].includes(profile.role);
+        const isCrmAuthorized = profile.account_type === 'user' || profile.account_type === 'admin';
+        const isCmsAuthorized = profile.account_type === 'admin';
 
         if (portalType === 'crm' && !isCrmAuthorized) {
           await getSupabaseClient().auth.signOut({ scope: 'local' });
@@ -78,10 +78,11 @@ export const LoginPortal: React.FC<LoginPortalProps> = ({ portalType, language, 
       // Seed a mock profile for legacy local fallback
       const mockProfile = {
         id: 'legacy-admin',
+        name: 'System Admin (Local)',
         email: email,
-        display_name: 'System Admin (Local)',
-        role: 'owner',
-        status: 'active'
+        username: email.split('@')[0] || 'admin',
+        account_type: 'admin' as const,
+        status: 'active' as const
       };
       onLoginSuccess(mockProfile);
     } catch (reason: any) {

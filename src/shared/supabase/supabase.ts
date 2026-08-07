@@ -35,15 +35,16 @@ export const getSupabaseClient = (): SupabaseClient => {
   }
   return supabase;
 };
-
-export type CmsRole = 'owner' | 'admin' | 'editor' | 'translator' | 'marketing' | 'sales' | 'manager';
-
 export interface CmsProfile {
   id: string;
+  name: string;
   email: string;
-  display_name: string | null;
-  role: CmsRole;
+  username: string;
+  account_type: 'admin' | 'user';
   status: 'pending' | 'active' | 'disabled';
+  company?: string | null;
+  department?: string | null;
+  last_login?: string | null;
 }
 
 export const getCurrentCmsProfile = async (): Promise<CmsProfile | null> => {
@@ -51,8 +52,8 @@ export const getCurrentCmsProfile = async (): Promise<CmsProfile | null> => {
   const { data: userData, error: userError } = await supabase.auth.getUser();
   if (userError || !userData.user) return null;
   const { data, error } = await supabase
-    .from('profiles')
-    .select('id,email,display_name,role,status')
+    .from('users')
+    .select('id,name,email,username,account_type,status,company,department,last_login')
     .eq('id', userData.user.id)
     .maybeSingle();
   if (error || data?.status !== 'active') return null;

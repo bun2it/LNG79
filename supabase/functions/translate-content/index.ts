@@ -26,12 +26,12 @@ export default {
 
     // Validate user active CMS status
     const { data: profile, error: profileError } = await ctx.supabaseAdmin
-      .from('profiles')
-      .select('role, status')
+      .from('users')
+      .select('account_type, status')
       .eq('id', user.id)
       .maybeSingle();
 
-    if (profileError || !profile || profile.status !== 'active') {
+    if (profileError || !profile || profile.status !== 'active' || profile.account_type !== 'admin') {
       return new Response(JSON.stringify({ error: 'Forbidden CMS access' }), { status: 403, headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
     }
 

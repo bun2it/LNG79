@@ -13,7 +13,7 @@ const bearerToken = (req: import('node:http').IncomingMessage) => {
   const authorization = String(req.headers.authorization || '')
   return authorization.startsWith('Bearer ') ? authorization.slice(7).trim() : ''
 }
-const supabaseAuthenticated = async (req: import('node:http').IncomingMessage, url: string, publishableKey: string, allowedRoles: string[]) => {
+const supabaseAuthenticated = async (req: import('node:http').IncomingMessage, url: string, publishableKey: string, _allowedRoles: string[]) => {
   const token = bearerToken(req)
   if (!url || !publishableKey || !token) return false
   try {
@@ -24,12 +24,12 @@ const supabaseAuthenticated = async (req: import('node:http').IncomingMessage, u
     if (!response.ok) return false
     const user = await response.json() as { id?: string }
     if (!user.id) return false
-    const profileResponse = await fetch(`${baseUrl}/rest/v1/profiles?id=eq.${encodeURIComponent(user.id)}&select=role,status`, {
+    const profileResponse = await fetch(`${baseUrl}/rest/v1/users?id=eq.${encodeURIComponent(user.id)}&select=account_type,status`, {
       headers: { apikey: publishableKey, Authorization: `Bearer ${token}` },
     })
     if (!profileResponse.ok) return false
-    const profiles = await profileResponse.json() as Array<{ role?: string; status?: string }>
-    return profiles.length === 1 && profiles[0].status === 'active' && allowedRoles.includes(profiles[0].role || '')
+    const usersList = await profileResponse.json() as Array<{ account_type?: string; status?: string }>
+    return usersList.length === 1 && usersList[0].status === 'active' && usersList[0].account_type === 'admin'
   } catch {
     return false
   }
