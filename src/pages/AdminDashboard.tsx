@@ -210,6 +210,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
   const [pageBannerImagePickerOpen, setPageBannerImagePickerOpen] = useState(false);
   const [pickerForPageId, setPickerForPageId] = useState<string | null>(null);
   const [expandedBannerPageId, setExpandedBannerPageId] = useState<string | null>(null);
+  const [expandedFaqPageId, setExpandedFaqPageId] = useState<string | null>(null);
   const [selectedNodeIndex, setSelectedNodeIndex] = useState(0);
   const [previewLayout, setPreviewLayout] = useState<'canvas' | 'hero' | 'banner'>('canvas');
   const [activeTab, setActiveTab] = useState<'overview' | 'pages' | 'navigation' | 'media' | 'leads' | 'products' | 'settings' | 'articles' | 'projects' | 'seo' | 'logs' | 'trash' | 'gui'>('overview');
@@ -1967,9 +1968,24 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                               <button 
                                 className={`btn btn-sm ${expandedBannerPageId === p.id ? 'btn-teal' : 'btn-outline'}`}
                                 style={{ padding: '0.2rem 0.4rem', fontSize: '0.75rem', marginLeft: '0.5rem' }}
-                                onClick={() => setExpandedBannerPageId(expandedBannerPageId === p.id ? null : p.id)}
+                                onClick={() => {
+                                  setExpandedBannerPageId(expandedBannerPageId === p.id ? null : p.id);
+                                  setExpandedFaqPageId(null);
+                                }}
                               >
                                 🖼️ {language === 'vi' ? 'Ảnh bìa' : 'Banner'}
+                              </button>
+                            )}
+                            {['p-2', 'p-3', 'p-4', 'p-5'].includes(p.id) && (
+                              <button 
+                                className={`btn btn-sm ${expandedFaqPageId === p.id ? 'btn-teal' : 'btn-outline'}`}
+                                style={{ padding: '0.2rem 0.4rem', fontSize: '0.75rem', marginLeft: '0.5rem' }}
+                                onClick={() => {
+                                  setExpandedFaqPageId(expandedFaqPageId === p.id ? null : p.id);
+                                  setExpandedBannerPageId(null);
+                                }}
+                              >
+                                ❓ FAQ
                               </button>
                             )}
                           </td>
@@ -2076,6 +2092,134 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                                       <span>200%</span>
                                     </div>
                                   </div>
+                                </div>
+                              )}
+                            </div>
+                          </td>
+                        </tr>
+                      )}
+                      {expandedFaqPageId === p.id && (
+                        <tr style={{ backgroundColor: '#F8FAFC' }}>
+                          <td colSpan={6} style={{ padding: '1rem', borderBottom: '1px solid var(--color-gray-border)' }}>
+                            <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+                              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                                <strong style={{ fontSize: '0.9rem', color: 'var(--color-navy)' }}>
+                                  {language === 'vi' ? 'Quản lý danh sách Câu hỏi thường gặp (FAQ)' : 'Manage Frequently Asked Questions'}
+                                </strong>
+                                <button 
+                                  type="button" 
+                                  className="btn btn-teal btn-sm"
+                                  onClick={() => {
+                                    const newFaq = { 
+                                      q: { vi: 'Câu hỏi mới', en: 'New question' }, 
+                                      a: { vi: 'Nội dung trả lời mới', en: 'New answer details' } 
+                                    };
+                                    setPages(prev => prev.map(item => item.id === p.id ? { ...item, faqs: [...(item.faqs || []), newFaq] } : item));
+                                    logAction(`Added new FAQ item to page ID: ${p.id}`);
+                                  }}
+                                >
+                                  + {language === 'vi' ? 'Thêm câu hỏi' : 'Add FAQ'}
+                                </button>
+                              </div>
+                              
+                              {(!p.faqs || p.faqs.length === 0) ? (
+                                <p style={{ fontSize: '0.85rem', color: 'var(--color-text-muted)', margin: 0 }}>
+                                  {language === 'vi' ? 'Chưa có câu hỏi nào được cấu hình cho trang này.' : 'No FAQs configured for this page.'}
+                                </p>
+                              ) : (
+                                <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
+                                  {(p.faqs || []).map((faq: any, faqIdx: number) => (
+                                    <div 
+                                      key={faqIdx} 
+                                      style={{ 
+                                        backgroundColor: '#fff', 
+                                        padding: '1rem', 
+                                        borderRadius: 'var(--border-radius-sm)', 
+                                        border: '1px solid var(--color-gray-border)',
+                                        display: 'flex',
+                                        flexDirection: 'column',
+                                        gap: '0.5rem'
+                                      }}
+                                    >
+                                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                                        <span style={{ fontSize: '0.8rem', fontWeight: 800, color: 'var(--color-teal)' }}>FAQ #{faqIdx + 1}</span>
+                                        <button 
+                                          type="button"
+                                          className="btn btn-sm"
+                                          style={{ color: '#EF4444', border: 'none', padding: '0.1rem 0.3rem', fontSize: '0.75rem', cursor: 'pointer' }}
+                                          onClick={() => {
+                                            if (confirm(language === 'vi' ? 'Bạn có muốn xóa câu hỏi này không?' : 'Delete this FAQ?')) {
+                                              const updated = (p.faqs || []).filter((_: any, idx: number) => idx !== faqIdx);
+                                              setPages(prev => prev.map(item => item.id === p.id ? { ...item, faqs: updated } : item));
+                                              logAction(`Deleted FAQ #${faqIdx + 1} for page ID: ${p.id}`);
+                                            }
+                                          }}
+                                        >
+                                          {language === 'vi' ? 'Xóa' : 'Delete'}
+                                        </button>
+                                      </div>
+                                      
+                                      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
+                                        <div style={{ display: 'flex', flexDirection: 'column', gap: '0.25rem' }}>
+                                          <label style={{ fontSize: '0.7rem', color: 'var(--color-text-muted)' }}>{language === 'vi' ? 'Câu hỏi (Tiếng Việt)' : 'Question (VI)'}</label>
+                                          <input 
+                                            type="text" 
+                                            className="form-input" 
+                                            style={{ fontSize: '0.85rem', padding: '0.25rem 0.5rem' }} 
+                                            value={faq.q?.vi || ''}
+                                            onChange={(e) => {
+                                              const updated = [...(p.faqs || [])];
+                                              updated[faqIdx] = { ...faq, q: { ...(faq.q || {}), vi: e.target.value } };
+                                              setPages(prev => prev.map(item => item.id === p.id ? { ...item, faqs: updated } : item));
+                                            }}
+                                          />
+                                        </div>
+                                        <div style={{ display: 'flex', flexDirection: 'column', gap: '0.25rem' }}>
+                                          <label style={{ fontSize: '0.7rem', color: 'var(--color-text-muted)' }}>{language === 'vi' ? 'Câu hỏi (Tiếng Anh)' : 'Question (EN)'}</label>
+                                          <input 
+                                            type="text" 
+                                            className="form-input" 
+                                            style={{ fontSize: '0.85rem', padding: '0.25rem 0.5rem' }} 
+                                            value={faq.q?.en || ''}
+                                            onChange={(e) => {
+                                              const updated = [...(p.faqs || [])];
+                                              updated[faqIdx] = { ...faq, q: { ...(faq.q || {}), en: e.target.value } };
+                                              setPages(prev => prev.map(item => item.id === p.id ? { ...item, faqs: updated } : item));
+                                            }}
+                                          />
+                                        </div>
+                                      </div>
+
+                                      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem', marginTop: '0.25rem' }}>
+                                        <div style={{ display: 'flex', flexDirection: 'column', gap: '0.25rem' }}>
+                                          <label style={{ fontSize: '0.7rem', color: 'var(--color-text-muted)' }}>{language === 'vi' ? 'Câu trả lời (Tiếng Việt)' : 'Answer (VI)'}</label>
+                                          <textarea 
+                                            className="form-input" 
+                                            style={{ fontSize: '0.85rem', padding: '0.25rem 0.5rem', height: '60px', resize: 'vertical' }} 
+                                            value={faq.a?.vi || ''}
+                                            onChange={(e) => {
+                                              const updated = [...(p.faqs || [])];
+                                              updated[faqIdx] = { ...faq, a: { ...(faq.a || {}), vi: e.target.value } };
+                                              setPages(prev => prev.map(item => item.id === p.id ? { ...item, faqs: updated } : item));
+                                            }}
+                                          />
+                                        </div>
+                                        <div style={{ display: 'flex', flexDirection: 'column', gap: '0.25rem' }}>
+                                          <label style={{ fontSize: '0.7rem', color: 'var(--color-text-muted)' }}>{language === 'vi' ? 'Câu trả lời (Tiếng Anh)' : 'Answer (EN)'}</label>
+                                          <textarea 
+                                            className="form-input" 
+                                            style={{ fontSize: '0.85rem', padding: '0.25rem 0.5rem', height: '60px', resize: 'vertical' }} 
+                                            value={faq.a?.en || ''}
+                                            onChange={(e) => {
+                                              const updated = [...(p.faqs || [])];
+                                              updated[faqIdx] = { ...faq, a: { ...(faq.a || {}), en: e.target.value } };
+                                              setPages(prev => prev.map(item => item.id === p.id ? { ...item, faqs: updated } : item));
+                                            }}
+                                          />
+                                        </div>
+                                      </div>
+                                    </div>
+                                  ))}
                                 </div>
                               )}
                             </div>

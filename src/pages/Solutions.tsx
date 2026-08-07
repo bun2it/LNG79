@@ -29,11 +29,7 @@ export const SOLUTIONS_PAGE_DATA: Record<string, { title: { vi: string; en: stri
       { label: { vi: '5. Cụm điều áp PRMS', en: '5. Regulating Skid' }, desc: { vi: 'Giảm áp suất và đo lưu lượng cung cấp', en: 'Regulates delivery pressure and measures flow' } },
       { label: { vi: '6. Đầu đốt lò hơi', en: '6. Boiler Burner' }, desc: { vi: 'Cấp gas sạch sinh nhiệt hiệu quả cao', en: 'Burns natural gas efficiently for thermal energy' } }
     ],
-    faqs: [
-      { q: { vi: 'Khi nào nhà máy nên đầu tư trạm khí LNG?', en: 'When should a factory invest in an LNG station?' }, a: { vi: 'Khi lượng tiêu thụ nhiên liệu lớn (tối thiểu 30-50 tấn LPG/tháng hoặc tương đương) và không nằm gần đường ống dẫn khí thấp áp của quốc gia.', en: 'When monthly fuel consumption is high (min 30-50 tons LPG equivalent) and there is no direct national natural gas pipeline access nearby.' } },
-      { q: { vi: 'Diện tích tối thiểu cần thiết để xây trạm LNG?', en: 'What is the minimum land area required for LNG?' }, a: { vi: 'Một trạm tiêu chuẩn cần diện tích từ 150m² - 400m², đảm bảo khoảng cách an toàn cháy nổ (hành lang an toàn tối thiểu 15 mét từ bồn chứa đến công trình xung quanh).', en: 'A standard station requires 150sqm to 400sqm, satisfying safety clearance boundaries (minimum 15 meters buffer between tank and boundary fences).' } },
-      { q: { vi: 'Thời gian thi công hoàn thành một trạm LNG?', en: 'How long does it take to deploy an LNG station?' }, a: { vi: 'Từ lúc thiết kế, thẩm duyệt PCCC, nhập thiết bị áp lực đến kiểm định chạy thử thường mất từ 4 - 6 tháng tùy theo thủ tục cấp phép xây dựng.', en: 'It takes 4 to 6 months including detailed engineering, fire department approvals, importing pressure vessels, installation, and final inspection.' } }
-    ],
+    faqs: [],
     equipment: [
       { vi: 'Bồn chứa lỏng siêu lạnh (2 lớp, cách nhiệt chân không)', en: 'Cryogenic Tank (Double-walled, Vacuum + Perlite)' },
       { vi: 'Thiết bị hóa hơi dàn trao đổi nhiệt tự nhiên (Hợp kim nhôm cánh sao)', en: 'Ambient Air Vaporizer (Aluminum star-fin tube)' },
@@ -57,10 +53,7 @@ export const SOLUTIONS_PAGE_DATA: Record<string, { title: { vi: string; en: stri
       { label: { vi: '5. Hệ van ngắt tự động', en: '5. Safety Solenoid' }, desc: { vi: 'Tự động ngắt khẩn cấp khi phát hiện rò rỉ', en: 'Interlocks with gas detector to shut off instantly' } },
       { label: { vi: '6. Thiết bị sử dụng', en: '6. Gas Appliances' }, desc: { vi: 'Kết nối đầu đốt lò hơi, bếp nấu nhà hàng', en: 'Feeds clean gas to factory boiler or kitchen ranges' } }
     ],
-    faqs: [
-      { q: { vi: 'Hệ thống bồn chứa gas công nghiệp (LPG Bulk) khác gì với dàn chai gas?', en: 'How does LPG bulk storage differ from cylinder manifolds?' }, a: { vi: 'Bồn gas LPG Bulk phù hợp công suất nhiệt lớn (>3-5 tấn/tháng), tiết kiệm chi phí mua khí gas và công vận chuyển. Dàn góp chai gas (cylinder manifold) dùng cho quy mô vừa và nhỏ như nhà hàng khách sạn có diện tích chật hẹp.', en: 'LPG bulk storage is suited for large thermal loads (>3-5 tons/month) reducing gas unit prices. Cylinder manifolds are optimized for small to medium commercial kitchens with limited ground space.' } },
-      { q: { vi: 'Hệ thống gas trung tâm có an toàn không?', en: 'Is a central gas pipeline system safe?' }, a: { vi: 'Cực kỳ an toàn nếu được lắp đầy đủ các thiết bị an toàn: Cảm biến phát hiện rò rỉ gas đặt tại điểm nối, tủ trung tâm báo động khẩn cấp, van điện từ tự động ngắt nguồn cấp gas chính khi có sự cố.', en: 'Extremely safe if installed with standard protection: gas sensors at critical connections, emergency alarm control panel, and main automatic shut-off solenoid valves.' } }
-    ],
+    faqs: [],
     equipment: [
       { vi: 'Bồn chứa gas LPG (10m³ - 100m³, đặt nổi/đắp đất)', en: 'LPG Storage Tanks (10m³ - 100m³, above/underground)' },
       { vi: 'Thiết bị hóa hơi gas LPG (nước nóng / điện)', en: 'Hot water / Electric LPG Vaporizers' },
@@ -84,10 +77,7 @@ export const SOLUTIONS_PAGE_DATA: Record<string, { title: { vi: string; en: stri
       { label: { vi: '5. Lập trình PLC', en: '5. PLC Integration' }, desc: { vi: 'Điều khiển tự động lưu lượng khí và oxy', en: 'Program automated air-gas ratio controls' } },
       { label: { vi: '6. Vận hành xanh', en: '6. Eco Operation' }, desc: { vi: 'Chạy thử hơi đạt công suất, giảm khói bụi', en: 'Start steam generation with zero soot emission' } }
     ],
-    faqs: [
-      { q: { vi: 'Tại sao chuyển đổi sang gas lại tiết kiệm chi phí hơn?', en: 'Why is converting to gas more cost-effective?' }, a: { vi: 'LNG/LPG có nhiệt trị cao và hiệu suất cháy triệt để (>90% so với 65-75% của lò than/dầu). Do đó lượng tiêu hao năng lượng thực tế giảm, đồng thời giảm chi phí bảo trì buồng đốt do không bám muội than.', en: 'LNG/LPG offers higher thermal value and complete combustion efficiency (>90% vs 65-75% for coal/FO). This reduces total heat consumption and boiler maintenance costs as there is no ash or soot buildup.' } },
-      { q: { vi: 'Có cần thay thế hoàn toàn lò hơi cũ không?', en: 'Do I need to replace the entire boiler?' }, a: { vi: 'Không cần. Hầu hết các lò hơi ghi xích, lò hơi dầu chỉ cần cải tạo/thay thế cụm đầu đốt (burner conversion) và lắp đặt trạm cấp gas bên ngoài, giữ nguyên cấu trúc thân lò hơi để tối ưu chi phí đầu tư.', en: 'No. Most oil or chain grate boilers only require burner conversion (retrofit) and installing the external gas station, keeping the pressure vessel hull to minimize capital expenditure.' } }
-    ],
+    faqs: [],
     equipment: [
       { vi: 'Đầu đốt đa nhiên liệu (Weishaupt, Riello, Oilon)', en: 'Multi-fuel gas burners (Weishaupt, Riello, Oilon)' },
       { vi: 'Cụm van an toàn valve train (Van điện từ kép block solenoid)', en: 'Valve train skid (Double safety block solenoid valves)' },
@@ -111,9 +101,7 @@ export const SOLUTIONS_PAGE_DATA: Record<string, { title: { vi: string; en: stri
       { label: { vi: '5. Cảm biến rò rỉ gas', en: '5. Leak Detection' }, desc: { vi: 'Đặt cảm biến cạnh thiết bị đun nấu', en: 'Install gas leak alarms near cooker ranges' } },
       { label: { vi: '6. Nghiệm thu bàn giao', en: '6. Commissioning' }, desc: { vi: 'Chạy thử bếp lửa xanh và bàn giao đào tạo', en: 'Test cookers and train culinary staff' } }
     ],
-    faqs: [
-      { q: { vi: 'Quy trình một chiều trong bếp công nghiệp là gì?', en: 'What is the one-way process in commercial kitchens?' }, a: { vi: 'Là nguyên tắc sắp xếp các phân khu trong bếp theo một chiều liên tục từ khâu nguyên liệu thô nhập kho, sơ chế, chế biến nấu nướng đến khâu trình bày món và dọn rửa, đảm bảo luồng thực phẩm chín không bao giờ đi ngược qua khu thực phẩm sống.', en: 'It is a layout principle where food moves in a straight sequence from raw delivery, prep, cooking, staging to dishwashing. This ensures prepared food never crosses paths with raw materials, preventing biological contamination.' } }
-    ],
+    faqs: [],
     equipment: [
       { vi: 'Bếp gas công nghiệp (bếp Á, bếp Âu và bếp theo yêu cầu)', en: 'Custom commercial gas ranges (Á-Âu burners)' },
       { vi: 'Chụp hút khói công nghiệp tích hợp tiêu âm, giảm tiếng ồn', en: 'Sound-attenuated exhaust canopy hoods' },

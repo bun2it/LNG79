@@ -1,8 +1,9 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useLanguage } from '../context/LanguageContext';
 import { 
   ArrowRight, Settings, CheckCircle2, Factory, 
-  Flame, HardHat 
+  Flame, HardHat, Search, PenTool, Shield, Play, 
+  Rocket, RotateCcw, ChevronLeft, ChevronRight 
 } from 'lucide-react';
 
 interface HomeProps {
@@ -27,6 +28,9 @@ const PartnerLogoMarquee: React.FC<{ logos?: string[]; names: string[] }> = ({ l
 export const Home: React.FC<HomeProps> = ({ setView, onAddProduct, cartItems, pages, setPages, isVisualEditing }) => {
   const { language, t } = useLanguage();
   const [activeProcessStep, setActiveProcessStep] = useState<number>(0);
+  const [activeProcessLoopIndex, setActiveProcessLoopIndex] = useState<number>(0);
+  const stepRefs = useRef<(HTMLDivElement | null)[]>([]);
+  const containerRef = useRef<HTMLDivElement | null>(null);
 
   const processSteps = [
     { title: t('step1'), desc: t('step1Desc') },
@@ -41,6 +45,52 @@ export const Home: React.FC<HomeProps> = ({ setView, onAddProduct, cartItems, pa
   const handleNav = (view: string) => {
     setView(view);
     window.scrollTo({ top: 0, behavior: 'smooth' });
+  };
+
+  const homePage = pages?.find(p => p.slug === '/' || p.id === 'p-1');
+  const blocks = homePage?.blocks || [];
+  const processBlock = blocks?.find((b: any) => b.id === 'b-process');
+  const processStepsList = (language === 'vi' ? processBlock?.itemsVi : processBlock?.itemsEn)
+    ?.split(',')
+    ?.map((s: any) => s.trim())
+    ?.filter(Boolean) || [];
+
+  // Auto-scroll loop effect
+  useEffect(() => {
+    if (isVisualEditing || !processStepsList.length) return;
+    const timer = setInterval(() => {
+      setActiveProcessLoopIndex(prev => (prev + 1) % processStepsList.length);
+    }, 4000);
+    return () => clearInterval(timer);
+  }, [processStepsList.length, isVisualEditing]);
+
+  // Center active item scroll effect
+  useEffect(() => {
+    if (isVisualEditing || !processStepsList.length) return;
+    const container = containerRef.current;
+    const activeEl = stepRefs.current[activeProcessLoopIndex];
+    if (container && activeEl) {
+      const containerWidth = container.clientWidth;
+      const activeWidth = activeEl.clientWidth;
+      const activeLeft = activeEl.offsetLeft;
+      const targetScrollLeft = activeLeft - (containerWidth / 2) + (activeWidth / 2);
+      container.scrollTo({
+        left: targetScrollLeft,
+        behavior: 'smooth'
+      });
+    }
+  }, [activeProcessLoopIndex, isVisualEditing, processStepsList.length]);
+
+  const getStepIcon = (index: number) => {
+    switch (index % 7) {
+      case 0: return <Search size={22} />;
+      case 1: return <PenTool size={22} />;
+      case 2: return <Settings size={22} />;
+      case 3: return <Shield size={22} />;
+      case 4: return <Play size={22} />;
+      case 5: return <Rocket size={22} />;
+      default: return <RotateCcw size={22} />;
+    }
   };
 
   // Mock featured products for homepage
@@ -127,8 +177,7 @@ export const Home: React.FC<HomeProps> = ({ setView, onAddProduct, cartItems, pa
 
 
 
-  const homePage = pages?.find(p => p.slug === '/' || p.id === 'p-1');
-  const blocks = homePage?.blocks || [];
+
 
   if (blocks.length > 0) {
     return (
@@ -214,11 +263,12 @@ export const Home: React.FC<HomeProps> = ({ setView, onAddProduct, cartItems, pa
               );
             case 'features':
               if (block.id === 'b-process') {
+                const steps = (language === 'vi' ? block.itemsVi : block.itemsEn)?.split(',').map((s: string) => s.trim()).filter(Boolean) || [];
                 return (
-                  <section key={block.id || idx} className="section section-dark home-adaptive-section">
-                    <div className="container">
+                  <section key={block.id || idx} className="section section-dark home-adaptive-section" style={{ position: 'relative', overflow: 'hidden' }}>
+                    <div className="container" style={{ position: 'relative' }}>
                       <div className="section-title-wrap">
-                        {renderEditableText(block.id, language === 'vi' ? 'titleVi' : 'titleEn', language === 'vi' ? block.titleVi : block.titleEn, 'h2', { color: 'var(--home-on-surface)', fontSize: '2rem', fontWeight: 800, textAlign: 'center' })}
+                        {renderEditableText(block.id, language === 'vi' ? 'titleVi' : 'titleEn', language === 'vi' ? block.titleVi : block.titleEn, 'h2', { color: 'var(--home-on-surface)', fontSize: '2.25rem', fontWeight: 800, textAlign: 'center', marginBottom: '2.5rem' })}
                       </div>
                       
                       {isVisualEditing ? (
@@ -227,12 +277,190 @@ export const Home: React.FC<HomeProps> = ({ setView, onAddProduct, cartItems, pa
                           {renderEditableText(block.id, language === 'vi' ? 'itemsVi' : 'itemsEn', language === 'vi' ? block.itemsVi : block.itemsEn, 'div', { display: 'flex', justifyContent: 'center', padding: '0.5rem', border: '1px dashed var(--color-teal)', borderRadius: '4px', color: 'var(--home-on-surface)' })}
                         </div>
                       ) : (
-                        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '1.5rem', marginTop: '2rem' }}>
-                          {(language === 'vi' ? block.itemsVi : block.itemsEn)?.split(',').map((step: string, i: number) => (
-                            <div key={i} className="home-adaptive-panel" style={{ backgroundColor: 'var(--home-surface-raised)', padding: '1.5rem', borderRadius: 'var(--border-radius-md)', border: '1px solid var(--home-surface-border)' }}>
-                              <span style={{ fontSize: '0.8rem', color: 'var(--color-teal)', fontWeight: 800 }}>STEP 0{i + 1}</span>
-                              <h4 style={{ margin: '0.5rem 0 0 0', color: 'var(--home-on-surface)', fontSize: '1rem' }}>{step.trim()}</h4>
-                            </div>
+                        <div style={{ position: 'relative', width: '100%', display: 'flex', alignItems: 'center' }}>
+                          {/* Navigation Chevrons */}
+                          <button 
+                            type="button" 
+                            className="carousel-nav-btn prev"
+                            onClick={() => setActiveProcessLoopIndex(prev => (prev - 1 + steps.length) % steps.length)}
+                            style={{
+                              position: 'absolute',
+                              left: '0',
+                              top: '50%',
+                              transform: 'translateY(-50%)',
+                              width: '44px',
+                              height: '44px',
+                              borderRadius: '50%',
+                              backgroundColor: 'rgba(255,255,255,0.08)',
+                              border: '1px solid rgba(255,255,255,0.1)',
+                              color: '#fff',
+                              display: 'flex',
+                              alignItems: 'center',
+                              justifyContent: 'center',
+                              cursor: 'pointer',
+                              zIndex: 10,
+                              backdropFilter: 'blur(4px)',
+                              transition: 'all 0.3s ease',
+                              boxShadow: '0 4px 15px rgba(0,0,0,0.2)'
+                            }}
+                          >
+                            <ChevronLeft size={24} />
+                          </button>
+
+                          {/* Steps Cards Wrapper */}
+                          <div style={{
+                            display: 'flex',
+                            overflowX: 'auto',
+                            gap: '2.5rem',
+                            scrollSnapType: 'x mandatory',
+                            scrollbarWidth: 'none',
+                            msOverflowStyle: 'none',
+                            paddingLeft: 'calc(50% - 150px)',
+                            paddingRight: 'calc(50% - 150px)',
+                            paddingTop: '2.5rem',
+                            paddingBottom: '2.5rem',
+                            width: '100%',
+                            alignItems: 'center',
+                            scrollBehavior: 'smooth'
+                          }} ref={containerRef} className="process-carousel-wrapper">
+                            {steps.map((step: string, i: number) => {
+                              const isActive = i === activeProcessLoopIndex;
+                              return (
+                                <div 
+                                  key={i} 
+                                  ref={(el) => { stepRefs.current[i] = el; }}
+                                  onClick={() => setActiveProcessLoopIndex(i)}
+                                  className="home-adaptive-panel" 
+                                  style={{
+                                    flex: '0 0 300px',
+                                    backgroundColor: isActive ? 'var(--home-surface-raised)' : 'var(--home-surface)',
+                                    padding: '2.25rem 2rem',
+                                    borderRadius: 'var(--border-radius-lg)',
+                                    border: isActive ? '2px solid var(--color-teal)' : '1px solid var(--home-surface-border)',
+                                    transform: isActive ? 'scale(1.15)' : 'scale(0.92)',
+                                    opacity: isActive ? 1 : 0.5,
+                                    zIndex: isActive ? 5 : 1,
+                                    boxShadow: isActive ? '0 15px 35px rgba(20, 184, 166, 0.25)' : 'none',
+                                    transition: 'all 0.6s cubic-bezier(0.4, 0, 0.2, 1)',
+                                    cursor: 'pointer',
+                                    display: 'flex',
+                                    flexDirection: 'column',
+                                    alignItems: 'center',
+                                    textAlign: 'center',
+                                    scrollSnapAlign: 'center',
+                                    userSelect: 'none'
+                                  }}
+                                >
+                                  <div style={{
+                                    display: 'flex',
+                                    width: '100%',
+                                    justifyContent: 'space-between',
+                                    alignItems: 'center',
+                                    marginBottom: '1rem'
+                                  }}>
+                                    <span style={{ fontSize: '0.85rem', color: 'var(--color-teal)', fontWeight: 800 }}>STEP 0{i + 1}</span>
+                                  </div>
+                                  <div style={{
+                                    width: '56px',
+                                    height: '56px',
+                                    borderRadius: '50%',
+                                    backgroundColor: isActive ? 'var(--color-teal)' : 'rgba(20, 184, 166, 0.08)',
+                                    color: isActive ? '#fff' : 'var(--color-teal)',
+                                    display: 'flex',
+                                    alignItems: 'center',
+                                    justifyContent: 'center',
+                                    marginBottom: '1.25rem',
+                                    transition: 'all 0.5s ease',
+                                    boxShadow: isActive ? '0 0 20px rgba(20, 184, 166, 0.4)' : 'none'
+                                  }}>
+                                    {getStepIcon(i)}
+                                  </div>
+                                  <h4 style={{ margin: '0 0 0.5rem 0', color: 'var(--home-on-surface)', fontSize: '1.2rem', fontWeight: 700 }}>{step.trim()}</h4>
+                                  
+                                  {isActive && (
+                                    <div style={{
+                                      display: 'flex',
+                                      alignItems: 'center',
+                                      gap: '0.35rem',
+                                      fontSize: '0.75rem',
+                                      color: 'var(--color-teal)',
+                                      marginTop: '1.25rem',
+                                      fontWeight: 'bold',
+                                      backgroundColor: 'rgba(20, 184, 166, 0.08)',
+                                      padding: '0.25rem 0.65rem',
+                                      borderRadius: '20px',
+                                      border: '1px solid rgba(20, 184, 166, 0.2)'
+                                    }}>
+                                      <span style={{
+                                        width: '6px',
+                                        height: '6px',
+                                        borderRadius: '50%',
+                                        backgroundColor: 'var(--color-teal)',
+                                        display: 'inline-block'
+                                      }} className="pulse-dot-indicator" />
+                                      <span>{language === 'vi' ? 'Đang triển khai' : 'Active Stage'}</span>
+                                    </div>
+                                  )}
+                                </div>
+                              );
+                            })}
+                          </div>
+
+                          <button 
+                            type="button" 
+                            className="carousel-nav-btn next"
+                            onClick={() => setActiveProcessLoopIndex(prev => (prev + 1) % steps.length)}
+                            style={{
+                              position: 'absolute',
+                              right: '0',
+                              top: '50%',
+                              transform: 'translateY(-50%)',
+                              width: '44px',
+                              height: '44px',
+                              borderRadius: '50%',
+                              backgroundColor: 'rgba(255,255,255,0.08)',
+                              border: '1px solid rgba(255,255,255,0.1)',
+                              color: '#fff',
+                              display: 'flex',
+                              alignItems: 'center',
+                              justifyContent: 'center',
+                              cursor: 'pointer',
+                              zIndex: 10,
+                              backdropFilter: 'blur(4px)',
+                              transition: 'all 0.3s ease',
+                              boxShadow: '0 4px 15px rgba(0,0,0,0.2)'
+                            }}
+                          >
+                            <ChevronRight size={24} />
+                          </button>
+                        </div>
+                      )}
+
+                      {/* Dots Indicators */}
+                      {!isVisualEditing && (
+                        <div style={{
+                          display: 'flex',
+                          justifyContent: 'center',
+                          gap: '0.5rem',
+                          marginTop: '1.5rem',
+                        }}>
+                          {steps.map((_: any, i: number) => (
+                            <button
+                              key={i}
+                              type="button"
+                              onClick={() => setActiveProcessLoopIndex(i)}
+                              style={{
+                                height: '8px',
+                                borderRadius: '4px',
+                                border: 'none',
+                                cursor: 'pointer',
+                                transition: 'all 0.3s ease',
+                                padding: 0,
+                                backgroundColor: i === activeProcessLoopIndex ? 'var(--color-teal)' : 'rgba(255,255,255,0.2)',
+                                width: i === activeProcessLoopIndex ? '20px' : '8px',
+                              }}
+                              aria-label={`Go to step ${i + 1}`}
+                            />
                           ))}
                         </div>
                       )}

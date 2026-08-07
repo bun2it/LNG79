@@ -1650,3 +1650,33 @@ button, input, select, textarea {
   .partner-logo-track { animation-duration: 28s; }
   .cms-logo-manager__grid { grid-template-columns: repeat(3, minmax(0, 1fr)); }
 }
+
+.process-carousel-wrapper::-webkit-scrollbar {
+  display: none;
+}
+
+@keyframes pulse-dot-indicator-keyframes {
+  0% {
+    transform: scale(0.95);
+    box-shadow: 0 0 0 0 rgba(20, 184, 166, 0.7);
+  }
+  70% {
+    transform: scale(1.1);
+    box-shadow: 0 0 0 6px rgba(20, 184, 166, 0);
+  }
+  100% {
+    transform: scale(0.95);
+    box-shadow: 0 0 0 0 rgba(20, 184, 166, 0);
+  }
+}
+
+.pulse-dot-indicator {
+  animation: pulse-dot-indicator-keyframes 2s infinite;
+}
+
+.carousel-nav-btn:hover {
+  background-color: var(--color-teal) !important;
+  border-color: var(--color-teal) !important;
+  color: #fff !important;
+  transform: translateY(-50%) scale(1.1) !important;
+}
