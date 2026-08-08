@@ -41,6 +41,11 @@ export const CrmApp: React.FC<CrmAppProps> = ({ language, userProfile, onLogout,
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [triggerCreateTime, setTriggerCreateTime] = useState<{ companies?: number; contacts?: number; pipeline?: number }>({});
 
+  // Sync sidebar width CSS custom property for responsive children layout
+  useEffect(() => {
+    document.documentElement.style.setProperty('--sidebar-width', sidebarCollapsed ? '70px' : '260px');
+  }, [sidebarCollapsed]);
+
   // Global Search logic
   useEffect(() => {
     const client = supabase;

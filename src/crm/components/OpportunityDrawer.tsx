@@ -48,6 +48,16 @@ export const OpportunityDrawer: React.FC<OpportunityDrawerProps> = ({
   const [activities, setActivities] = useState<CrmActivity[]>([]);
   const [loadingActivities, setLoadingActivities] = useState(true);
 
+  // Responsive state
+  const [windowWidth, setWindowWidth] = useState(typeof window !== 'undefined' ? window.innerWidth : 1200);
+
+  useEffect(() => {
+    const handleResize = () => setWindowWidth(window.innerWidth);
+    window.addEventListener('resize', handleResize);
+    return () => window.removeEventListener('resize', handleResize);
+  }, []);
+
+
   // Add activity form
   const [activityType, setActivityType] = useState<ActivityType>('note');
   const [activityContent, setActivityContent] = useState('');
@@ -144,13 +154,63 @@ export const OpportunityDrawer: React.FC<OpportunityDrawerProps> = ({
     });
   };
 
-  return (
-    <>
-      {/* Overlay */}
-      <div style={styles.overlay} onClick={onClose} />
+  const isMobile = windowWidth < 992;
 
+  const responsiveOverlayStyle = {
+    ...styles.overlay,
+    left: isMobile ? '0' : 'var(--sidebar-width, 260px)',
+    width: isMobile ? '100vw' : 'calc(100vw - var(--sidebar-width, 260px))',
+    display: 'flex',
+    justifyContent: 'center',
+    alignItems: 'center',
+    transition: 'left 0.2s ease, width 0.2s ease',
+  };
+
+  const responsiveDrawerStyle = {
+    ...styles.drawer,
+    width: isMobile ? '100vw' : 'min(92%, 1100px)',
+    height: isMobile ? '100vh' : '90vh',
+    borderRadius: isMobile ? '0' : '12px',
+    position: isMobile ? 'fixed' : 'relative' as any,
+    top: isMobile ? '0' : 'auto',
+    right: isMobile ? '0' : 'auto',
+    overflowY: isMobile ? 'auto' : 'auto' as any, // Both mobile and desktop scroll the entire card if needed
+  };
+
+  const responsiveBodyStyle = {
+    ...styles.drawerBody,
+    gridTemplateColumns: isMobile ? '1fr' : '340px 1fr',
+    overflow: 'visible' as any,
+    overflowY: 'visible' as any,
+  };
+
+  const responsiveDetailsColStyle = {
+    ...styles.detailsCol,
+    borderRight: isMobile ? 'none' : '1px solid #e2e8f0',
+    borderBottom: isMobile ? '1px solid #e2e8f0' : 'none',
+    overflow: 'visible' as any,
+    padding: '1.25rem',
+    display: 'flex',
+    flexDirection: 'column' as any,
+  };
+
+  const responsiveActivityColStyle = {
+    ...styles.activityCol,
+    position: isMobile ? 'static' : 'sticky' as any,
+    top: isMobile ? 'auto' : '104px',
+    height: isMobile ? 'auto' : 'calc(90vh - 104px)',
+    overflow: isMobile ? 'visible' : 'hidden' as any,
+  };
+
+  const responsiveTimelineStyle = {
+    ...styles.timeline,
+    overflowY: isMobile ? 'visible' : 'auto' as any,
+  };
+
+  return (
+    <div style={responsiveOverlayStyle} onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}>
       {/* Drawer panel */}
-      <div style={styles.drawer} className="animate-fade-in">
+      <div style={responsiveDrawerStyle} className="animate-fade-in">
         {/* ── HEADER ── */}
         <div style={styles.drawerHeader}>
           <div style={styles.headerLeft}>
@@ -185,9 +245,9 @@ export const OpportunityDrawer: React.FC<OpportunityDrawerProps> = ({
         </div>
 
         {/* ── BODY ── */}
-        <div style={styles.drawerBody}>
+        <div style={responsiveBodyStyle}>
           {/* LEFT COLUMN — Details */}
-          <div style={styles.detailsCol}>
+          <div style={responsiveDetailsColStyle}>
             {/* Key Metrics */}
             <div style={styles.metricsGrid}>
               <div style={styles.metricCard}>
@@ -329,7 +389,7 @@ export const OpportunityDrawer: React.FC<OpportunityDrawerProps> = ({
           </div>
 
           {/* RIGHT COLUMN — Activity Timeline */}
-          <div style={styles.activityCol}>
+          <div style={responsiveActivityColStyle}>
             <div style={styles.activityHeader}>
               <span style={styles.activityTitle}>
                 {language === 'vi' ? '📒 Nhật ký hoạt động' : '📒 Activity Timeline'}
@@ -367,7 +427,7 @@ export const OpportunityDrawer: React.FC<OpportunityDrawerProps> = ({
             </form>
 
             {/* Timeline */}
-            <div style={styles.timeline} ref={timelineRef}>
+            <div style={responsiveTimelineStyle} ref={timelineRef}>
               {loadingActivities ? (
                 <div style={styles.loadingActivities}>
                   {language === 'vi' ? 'Đang tải nhật ký...' : 'Loading timeline...'}
@@ -400,7 +460,7 @@ export const OpportunityDrawer: React.FC<OpportunityDrawerProps> = ({
           </div>
         </div>
       </div>
-    </>
+    </div>
   );
 };
 
@@ -433,6 +493,9 @@ const styles = {
     alignItems: 'flex-start',
     backgroundColor: '#0f172a',
     color: '#ffffff',
+    position: 'sticky' as any,
+    top: 0,
+    zIndex: 10,
   },
   headerLeft: {
     display: 'flex',
@@ -473,6 +536,9 @@ const styles = {
     backgroundColor: '#f8fafc',
     alignItems: 'center',
     flexShrink: 0,
+    position: 'sticky' as any,
+    top: '56px',
+    zIndex: 9,
   },
   stageNode: {
     fontSize: '0.65rem',

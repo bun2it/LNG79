@@ -213,6 +213,11 @@ export const CrmPipeline: React.FC<CrmPipelineProps> = ({ language, userProfile,
       setOpportunities(prev =>
         prev.map(o => o.id === opp.id ? { ...o, stage: newStage } : o)
       );
+      setSelectedOpp(prev => prev && prev.id === opp.id ? {
+        ...prev,
+        stage: newStage,
+        probability: newStage === 'won' ? 100 : (newStage === 'lost' ? 0 : prev.probability)
+      } : prev);
 
       const updates: any = { stage: newStage };
       if (newStage === 'won') updates.probability = 100;
@@ -241,6 +246,11 @@ export const CrmPipeline: React.FC<CrmPipelineProps> = ({ language, userProfile,
       setOpportunities(prev =>
         prev.map(o => o.id === opp.id ? { ...o, stage: opp.stage } : o)
       );
+      setSelectedOpp(prev => prev && prev.id === opp.id ? {
+        ...prev,
+        stage: opp.stage,
+        probability: opp.probability
+      } : prev);
       alert('Failed to move deal: ' + err.message);
     } finally {
       setMovingId(null);
