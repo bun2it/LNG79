@@ -9,9 +9,10 @@ import {
 interface CrmContactsProps {
   language: 'vi' | 'en';
   onLogAction?: (msg: string) => void;
+  triggerCreate?: number;
 }
 
-export const CrmContacts: React.FC<CrmContactsProps> = ({ language, onLogAction }) => {
+export const CrmContacts: React.FC<CrmContactsProps> = ({ language, onLogAction, triggerCreate }) => {
   const [contacts, setContacts] = useState<CrmContact[]>([]);
   const [companies, setCompanies] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
@@ -71,6 +72,14 @@ export const CrmContacts: React.FC<CrmContactsProps> = ({ language, onLogAction 
   useEffect(() => {
     fetchContacts();
   }, []);
+
+  useEffect(() => {
+    if (triggerCreate) {
+      setModalMode('create');
+      resetForm();
+      setModalOpen(true);
+    }
+  }, [triggerCreate]);
 
   const handleSave = async (e: React.FormEvent) => {
     e.preventDefault();

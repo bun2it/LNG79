@@ -1,13 +1,14 @@
 import React, { useEffect, useState, useCallback } from 'react';
 import { supabase } from '../../shared/supabase/supabase';
 import { type CrmOpportunity, type OpportunityStage } from '../../shared/types/crm';
-import { ChevronRight, TrendingUp, RefreshCw } from 'lucide-react';
+import { ChevronRight, TrendingUp, RefreshCw, List, Kanban, Plus } from 'lucide-react';
 import { OpportunityDrawer } from './OpportunityDrawer';
 
 interface CrmPipelineProps {
   language: 'vi' | 'en';
   userProfile: any;
   onLogAction?: (msg: string) => void;
+  triggerCreate?: number;
 }
 
 // Pipeline stage configuration — order matters
@@ -38,12 +39,35 @@ const SOLUTION_COLORS: Record<string, string> = {
   kitchen: '#DB2777',
 };
 
-export const CrmPipeline: React.FC<CrmPipelineProps> = ({ language, userProfile, onLogAction }) => {
+export const CrmPipeline: React.FC<CrmPipelineProps> = ({ language, userProfile, onLogAction, triggerCreate }) => {
   const [opportunities, setOpportunities] = useState<CrmOpportunity[]>([]);
   const [loading, setLoading] = useState(true);
   const [movingId, setMovingId] = useState<string | null>(null);
   const [selectedOpp, setSelectedOpp] = useState<CrmOpportunity | null>(null);
   const [drawerOpen, setDrawerOpen] = useState(false);
+
+  // Layout View Mode
+  const [viewMode, setViewMode] = useState<'kanban' | 'list'>('kanban');
+
+  // Create Opportunity modal state
+  const [createModalOpen, setCreateModalOpen] = useState(false);
+  const [companies, setCompanies] = useState<any[]>([]);
+  const [contacts, setContacts] = useState<any[]>([]);
+  const [profiles, setProfiles] = useState<any[]>([]);
+  const [leadSources, setLeadSources] = useState<any[]>([]);
+
+  // Form State for new Opportunity
+  const [newTitle, setNewTitle] = useState('');
+  const [newCompanyId, setNewCompanyId] = useState('');
+  const [newContactId, setNewContactId] = useState('');
+  const [newSolutionType, setNewSolutionType] = useState<'lng' | 'lpg' | 'conversion' | 'kitchen'>('lng');
+  const [newDealValue, setNewDealValue] = useState(0);
+  const [newProbability, setNewProbability] = useState(10);
+  const [newExpectedCloseDate, setNewExpectedCloseDate] = useState('');
+  const [newAssignedTo, setNewAssignedTo] = useState('');
+  const [newSourceId, setNewSourceId] = useState('');
+  const [newNotes, setNewNotes] = useState('');
+  const [createLoading, setCreateLoading] = useState(false);
 
   // Filters
   const [filterSolution, setFilterSolution] = useState('all');
@@ -64,7 +88,19 @@ export const CrmPipeline: React.FC<CrmPipelineProps> = ({ language, userProfile,
         .is('deleted_at', null)
         .order('updated_at', { ascending: false });
       if (error) throw error;
-      setOpportunities(data || []);
+      
+      // Load salesperson profile metadata from users table in background
+      const { data: profs } = await client.from('users').select('id, name, email');
+      const profileMap = new Map((profs || []).map((p: any) => [p.id, { display_name: p.name, email: p.email }]));
+      
+      const mapped: CrmOpportunity[] = (data || []).map((o: any) => {
+        const assignedProfile = o.assigned_to ? profileMap.get(o.assigned_to) : null;
+        return {
+          ...o,
+          assigned_profile: assignedProfile ? { display_name: assignedProfile.display_name, email: assignedProfile.email } : undefined
+        };
+      });
+      setOpportunities(mapped);
     } catch (err) {
       console.error('Error loading pipeline:', err);
     } finally {
@@ -75,6 +111,96 @@ export const CrmPipeline: React.FC<CrmPipelineProps> = ({ language, userProfile,
   useEffect(() => {
     fetchOpportunities();
   }, [fetchOpportunities]);
+
+  // Fetch reference metadata for opportunity form dropdowns
+  const fetchReferenceData = async () => {
+    const client = supabase;
+    if (!client) return;
+    try {
+      const { data: comp } = await client.from('crm_companies').select('id, name').is('deleted_at', null).order('name');
+      const { data: cont } = await client.from('crm_contacts').select('id, name, company_id').is('deleted_at', null).order('name');
+      const { data: sales } = await client.from('users').select('id, name').eq('status', 'active');
+      const { data: sources } = await client.from('crm_lead_sources').select('*').eq('is_active', true);
+      setCompanies(comp || []);
+      setContacts(cont || []);
+      setProfiles((sales || []).map(p => ({ id: p.id, display_name: p.name })));
+      setLeadSources(sources || []);
+    } catch (err) {
+      console.error('Error fetching reference data for pipeline:', err);
+    }
+  };
+
+  // Open modal on Quick Create trigger
+  useEffect(() => {
+    if (triggerCreate) {
+      fetchReferenceData();
+      setCreateModalOpen(true);
+    }
+  }, [triggerCreate]);
+
+  const handleCreateOpportunity = async (e: React.FormEvent) => {
+    e.preventDefault();
+    const client = supabase;
+    if (!client || !newTitle.trim() || !newCompanyId) return;
+    setCreateLoading(true);
+    try {
+      const payload = {
+        title: newTitle.trim(),
+        company_id: newCompanyId,
+        primary_contact_id: newContactId || null,
+        solution_type: newSolutionType,
+        deal_value: newDealValue,
+        currency: 'VND',
+        probability: newProbability,
+        expected_close_date: newExpectedCloseDate || null,
+        assigned_to: newAssignedTo || null,
+        stage: 'new', // Starts at "new"
+        source_id: newSourceId || null,
+        notes: newNotes.trim()
+      };
+
+      const { data, error } = await client
+        .from('crm_opportunities')
+        .insert(payload)
+        .select()
+        .single();
+
+      if (error) throw error;
+
+      // Log activity
+      await client.from('crm_activities').insert({
+        entity_type: 'opportunity',
+        entity_id: data.id,
+        activity_type: 'status_change',
+        content: language === 'vi'
+          ? `Tạo mới cơ hội kinh doanh từ Quick Create`
+          : `New opportunity created via Quick Create`,
+        created_by: userProfile?.id || null,
+      });
+
+      setCreateModalOpen(false);
+      // Reset form
+      setNewTitle('');
+      setNewCompanyId('');
+      setNewContactId('');
+      setNewSolutionType('lng');
+      setNewDealValue(0);
+      setNewProbability(10);
+      setNewExpectedCloseDate('');
+      setNewAssignedTo('');
+      setNewSourceId('');
+      setNewNotes('');
+
+      fetchOpportunities(); // Refresh pipeline list
+      if (onLogAction) onLogAction(`Manually created Opportunity: ${newTitle}`);
+    } catch (err: any) {
+      alert(language === 'vi' ? `Lỗi tạo cơ hội: ${err.message}` : `Failed to create opportunity: ${err.message}`);
+    } finally {
+      setCreateLoading(false);
+    }
+  };
+
+  const filteredModalContacts = contacts.filter(c => c.company_id === newCompanyId);
 
   const handleMoveStage = async (opp: CrmOpportunity, newStage: OpportunityStage) => {
     if (opp.stage === newStage) return;
@@ -184,6 +310,34 @@ export const CrmPipeline: React.FC<CrmPipelineProps> = ({ language, userProfile,
           </div>
         </div>
         <div style={styles.topRight}>
+          {/* List/Kanban Toggle */}
+          <div style={{ display: 'flex', border: '1px solid #cbd5e1', borderRadius: '6px', overflow: 'hidden', marginRight: '0.25rem', height: '28px' }}>
+            <button
+              onClick={() => setViewMode('kanban')}
+              style={{
+                display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '0 0.55rem', border: 'none',
+                backgroundColor: viewMode === 'kanban' ? '#0f172a' : '#fff',
+                color: viewMode === 'kanban' ? '#fff' : '#475569',
+                cursor: 'pointer',
+              }}
+              title={language === 'vi' ? 'Bảng Kanban' : 'Kanban Board'}
+            >
+              <Kanban size={14} />
+            </button>
+            <button
+              onClick={() => setViewMode('list')}
+              style={{
+                display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '0 0.55rem', border: 'none',
+                backgroundColor: viewMode === 'list' ? '#0f172a' : '#fff',
+                color: viewMode === 'list' ? '#fff' : '#475569',
+                cursor: 'pointer',
+              }}
+              title={language === 'vi' ? 'Danh sách rút gọn' : 'Compact List'}
+            >
+              <List size={14} />
+            </button>
+          </div>
+
           <input
             type="text"
             placeholder={language === 'vi' ? 'Tìm deal...' : 'Search deals...'}
@@ -204,11 +358,61 @@ export const CrmPipeline: React.FC<CrmPipelineProps> = ({ language, userProfile,
         </div>
       </div>
 
-      {/* KANBAN BOARD */}
+      {/* KANBAN BOARD OR LIST VIEW */}
       {loading ? (
         <div style={styles.loading}>
           <RefreshCw size={24} color="#0D9488" style={{ animation: 'spin 1s linear infinite' }} />
           <span>{language === 'vi' ? 'Đang tải pipeline...' : 'Loading pipeline...'}</span>
+        </div>
+      ) : viewMode === 'list' ? (
+        <div style={{ backgroundColor: '#fff', borderRadius: '8px', border: '1px solid #e2e8f0', overflowX: 'auto', flex: 1 }}>
+          <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left', minWidth: '800px' }}>
+            <thead>
+              <tr style={{ backgroundColor: '#f8fafc', borderBottom: '1px solid #e2e8f0' }}>
+                <th style={{ padding: '0.75rem 1rem', fontSize: '0.75rem', fontWeight: 600, color: '#475569' }}>{language === 'vi' ? 'Mã số' : 'ID'}</th>
+                <th style={{ padding: '0.75rem 1rem', fontSize: '0.75rem', fontWeight: 600, color: '#475569' }}>{language === 'vi' ? 'Cơ hội / Dự án' : 'Title'}</th>
+                <th style={{ padding: '0.75rem 1rem', fontSize: '0.75rem', fontWeight: 600, color: '#475569' }}>{language === 'vi' ? 'Doanh nghiệp' : 'Company'}</th>
+                <th style={{ padding: '0.75rem 1rem', fontSize: '0.75rem', fontWeight: 600, color: '#475569' }}>{language === 'vi' ? 'Giải pháp' : 'Solution'}</th>
+                <th style={{ padding: '0.75rem 1rem', fontSize: '0.75rem', fontWeight: 600, color: '#475569' }}>{language === 'vi' ? 'Giá trị' : 'Value'}</th>
+                <th style={{ padding: '0.75rem 1rem', fontSize: '0.75rem', fontWeight: 600, color: '#475569' }}>{language === 'vi' ? 'Giai đoạn' : 'Stage'}</th>
+                <th style={{ padding: '0.75rem 1rem', fontSize: '0.75rem', fontWeight: 600, color: '#475569' }}>{language === 'vi' ? 'Phụ trách' : 'Owner'}</th>
+              </tr>
+            </thead>
+            <tbody>
+              {filtered.map(opp => {
+                const stageObj = PIPELINE_STAGES.find(s => s.id === opp.stage) || PIPELINE_STAGES[0];
+                return (
+                  <tr key={opp.id} style={{ borderBottom: '1px solid #f1f5f9', cursor: 'pointer' }} onClick={() => handleOpenDrawer(opp)}>
+                    <td style={{ padding: '0.75rem 1rem', fontSize: '0.8rem', color: '#64748b' }}>{opp.opportunity_number}</td>
+                    <td style={{ padding: '0.75rem 1rem', fontSize: '0.8rem', fontWeight: 600, color: '#0f172a' }}>{opp.title}</td>
+                    <td style={{ padding: '0.75rem 1rem', fontSize: '0.8rem', color: '#334155' }}>
+                      🏢 {opp.company?.name || '—'}
+                      {opp.primary_contact && (
+                        <div style={{ fontSize: '0.7rem', color: '#64748b', marginTop: '0.15rem' }}>👤 {opp.primary_contact.name}</div>
+                      )}
+                    </td>
+                    <td style={{ padding: '0.75rem 1rem', fontSize: '0.75rem' }}>
+                      <span style={{ backgroundColor: (SOLUTION_COLORS[opp.solution_type] || '#64748b') + '15', color: (SOLUTION_COLORS[opp.solution_type] || '#64748b'), padding: '0.15rem 0.4rem', borderRadius: '4px', fontWeight: 700 }}>
+                        {opp.solution_type.toUpperCase()}
+                      </span>
+                    </td>
+                    <td style={{ padding: '0.75rem 1rem', fontSize: '0.8rem' }}>
+                      <strong style={{ color: '#0f172a' }}>{formatCurrency(opp.deal_value, opp.currency)}</strong>
+                      <div style={{ fontSize: '0.7rem', color: '#64748b' }}>Prob: {opp.probability}%</div>
+                    </td>
+                    <td style={{ padding: '0.75rem 1rem', fontSize: '0.75rem' }}>
+                      <span style={{ backgroundColor: stageObj.bg, color: stageObj.color, border: `1px solid ${stageObj.border}`, padding: '0.15rem 0.5rem', borderRadius: '4px', fontWeight: 600 }}>
+                        {stageObj.label[language]}
+                      </span>
+                    </td>
+                    <td style={{ padding: '0.75rem 1rem', fontSize: '0.8rem', color: '#475569' }}>
+                      {opp.assigned_profile?.display_name || 'Unassigned'}
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
         </div>
       ) : (
         <div style={styles.board}>
@@ -283,6 +487,108 @@ export const CrmPipeline: React.FC<CrmPipelineProps> = ({ language, userProfile,
           onMoveStage={(newStage) => handleMoveStage(selectedOpp, newStage)}
           formatCurrency={formatCurrency}
         />
+      )}
+
+      {/* CREATE NEW OPPORTUNITY MODAL (Quick Create Target) */}
+      {createModalOpen && (
+        <div style={styles.modalOverlay}>
+          <div style={{ ...styles.modalCard, maxWidth: '600px' }} className="animate-fade-in">
+            <div style={styles.modalHeader}>
+              <h3 style={{ margin: 0, fontSize: '1rem', color: '#ffffff' }}>
+                <Plus size={16} style={{ marginRight: 6, verticalAlign: 'middle' }} />
+                {language === 'vi' ? 'Thêm Cơ Hội Bán Hàng Mới' : 'Open New Opportunity'}
+              </h3>
+              <button type="button" style={styles.modalClose} onClick={() => setCreateModalOpen(false)}>×</button>
+            </div>
+
+            <form onSubmit={handleCreateOpportunity}>
+              <div style={styles.modalBody}>
+                <div className="form-group">
+                  <label className="form-label">{language === 'vi' ? 'Tiêu đề cơ hội / Tên dự án *' : 'Opportunity / Project Title *'}</label>
+                  <input
+                    type="text" className="form-input" required autoFocus
+                    placeholder="e.g. B2B Client - LNG conversion factory"
+                    value={newTitle} onChange={e => setNewTitle(e.target.value)}
+                  />
+                </div>
+
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.75rem' }}>
+                  <div className="form-group">
+                    <label className="form-label">{language === 'vi' ? 'Doanh nghiệp liên kết *' : 'Company Account *'}</label>
+                    <select className="form-select" value={newCompanyId} onChange={e => { setNewCompanyId(e.target.value); setNewContactId(''); }} required>
+                      <option value="">— Select Company —</option>
+                      {companies.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
+                    </select>
+                  </div>
+                  <div className="form-group">
+                    <label className="form-label">{language === 'vi' ? 'Người liên hệ đại diện' : 'Primary Contact'}</label>
+                    <select className="form-select" value={newContactId} onChange={e => setNewContactId(e.target.value)}>
+                      <option value="">— Select Contact —</option>
+                      {filteredModalContacts.map(c => <option key={c.id} value={c.id}>{c.name} ({c.position})</option>)}
+                    </select>
+                  </div>
+                </div>
+
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '0.75rem' }}>
+                  <div className="form-group">
+                    <label className="form-label">{language === 'vi' ? 'Giải pháp nhiên liệu' : 'Solution category'}</label>
+                    <select className="form-select" value={newSolutionType} onChange={e => setNewSolutionType(e.target.value as any)}>
+                      <option value="lng">LNG Solution</option>
+                      <option value="lpg">LPG Solution</option>
+                      <option value="conversion">Boiler Conversion</option>
+                      <option value="kitchen">Commercial Kitchen</option>
+                    </select>
+                  </div>
+                  <div className="form-group">
+                    <label className="form-label">{language === 'vi' ? 'Giá trị dự toán (VNĐ)' : 'Deal value (VND)'}</label>
+                    <input type="number" className="form-input" value={newDealValue} onChange={e => setNewDealValue(Number(e.target.value))} />
+                  </div>
+                  <div className="form-group">
+                    <label className="form-label">{language === 'vi' ? 'Xác suất chốt (%)' : 'Probability (%)'}</label>
+                    <input type="number" className="form-input" min={0} max={100} value={newProbability} onChange={e => setNewProbability(Number(e.target.value))} />
+                  </div>
+                </div>
+
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.75rem' }}>
+                  <div className="form-group">
+                    <label className="form-label">{language === 'vi' ? 'Người phụ trách' : 'Assigned Owner'}</label>
+                    <select className="form-select" value={newAssignedTo} onChange={e => setNewAssignedTo(e.target.value)}>
+                      <option value="">— Select Owner —</option>
+                      {profiles.map(p => <option key={p.id} value={p.id}>{p.display_name}</option>)}
+                    </select>
+                  </div>
+                  <div className="form-group">
+                    <label className="form-label">{language === 'vi' ? 'Hạn dự kiến chốt' : 'Expected close date'}</label>
+                    <input type="date" className="form-input" value={newExpectedCloseDate} onChange={e => setNewExpectedCloseDate(e.target.value)} />
+                  </div>
+                </div>
+
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr', gap: '0.75rem' }}>
+                  <div className="form-group">
+                    <label className="form-label">{language === 'vi' ? 'Nguồn Deal' : 'Deal source'}</label>
+                    <select className="form-select" value={newSourceId} onChange={e => setNewSourceId(e.target.value)}>
+                      <option value="">— Select Source —</option>
+                      {leadSources.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
+                    </select>
+                  </div>
+                  <div className="form-group">
+                    <label className="form-label">{language === 'vi' ? 'Ghi chú thêm' : 'Notes / Description'}</label>
+                    <textarea className="form-input" rows={2} style={{ resize: 'vertical', fontFamily: 'inherit' }} value={newNotes} onChange={e => setNewNotes(e.target.value)} />
+                  </div>
+                </div>
+              </div>
+
+              <div style={styles.modalFooter}>
+                <button type="button" className="btn btn-outline" disabled={createLoading} onClick={() => setCreateModalOpen(false)}>
+                  {language === 'vi' ? 'Hủy bỏ' : 'Cancel'}
+                </button>
+                <button type="submit" className="btn btn-teal" disabled={createLoading || !newTitle || !newCompanyId}>
+                  {createLoading ? '...' : (language === 'vi' ? 'Xác Nhận & Mở Deal' : 'Open Deal')}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
       )}
     </div>
   );
@@ -615,5 +921,56 @@ const styles = {
     padding: '4rem 1rem',
     color: '#64748b',
     fontSize: '0.875rem',
+  },
+  modalOverlay: {
+    position: 'fixed' as const,
+    top: 0, left: 0, right: 0, bottom: 0,
+    backgroundColor: 'rgba(15, 23, 42, 0.6)',
+    backdropFilter: 'blur(4px)',
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    zIndex: 9999,
+    padding: '1rem',
+  },
+  modalCard: {
+    backgroundColor: '#ffffff',
+    borderRadius: '8px',
+    width: '100%',
+    maxWidth: '750px',
+    boxShadow: '0 20px 25px -5px rgba(0, 0, 0, 0.15)',
+    display: 'flex',
+    flexDirection: 'column' as const,
+    maxHeight: '90vh',
+  },
+  modalHeader: {
+    backgroundColor: '#0f172a',
+    padding: '1rem 1.25rem',
+    borderTopLeftRadius: '8px',
+    borderTopRightRadius: '8px',
+    display: 'flex',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+  },
+  modalClose: {
+    background: 'none',
+    border: 'none',
+    fontSize: '1.5rem',
+    color: '#94a3b8',
+    cursor: 'pointer',
+  },
+  modalBody: {
+    padding: '1.25rem',
+    overflowY: 'auto' as const,
+    display: 'flex',
+    flexDirection: 'column' as const,
+    gap: '0.875rem',
+  },
+  modalFooter: {
+    borderTop: '1px solid #e2e8f0',
+    padding: '1rem 1.25rem',
+    display: 'flex',
+    justifyContent: 'flex-end',
+    gap: '0.75rem',
   },
 } as const;

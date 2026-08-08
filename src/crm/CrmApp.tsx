@@ -16,6 +16,7 @@ import { CrmContracts } from './components/CrmContracts';
 import { CrmDashboard } from './components/CrmDashboard';
 import { CrmReports } from './components/CrmReports';
 import { CrmActivities } from './components/CrmActivities';
+import { CrmSettings } from './components/CrmSettings';
 
 interface CrmAppProps {
   language: 'vi' | 'en';
@@ -38,6 +39,7 @@ export const CrmApp: React.FC<CrmAppProps> = ({ language, userProfile, onLogout,
   const [searchResults, setSearchResults] = useState<{ companies: any[]; contacts: any[]; opportunities: any[] }>({ companies: [], contacts: [], opportunities: [] });
   const [quickCreateOpen, setQuickCreateOpen] = useState(false);
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
+  const [triggerCreateTime, setTriggerCreateTime] = useState<{ companies?: number; contacts?: number; pipeline?: number }>({});
 
   // Global Search logic
   useEffect(() => {
@@ -131,6 +133,7 @@ export const CrmApp: React.FC<CrmAppProps> = ({ language, userProfile, onLogout,
           <CrmCompanies 
             language={language}
             onLogAction={(msg) => console.log('CRM Log:', msg)}
+            triggerCreate={triggerCreateTime.companies}
           />
         );
       case 'contacts':
@@ -138,6 +141,7 @@ export const CrmApp: React.FC<CrmAppProps> = ({ language, userProfile, onLogout,
           <CrmContacts 
             language={language}
             onLogAction={(msg) => console.log('CRM Log:', msg)}
+            triggerCreate={triggerCreateTime.contacts}
           />
         );
       case 'pipeline':
@@ -146,6 +150,7 @@ export const CrmApp: React.FC<CrmAppProps> = ({ language, userProfile, onLogout,
             language={language}
             userProfile={userProfile}
             onLogAction={(msg) => console.log('CRM Log:', msg)}
+            triggerCreate={triggerCreateTime.pipeline}
           />
         );
       case 'tasks':
@@ -183,6 +188,14 @@ export const CrmApp: React.FC<CrmAppProps> = ({ language, userProfile, onLogout,
       case 'activities':
         return (
           <CrmActivities
+            language={language}
+            userProfile={userProfile}
+            onLogAction={(msg) => console.log('CRM Log:', msg)}
+          />
+        );
+      case 'settings':
+        return (
+          <CrmSettings
             language={language}
             userProfile={userProfile}
             onLogAction={(msg) => console.log('CRM Log:', msg)}
@@ -383,9 +396,9 @@ export const CrmApp: React.FC<CrmAppProps> = ({ language, userProfile, onLogout,
               </button>
               {quickCreateOpen && (
                 <div style={styles.quickCreateDropdown}>
-                  <button onClick={() => { setQuickCreateOpen(false); setActiveMenu('companies'); }} style={styles.quickCreateOption}>{language === 'vi' ? '+ Doanh nghiệp' : '+ Company'}</button>
-                  <button onClick={() => { setQuickCreateOpen(false); setActiveMenu('contacts'); }} style={styles.quickCreateOption}>{language === 'vi' ? '+ Người liên hệ' : '+ Contact'}</button>
-                  <button onClick={() => { setQuickCreateOpen(false); setActiveMenu('pipeline'); }} style={styles.quickCreateOption}>{language === 'vi' ? '+ Cơ hội bán hàng' : '+ Opportunity'}</button>
+                  <button onClick={() => { setQuickCreateOpen(false); setActiveMenu('companies'); setTriggerCreateTime(prev => ({ ...prev, companies: Date.now() })); }} style={styles.quickCreateOption}>{language === 'vi' ? '+ Doanh nghiệp' : '+ Company'}</button>
+                  <button onClick={() => { setQuickCreateOpen(false); setActiveMenu('contacts'); setTriggerCreateTime(prev => ({ ...prev, contacts: Date.now() })); }} style={styles.quickCreateOption}>{language === 'vi' ? '+ Người liên hệ' : '+ Contact'}</button>
+                  <button onClick={() => { setQuickCreateOpen(false); setActiveMenu('pipeline'); setTriggerCreateTime(prev => ({ ...prev, pipeline: Date.now() })); }} style={styles.quickCreateOption}>{language === 'vi' ? '+ Cơ hội bán hàng' : '+ Opportunity'}</button>
                 </div>
               )}
             </div>

@@ -8,9 +8,10 @@ import {
 interface CrmCompaniesProps {
   language: 'vi' | 'en';
   onLogAction?: (msg: string) => void;
+  triggerCreate?: number;
 }
 
-export const CrmCompanies: React.FC<CrmCompaniesProps> = ({ language, onLogAction }) => {
+export const CrmCompanies: React.FC<CrmCompaniesProps> = ({ language, onLogAction, triggerCreate }) => {
   const [companies, setCompanies] = useState<CrmCompany[]>([]);
   const [industries, setIndustries] = useState<CrmIndustry[]>([]);
   const [loading, setLoading] = useState(true);
@@ -68,6 +69,14 @@ export const CrmCompanies: React.FC<CrmCompaniesProps> = ({ language, onLogActio
   useEffect(() => {
     fetchCompanies();
   }, []);
+
+  useEffect(() => {
+    if (triggerCreate) {
+      setModalMode('create');
+      resetForm();
+      setModalOpen(true);
+    }
+  }, [triggerCreate]);
 
   const handleSave = async (e: React.FormEvent) => {
     e.preventDefault();
