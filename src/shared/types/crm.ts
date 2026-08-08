@@ -191,7 +191,7 @@ export interface CrmAuditLog {
 // Old lead structure matching website submissions, routed to CRM Inbox
 export interface LeadItem {
   id: string;
-  type: 'calculator' | 'wizard' | 'quote' | 'contact';
+  type: 'calculator' | 'wizard' | 'quote' | 'contact' | 'survey';
   company: string;
   name: string;
   phone: string;

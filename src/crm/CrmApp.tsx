@@ -15,6 +15,7 @@ import { CrmQuotes } from './components/CrmQuotes';
 import { CrmContracts } from './components/CrmContracts';
 import { CrmDashboard } from './components/CrmDashboard';
 import { CrmReports } from './components/CrmReports';
+import { CrmActivities } from './components/CrmActivities';
 
 interface CrmAppProps {
   language: 'vi' | 'en';
@@ -179,6 +180,14 @@ export const CrmApp: React.FC<CrmAppProps> = ({ language, userProfile, onLogout,
             onLogAction={(msg) => console.log('CRM Log:', msg)}
           />
         );
+      case 'activities':
+        return (
+          <CrmActivities
+            language={language}
+            userProfile={userProfile}
+            onLogAction={(msg) => console.log('CRM Log:', msg)}
+          />
+        );
       default:
         return (
           <div style={styles.cardShell} className="animate-fade-in">
@@ -274,8 +283,8 @@ export const CrmApp: React.FC<CrmAppProps> = ({ language, userProfile, onLogout,
               padding: sidebarCollapsed ? '0.75rem 0' : '0.75rem 1.25rem'
             }}
           >
-            <Home size={18} style={{ color: '#64748b' }} />
-            {!sidebarCollapsed && <span>{language === 'vi' ? 'Quay lại Website' : 'Exit to Website'}</span>}
+            <Home size={18} style={{ color: '#ffffffff' }} />
+            {!sidebarCollapsed && <span style={{ color: '#8a8a8aff' }}>{language === 'vi' ? 'Quay lại Website' : 'Exit to Website'}</span>}
           </button>
           <button 
             onClick={onLogout} 

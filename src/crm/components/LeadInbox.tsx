@@ -3,7 +3,7 @@ import { supabase } from '../../shared/supabase/supabase';
 import { type LeadItem, type CrmLeadSource } from '../../shared/types/crm';
 import { 
   Inbox, ShieldAlert, CheckCircle, XCircle, UserCheck, 
-  Phone, Mail, MapPin, Building2
+  Phone, Mail, MapPin, Building2, Plus
 } from 'lucide-react';
 
 interface LeadInboxProps {
@@ -40,6 +40,18 @@ export const LeadInbox: React.FC<LeadInboxProps> = ({ language, onNavigateToDeal
   const [industries, setIndustries] = useState<any[]>([]);
   const [filterStatus, setFilterStatus] = useState<string>('new');
   const [actionLoading, setActionLoading] = useState(false);
+
+  // --- Manual Lead Creation State ---
+  const [createModalOpen, setCreateModalOpen] = useState(false);
+  const [newLeadName, setNewLeadName] = useState('');
+  const [newLeadPhone, setNewLeadPhone] = useState('');
+  const [newLeadEmail, setNewLeadEmail] = useState('');
+  const [newLeadCompany, setNewLeadCompany] = useState('');
+  const [newLeadLocation, setNewLeadLocation] = useState('');
+  const [newLeadType, setNewLeadType] = useState<'contact' | 'quote' | 'survey' | 'wizard'>('contact');
+  const [newLeadSourceId, setNewLeadSourceId] = useState('');
+  const [newLeadDetails, setNewLeadDetails] = useState('');
+  const [createLoading, setCreateLoading] = useState(false);
 
   // Fetch leads and master data
   const fetchData = async () => {
@@ -95,6 +107,74 @@ export const LeadInbox: React.FC<LeadInboxProps> = ({ language, onNavigateToDeal
   useEffect(() => {
     fetchData();
   }, [language]);
+
+  // --- Generate LEAD-YYYYMMDD-XXXX ID ---
+  const generateLeadId = () => {
+    const now = new Date();
+    const datePart = now.toISOString().slice(0, 10).replace(/-/g, '');
+    const randPart = Math.random().toString(36).slice(2, 6).toUpperCase();
+    return `LEAD-${datePart}-${randPart}`;
+  };
+
+  // --- Handle Manual Lead Creation ---
+  const handleCreateManualLead = async () => {
+    const client = supabase;
+    if (!client || !newLeadName.trim() || !newLeadPhone.trim()) return;
+    setCreateLoading(true);
+    try {
+      // Find the matching source name if sourceId is selected
+      const sourceObj = leadSources.find(s => s.id === newLeadSourceId);
+      const detailsWithSource = newLeadDetails.trim()
+        ? newLeadDetails.trim()
+        : `[Manual input${sourceObj ? ` via ${sourceObj.name}` : ''}]`;
+
+      const leadId = generateLeadId();
+      const { error } = await client.from('leads').insert({
+        id: leadId,
+        type: newLeadType,
+        name: newLeadName.trim(),
+        phone: newLeadPhone.trim(),
+        email: newLeadEmail.trim(),
+        company: newLeadCompany.trim(),
+        location: newLeadLocation.trim(),
+        details: detailsWithSource,
+        status: 'new',
+      });
+      if (error) throw error;
+
+      // Add to local state so the list updates immediately
+      const newLead: LeadItem = {
+        id: leadId,
+        type: newLeadType,
+        name: newLeadName.trim(),
+        phone: newLeadPhone.trim(),
+        email: newLeadEmail.trim(),
+        company: newLeadCompany.trim(),
+        location: newLeadLocation.trim(),
+        details: detailsWithSource,
+        status: 'new',
+        date: new Date().toLocaleDateString(language === 'vi' ? 'vi-VN' : 'en-US', {
+          year: 'numeric', month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit'
+        }),
+        converted_company_id: undefined,
+        converted_contact_id: undefined,
+        converted_opportunity_id: undefined,
+      };
+      setLeads(prev => [newLead, ...prev]);
+
+      // Reset form
+      setNewLeadName(''); setNewLeadPhone(''); setNewLeadEmail('');
+      setNewLeadCompany(''); setNewLeadLocation('');
+      setNewLeadType('contact'); setNewLeadSourceId(''); setNewLeadDetails('');
+      setCreateModalOpen(false);
+      setFilterStatus('new');
+      if (onLogAction) onLogAction(`Manual lead created: ${newLeadName} (${leadId})`);
+    } catch (err: any) {
+      alert(language === 'vi' ? `Lỗi tạo lead: ${err.message}` : `Failed to create lead: ${err.message}`);
+    } finally {
+      setCreateLoading(false);
+    }
+  };
 
   // Scan duplicates when a lead is selected
   useEffect(() => {
@@ -368,7 +448,7 @@ export const LeadInbox: React.FC<LeadInboxProps> = ({ language, onNavigateToDeal
   return (
     <div style={styles.inboxLayout}>
       {/* FILTER BAR */}
-      <div style={styles.filterBar}>
+      <div style={{ ...styles.filterBar, justifyContent: 'space-between' }}>
         <div style={styles.tabs}>
           {(['new', 'contacted', 'qualified', 'rejected', 'merged'] as const).map((s) => {
             const label = getStatusBadge(s).label;
@@ -395,6 +475,22 @@ export const LeadInbox: React.FC<LeadInboxProps> = ({ language, onNavigateToDeal
             );
           })}
         </div>
+        {/* Add Lead Button */}
+        <button
+          onClick={() => setCreateModalOpen(true)}
+          style={{
+            display: 'flex', alignItems: 'center', gap: '0.4rem',
+            backgroundColor: 'var(--color-teal)', border: 'none', color: '#fff',
+            padding: '0.45rem 0.9rem', borderRadius: '6px',
+            fontSize: '0.8rem', fontWeight: 600, cursor: 'pointer',
+            transition: 'opacity 0.15s',
+          }}
+          onMouseEnter={e => (e.currentTarget.style.opacity = '0.85')}
+          onMouseLeave={e => (e.currentTarget.style.opacity = '1')}
+        >
+          <Plus size={14} />
+          {language === 'vi' ? 'Thêm Lead' : 'Add Lead'}
+        </button>
       </div>
 
       <div style={styles.contentGrid}>
@@ -702,6 +798,125 @@ export const LeadInbox: React.FC<LeadInboxProps> = ({ language, onNavigateToDeal
               </button>
               <button className="btn btn-teal" disabled={actionLoading || !companyName || !contactName || !contactPhone || !dealTitle} onClick={handleConvertLead}>
                 {actionLoading ? (language === 'vi' ? 'Đang chuyển đổi...' : 'Converting...') : (language === 'vi' ? 'Xác Nhận & Mở Deal' : 'Qualify & Open Deal')}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* MANUAL CREATE LEAD MODAL */}
+      {createModalOpen && (
+        <div style={styles.modalOverlay}>
+          <div style={{ ...styles.modalCard, maxWidth: '560px' }} className="animate-fade-in">
+            <div style={styles.modalHeader}>
+              <h3 style={{ margin: 0, fontSize: '1rem', color: '#fff' }}>
+                <Plus size={16} style={{ marginRight: 6, verticalAlign: 'middle' }} />
+                {language === 'vi' ? 'Thêm Lead Mới' : 'Create New Lead'}
+              </h3>
+              <button style={styles.modalClose} onClick={() => setCreateModalOpen(false)}>×</button>
+            </div>
+
+            <div style={styles.modalBody}>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '0.85rem' }}>
+                {/* Row 1: Name + Phone */}
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.75rem' }}>
+                  <div className="form-group">
+                    <label className="form-label">{language === 'vi' ? 'Họ và tên *' : 'Full Name *'}</label>
+                    <input
+                      type="text" className="form-input" autoFocus
+                      value={newLeadName} onChange={e => setNewLeadName(e.target.value)}
+                      placeholder={language === 'vi' ? 'Nguyễn Văn A' : 'John Doe'}
+                    />
+                  </div>
+                  <div className="form-group">
+                    <label className="form-label">{language === 'vi' ? 'Điện thoại *' : 'Phone *'}</label>
+                    <input
+                      type="tel" className="form-input"
+                      value={newLeadPhone} onChange={e => setNewLeadPhone(e.target.value)}
+                      placeholder="0901 234 567"
+                    />
+                  </div>
+                </div>
+
+                {/* Row 2: Email + Company */}
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.75rem' }}>
+                  <div className="form-group">
+                    <label className="form-label">Email</label>
+                    <input
+                      type="email" className="form-input"
+                      value={newLeadEmail} onChange={e => setNewLeadEmail(e.target.value)}
+                      placeholder="contact@company.com"
+                    />
+                  </div>
+                  <div className="form-group">
+                    <label className="form-label">{language === 'vi' ? 'Tên công ty' : 'Company'}</label>
+                    <input
+                      type="text" className="form-input"
+                      value={newLeadCompany} onChange={e => setNewLeadCompany(e.target.value)}
+                      placeholder={language === 'vi' ? 'Công ty TNHH ABC' : 'ABC Co. Ltd'}
+                    />
+                  </div>
+                </div>
+
+                {/* Row 3: Location */}
+                <div className="form-group">
+                  <label className="form-label">{language === 'vi' ? 'Tỉnh / Khu vực' : 'Province / Location'}</label>
+                  <input
+                    type="text" className="form-input"
+                    value={newLeadLocation} onChange={e => setNewLeadLocation(e.target.value)}
+                    placeholder={language === 'vi' ? 'TP. Hồ Chí Minh' : 'Ho Chi Minh City'}
+                  />
+                </div>
+
+                {/* Row 4: Lead Type + Source */}
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.75rem' }}>
+                  <div className="form-group">
+                    <label className="form-label">{language === 'vi' ? 'Loại Lead' : 'Lead Type'}</label>
+                    <select className="form-select" value={newLeadType} onChange={e => setNewLeadType(e.target.value as any)}>
+                      <option value="contact">{language === 'vi' ? 'Liên hệ chung' : 'General Contact'}</option>
+                      <option value="quote">{language === 'vi' ? 'Yêu cầu báo giá' : 'Quote Request'}</option>
+                      <option value="survey">{language === 'vi' ? 'Khảo sát dự án' : 'Project Survey'}</option>
+                      <option value="wizard">{language === 'vi' ? 'Wizard dự án' : 'Project Wizard'}</option>
+                    </select>
+                  </div>
+                  <div className="form-group">
+                    <label className="form-label">{language === 'vi' ? 'Nguồn tiếp cận' : 'Lead Source'}</label>
+                    <select className="form-select" value={newLeadSourceId} onChange={e => setNewLeadSourceId(e.target.value)}>
+                      <option value="">{language === 'vi' ? '— Chọn nguồn —' : '— Select source —'}</option>
+                      {leadSources.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
+                    </select>
+                  </div>
+                </div>
+
+                {/* Row 5: Details / Notes */}
+                <div className="form-group">
+                  <label className="form-label">{language === 'vi' ? 'Nội dung / Ghi chú' : 'Details / Notes'}</label>
+                  <textarea
+                    className="form-input"
+                    rows={3}
+                    style={{ resize: 'vertical', fontFamily: 'inherit' }}
+                    value={newLeadDetails}
+                    onChange={e => setNewLeadDetails(e.target.value)}
+                    placeholder={language === 'vi'
+                      ? 'Nhu cầu chuyển đổi từ dầu DO sang LNG, công suất lò hơi ~3 tấn/h...'
+                      : 'Customer needs fuel conversion from diesel to LNG, boiler capacity ~3 t/h...'}
+                  />
+                </div>
+              </div>
+            </div>
+
+            <div style={styles.modalFooter}>
+              <button className="btn btn-outline" disabled={createLoading} onClick={() => setCreateModalOpen(false)}>
+                {language === 'vi' ? 'Hủy' : 'Cancel'}
+              </button>
+              <button
+                className="btn btn-teal"
+                disabled={createLoading || !newLeadName.trim() || !newLeadPhone.trim()}
+                onClick={handleCreateManualLead}
+              >
+                {createLoading
+                  ? (language === 'vi' ? 'Đang lưu...' : 'Saving...')
+                  : (language === 'vi' ? 'Tạo Lead' : 'Create Lead')}
               </button>
             </div>
           </div>
