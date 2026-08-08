@@ -401,6 +401,29 @@ export const LeadInbox: React.FC<LeadInboxProps> = ({ language, onNavigateToDeal
     }
   };
 
+  const handleDeleteLead = async (leadId: string) => {
+    if (!window.confirm(language === 'vi' ? 'Bạn có chắc chắn muốn xóa Lead này không?' : 'Are you sure you want to delete this Lead?')) return;
+    const client = supabase;
+    if (!client) return;
+    setActionLoading(true);
+    try {
+      const { error } = await client
+        .from('leads')
+        .delete()
+        .eq('id', leadId);
+      if (error) throw error;
+      
+      alert(language === 'vi' ? 'Đã xóa Lead thành công' : 'Lead deleted successfully');
+      setSelectedLead(null);
+      fetchData(); // reload list
+      if (onLogAction) onLogAction(`Lead ${leadId} deleted`);
+    } catch (err: any) {
+      alert('Error deleting lead: ' + err.message);
+    } finally {
+      setActionLoading(false);
+    }
+  };
+
   const handleMergeLead = async (targetCompanyId: string) => {
     const client = supabase;
     if (!client || !selectedLead) return;
@@ -558,7 +581,16 @@ export const LeadInbox: React.FC<LeadInboxProps> = ({ language, onNavigateToDeal
             <div style={styles.detailCard} className="animate-fade-in">
               <div style={styles.detailHeader}>
                 <h4 style={{ margin: 0, fontSize: '1rem', color: '#0f172a' }}>{language === 'vi' ? 'Chi Tiết Lead' : 'Lead Details'}</h4>
-                <button style={styles.closeBtn} onClick={() => setSelectedLead(null)}>×</button>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                  <button 
+                    style={{ ...styles.closeBtn, color: '#f43f5e', fontSize: '0.85rem', border: 'none', background: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center' }} 
+                    onClick={() => handleDeleteLead(selectedLead.id)}
+                    title={language === 'vi' ? 'Xóa Lead này' : 'Delete this Lead'}
+                  >
+                    🗑️
+                  </button>
+                  <button style={styles.closeBtn} onClick={() => setSelectedLead(null)}>×</button>
+                </div>
               </div>
 
               <div style={styles.detailBody}>

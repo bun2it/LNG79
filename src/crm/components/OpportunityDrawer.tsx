@@ -4,7 +4,7 @@ import { type CrmOpportunity, type CrmActivity, type OpportunityStage, type Acti
 import {
   X, Mail, Building2, User, Calendar,
   MessageSquare, PhoneCall, Users, ClipboardList, FileText,
-  Send, TrendingUp, Tag, Edit, Check
+  Send, TrendingUp, Tag, Edit, Check, Trash2
 } from 'lucide-react';
 import { AttachmentPanel } from './AttachmentPanel';
 
@@ -95,6 +95,36 @@ export const OpportunityDrawer: React.FC<OpportunityDrawerProps> = ({
   useEffect(() => {
     fetchActivities();
   }, [opportunity.id]);
+
+  const handleDeleteOpportunity = async () => {
+    if (!window.confirm(language === 'vi' ? 'Bạn có chắc chắn muốn xóa Deal này không?' : 'Are you sure you want to delete this Deal?')) return;
+    const client = supabase;
+    if (!client) return;
+    try {
+      const { error } = await client
+        .from('crm_opportunities')
+        .update({
+          deleted_at: new Date().toISOString(),
+          deleted_by: userProfile?.id || null
+        })
+        .eq('id', opportunity.id);
+      if (error) throw error;
+      
+      // Log activity
+      await client.from('crm_activities').insert({
+        entity_type: 'opportunity',
+        entity_id: opportunity.id,
+        activity_type: 'note',
+        content: language === 'vi' ? `Deal đã bị xóa` : `Deal deleted`,
+        created_by: userProfile?.id || null,
+      });
+
+      alert(language === 'vi' ? 'Đã xóa Deal thành công' : 'Deal deleted successfully');
+      onClose();
+    } catch (err: any) {
+      alert('Error deleting deal: ' + err.message);
+    }
+  };
 
   const handleAddActivity = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -217,7 +247,16 @@ export const OpportunityDrawer: React.FC<OpportunityDrawerProps> = ({
             <div style={styles.oppNumber}>{opportunity.opportunity_number}</div>
             <h3 style={styles.oppTitle}>{opportunity.title}</h3>
           </div>
-          <button style={styles.closeBtn} onClick={onClose}><X size={20} /></button>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+            <button
+              style={{ ...styles.closeBtn, color: '#f43f5e' }}
+              onClick={handleDeleteOpportunity}
+              title={language === 'vi' ? 'Xóa Deal này' : 'Delete this Deal'}
+            >
+              <Trash2 size={18} />
+            </button>
+            <button style={styles.closeBtn} onClick={onClose}><X size={20} /></button>
+          </div>
         </div>
 
         {/* ── STAGE STRIP ── */}
