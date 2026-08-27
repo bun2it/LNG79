@@ -13,7 +13,7 @@ export interface ChatMessage {
 
 interface GameControlsProps {
   roomId: string;
-  gameType: 'chess' | 'xiangqi';
+  gameType: 'chess' | 'xiangqi' | 'go';
   roomName: string;
   hostName: string;
   guestName?: string;
@@ -36,6 +36,7 @@ interface GameControlsProps {
   onRequestRematch: () => void;
   onLeaveRoom: () => void;
   onAdjustTime?: (newHostSeconds: number, newGuestSeconds: number, newLimitMinutes?: number) => void;
+  onPassTurn?: () => void;
 }
 
 export const GameControls: React.FC<GameControlsProps> = ({
@@ -63,6 +64,7 @@ export const GameControls: React.FC<GameControlsProps> = ({
   onRequestRematch,
   onLeaveRoom,
   onAdjustTime,
+  onPassTurn,
 }) => {
   const [activeTab, setActiveTab] = useState<'moves' | 'chat'>('chat');
   const [showTimeModal, setShowTimeModal] = useState(false);
@@ -88,11 +90,31 @@ export const GameControls: React.FC<GameControlsProps> = ({
     return `${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
   };
 
-  const isHostTurn = gameType === 'chess' ? currentTurn === 'white' : currentTurn === 'red';
-  const isGuestTurn = currentTurn === 'black';
+  const isHostTurn =
+    gameType === 'chess'
+      ? currentTurn === 'white'
+      : gameType === 'xiangqi'
+      ? currentTurn === 'red'
+      : currentTurn === 'black'; // In Go, Host is Black (plays first)
+  const isGuestTurn =
+    gameType === 'chess'
+      ? currentTurn === 'black'
+      : gameType === 'xiangqi'
+      ? currentTurn === 'black'
+      : currentTurn === 'white'; // In Go, Guest is White
 
-  const hostPieceLabel = gameType === 'chess' ? 'Quân Trắng (Đi trước)' : 'Quân Đỏ (Đi trước)';
-  const guestPieceLabel = gameType === 'chess' ? 'Quân Đen' : 'Quân Đen';
+  const hostPieceLabel =
+    gameType === 'chess'
+      ? 'Quân Trắng (Đi trước)'
+      : gameType === 'xiangqi'
+      ? 'Quân Đỏ (Đi trước)'
+      : 'Quân Đen (Đi trước)';
+  const guestPieceLabel =
+    gameType === 'chess'
+      ? 'Quân Đen'
+      : gameType === 'xiangqi'
+      ? 'Quân Đen'
+      : 'Quân Trắng';
 
   const isDrawOfferedToMe = drawOfferedBy && drawOfferedBy !== currentUserId;
   const isRematchRequested = rematchRequestedBy && rematchRequestedBy !== currentUserId;
@@ -193,7 +215,7 @@ export const GameControls: React.FC<GameControlsProps> = ({
             {roomName}
           </h3>
           <span style={{ fontSize: '0.75rem', color: '#94A3B8' }}>
-            {gameType === 'chess' ? '♟️ Cờ Vua Quốc Tế' : '🀄 Cờ Tướng Cổ Truyền'} • {timeLimitMinutes === 0 ? '♾️ Tự do' : `${timeLimitMinutes}p`}
+            {gameType === 'chess' ? '♟️ Cờ Vua Quốc Tế' : gameType === 'xiangqi' ? '🀄 Cờ Tướng Cổ Truyền' : '⚪⚫ Cờ Vây (Weiqi / Go)'} • {timeLimitMinutes === 0 ? '♾️ Tự do' : `${timeLimitMinutes}p`}
           </span>
         </div>
         <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
@@ -586,47 +608,70 @@ export const GameControls: React.FC<GameControlsProps> = ({
               <Handshake size={15} /> Đối thủ xin hòa - Đồng ý hòa
             </button>
           ) : (
-            <div style={{ display: 'flex', gap: '0.4rem' }}>
-              <button
-                onClick={onOfferDraw}
-                disabled={!!drawOfferedBy}
-                style={{
-                  flex: 1,
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  gap: '5px',
-                  backgroundColor: '#1E293B',
-                  color: '#E2E8F0',
-                  border: '1px solid rgba(255,255,255,0.1)',
-                  borderRadius: '6px',
-                  padding: '0.45rem',
-                  fontSize: '0.78rem',
-                  cursor: drawOfferedBy ? 'not-allowed' : 'pointer',
-                  opacity: drawOfferedBy ? 0.6 : 1,
-                }}
-              >
-                <Handshake size={13} /> {drawOfferedBy ? 'Đã xin hòa' : 'Xin hòa'}
-              </button>
-              <button
-                onClick={onResign}
-                style={{
-                  flex: 1,
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  gap: '5px',
-                  backgroundColor: 'rgba(239, 68, 68, 0.15)',
-                  color: '#EF4444',
-                  border: '1px solid rgba(239, 68, 68, 0.3)',
-                  borderRadius: '6px',
-                  padding: '0.45rem',
-                  fontSize: '0.78rem',
-                  cursor: 'pointer',
-                }}
-              >
-                <Flag size={13} /> Đầu hàng
-              </button>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '0.4rem' }}>
+              {gameType === 'go' && onPassTurn && (
+                <button
+                  onClick={onPassTurn}
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    gap: '5px',
+                    backgroundColor: 'rgba(234, 179, 8, 0.2)',
+                    border: '1px solid #EAB308',
+                    color: '#FDE047',
+                    borderRadius: '6px',
+                    padding: '0.5rem',
+                    fontSize: '0.8rem',
+                    fontWeight: 600,
+                    cursor: 'pointer',
+                  }}
+                >
+                  Bỏ lượt đi (Pass Turn)
+                </button>
+              )}
+              <div style={{ display: 'flex', gap: '0.4rem' }}>
+                <button
+                  onClick={onOfferDraw}
+                  disabled={!!drawOfferedBy}
+                  style={{
+                    flex: 1,
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    gap: '5px',
+                    backgroundColor: '#1E293B',
+                    color: '#E2E8F0',
+                    border: '1px solid rgba(255,255,255,0.1)',
+                    borderRadius: '6px',
+                    padding: '0.45rem',
+                    fontSize: '0.78rem',
+                    cursor: drawOfferedBy ? 'not-allowed' : 'pointer',
+                    opacity: drawOfferedBy ? 0.6 : 1,
+                  }}
+                >
+                  <Handshake size={13} /> {drawOfferedBy ? 'Đã xin hòa' : 'Xin hòa'}
+                </button>
+                <button
+                  onClick={onResign}
+                  style={{
+                    flex: 1,
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    gap: '5px',
+                    backgroundColor: 'rgba(239, 68, 68, 0.15)',
+                    color: '#EF4444',
+                    border: '1px solid rgba(239, 68, 68, 0.3)',
+                    borderRadius: '6px',
+                    padding: '0.45rem',
+                    fontSize: '0.78rem',
+                    cursor: 'pointer',
+                  }}
+                >
+                  <Flag size={13} /> Đầu hàng
+                </button>
+              </div>
             </div>
           )}
         </div>

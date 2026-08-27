@@ -3,14 +3,16 @@ import { Swords, Plus, RefreshCw, Play, ArrowLeft, Trash2 } from 'lucide-react';
 import { supabase } from '../../shared/supabase/supabase';
 import { ChessBoardView } from './ChessBoardView';
 import { XiangqiBoardView } from './XiangqiBoardView';
+import { GoBoardView } from './GoBoardView';
 import { GameControls } from './GameControls';
-import { INITIAL_XIANGQI_FEN } from './xiangqiEngine';
+import { INITIAL_XIANGQI_FEN, XiangqiEngine } from './xiangqiEngine';
+import { GoEngine } from './goEngine';
 import { gameAudio } from './gameAudio';
 import { Chess } from 'chess.js';
 
 interface GameRoom {
   id: string;
-  game_type: 'chess' | 'xiangqi';
+  game_type: 'chess' | 'xiangqi' | 'go';
   room_name: string;
   time_limit_minutes: number;
   host_user_id: string;
@@ -44,7 +46,8 @@ export const GameLobby: React.FC<GameLobbyProps> = ({ currentUserId, currentUser
   const [isCreating, setIsCreating] = useState(false);
 
   // Form states for creating room
-  const [newGameType, setNewGameType] = useState<'chess' | 'xiangqi'>('chess');
+  const [newGameType, setNewGameType] = useState<'chess' | 'xiangqi' | 'go'>('chess');
+  const [newGoSize, setNewGoSize] = useState<19 | 13 | 9>(19);
   const [newRoomName, setNewRoomName] = useState('Bàn Cờ Thư Giãn #1');
   const [newTimeLimit, setNewTimeLimit] = useState(10);
   const [creatingLoading, setCreatingLoading] = useState(false);
@@ -79,11 +82,12 @@ export const GameLobby: React.FC<GameLobbyProps> = ({ currentUserId, currentUser
     void fetchRooms();
   }, [fetchRooms]);
 
-  // Realtime subscription for Lobby room updates
+  // Subscribe to realtime room list changes
   useEffect(() => {
     if (!supabase) return;
+
     const channel = supabase
-      .channel('lobby_game_rooms')
+      .channel('public:game_rooms')
       .on(
         'postgres_changes',
         { event: '*', schema: 'public', table: 'game_rooms' },
@@ -99,14 +103,13 @@ export const GameLobby: React.FC<GameLobbyProps> = ({ currentUserId, currentUser
     };
   }, [fetchRooms]);
 
-  // Realtime subscription for Active Game Room
+  // Subscribe to active room changes
   useEffect(() => {
-    if (!supabase || !activeRoomId) return;
+    if (!activeRoomId || !supabase) return;
+    const client = supabase;
 
     const fetchSingleRoom = async () => {
-      const client = supabase;
-      if (!client) return;
-      const { data } = await client
+      const { data, error } = await client
         .from('game_rooms')
         .select(`
           *,
@@ -115,14 +118,15 @@ export const GameLobby: React.FC<GameLobbyProps> = ({ currentUserId, currentUser
         `)
         .eq('id', activeRoomId)
         .single();
-      if (data) {
+
+      if (!error && data) {
         setActiveRoom(data as unknown as GameRoom);
       }
     };
 
     void fetchSingleRoom();
 
-    const channel = supabase
+    const channel = client
       .channel(`game_room_${activeRoomId}`)
       .on(
         'postgres_changes',
@@ -135,8 +139,7 @@ export const GameLobby: React.FC<GameLobbyProps> = ({ currentUserId, currentUser
       .subscribe();
 
     return () => {
-      const client = supabase;
-      if (client) void client.removeChannel(channel);
+      void client.removeChannel(channel);
     };
   }, [activeRoomId]);
 
@@ -148,7 +151,12 @@ export const GameLobby: React.FC<GameLobbyProps> = ({ currentUserId, currentUser
       setActiveRoom((prev) => {
         if (!prev || prev.status !== 'in_progress') return prev;
 
-        const isHostTurn = prev.game_type === 'chess' ? prev.current_turn === 'white' : prev.current_turn === 'red';
+        const isHostTurn =
+          prev.game_type === 'chess'
+            ? prev.current_turn === 'white'
+            : prev.game_type === 'xiangqi'
+            ? prev.current_turn === 'red'
+            : prev.current_turn === 'black'; // In Go, Host is Black (plays first)
 
         let newHostTime = prev.host_time_remaining;
         let newGuestTime = prev.guest_time_remaining;
@@ -183,11 +191,20 @@ export const GameLobby: React.FC<GameLobbyProps> = ({ currentUserId, currentUser
 
     try {
       setCreatingLoading(true);
-      const initialFen =
-        newGameType === 'chess'
-          ? new Chess().fen()
-          : INITIAL_XIANGQI_FEN;
-      const initialTurn = newGameType === 'chess' ? 'white' : 'red';
+      let initialFen = '';
+      let initialTurn: 'white' | 'black' | 'red' = 'white';
+
+      if (newGameType === 'chess') {
+        initialFen = new Chess().fen();
+        initialTurn = 'white';
+      } else if (newGameType === 'xiangqi') {
+        initialFen = INITIAL_XIANGQI_FEN;
+        initialTurn = 'red';
+      } else if (newGameType === 'go') {
+        initialFen = GoEngine.initialFen(newGoSize);
+        initialTurn = 'black'; // Black plays first in Go
+      }
+
       const timeInSec = newTimeLimit > 0 ? newTimeLimit * 60 : 0;
 
       const { data, error } = await supabase
@@ -258,36 +275,45 @@ export const GameLobby: React.FC<GameLobbyProps> = ({ currentUserId, currentUser
   const handleChessMove = async (from: string, to: string, promotion?: string) => {
     if (!activeRoom || !supabase) return;
     try {
-      const chess = new Chess(activeRoom.fen);
-      const move = chess.move({ from, to, promotion: promotion as any || 'q' });
-      if (!move) return;
+      const game = new Chess(activeRoom.fen);
+      const moveResult = game.move({ from, to, promotion });
+      if (!moveResult) return;
 
-      const nextTurn = chess.turn() === 'w' ? 'white' : 'black';
-      const isOver = chess.isGameOver();
-      let winnerId = activeRoom.winner_user_id;
-      let winReason = activeRoom.win_reason;
+      gameAudio.playMoveSound();
+
+      const nextTurn = game.turn() === 'w' ? 'white' : 'black';
+      let winnerId: string | null = null;
+      let winReason: string | null = null;
+      const isOver = game.isGameOver();
 
       if (isOver) {
-        if (chess.isCheckmate()) {
-          winnerId = chess.turn() === 'w' ? activeRoom.guest_user_id : activeRoom.host_user_id;
+        if (game.isCheckmate()) {
+          winnerId = game.turn() === 'w' ? activeRoom.guest_user_id : activeRoom.host_user_id;
           winReason = 'Chiếu bí (Checkmate)';
           gameAudio.playVictorySound();
-        } else {
-          winReason = 'Hòa cờ (Stalemate)';
+        } else if (game.isDraw()) {
+          winReason = game.isStalemate() ? 'Hòa do hết nước đi (Stalemate)' : 'Hòa cờ';
         }
-      } else if (chess.inCheck()) {
+      } else if (game.inCheck()) {
         gameAudio.playCheckSound();
       }
 
       const updatedHistory = [
         ...activeRoom.move_history,
-        { from, to, notation: move.san, piece: move.piece },
+        {
+          from,
+          to,
+          san: moveResult.san,
+          notation: moveResult.san,
+          piece: moveResult.piece,
+          color: moveResult.color,
+        },
       ];
 
       await supabase
         .from('game_rooms')
         .update({
-          fen: chess.fen(),
+          fen: game.fen(),
           current_turn: nextTurn,
           move_history: updatedHistory,
           status: isOver ? 'finished' : 'in_progress',
@@ -307,15 +333,16 @@ export const GameLobby: React.FC<GameLobbyProps> = ({ currentUserId, currentUser
   const handleXiangqiMove = async (from: { x: number; y: number }, to: { x: number; y: number }) => {
     if (!activeRoom || !supabase) return;
     try {
-      const { XiangqiEngine } = await import('./xiangqiEngine');
       const engine = new XiangqiEngine(activeRoom.fen);
-      const success = engine.makeMove(from, to);
-      if (!success) return;
+      const moveResult = engine.makeMove(from, to);
+      if (!moveResult) return;
+
+      gameAudio.playMoveSound();
 
       const nextTurn = engine.turn === 'r' ? 'red' : 'black';
+      let winnerId: string | null = null;
+      let winReason: string | null = null;
       const isOver = engine.isGameOver;
-      let winnerId = activeRoom.winner_user_id;
-      let winReason = activeRoom.win_reason;
 
       if (isOver) {
         if (engine.winner === 'r') {
@@ -354,6 +381,99 @@ export const GameLobby: React.FC<GameLobbyProps> = ({ currentUserId, currentUser
         .eq('id', activeRoom.id);
     } catch (err) {
       console.error('Error handling xiangqi move:', err);
+    }
+  };
+
+  // Handle Move execution (Cờ Vây)
+  const handleGoMove = async (x: number, y: number) => {
+    if (!activeRoom || !supabase) return;
+    try {
+      const engine = new GoEngine(activeRoom.fen);
+      const moveResult = engine.play(x, y);
+      if (!moveResult.valid) {
+        if (moveResult.error) alert(moveResult.error);
+        return;
+      }
+
+      gameAudio.playMoveSound();
+      const nextTurn = engine.turn === 'B' ? 'black' : 'white';
+
+      const colName = String.fromCharCode('A'.charCodeAt(0) + (x >= 8 ? x + 1 : x)); // Skip 'I'
+      const rowName = engine.size - y;
+      const notation = `${activeRoom.current_turn === 'black' ? '⚫' : '⚪'} ${colName}${rowName}${
+        moveResult.captured.length > 0 ? ` (Ăn ${moveResult.captured.length})` : ''
+      }`;
+
+      const updatedHistory = [
+        ...activeRoom.move_history,
+        {
+          x,
+          y,
+          notation,
+          captured: moveResult.captured.length,
+        },
+      ];
+
+      await supabase
+        .from('game_rooms')
+        .update({
+          fen: engine.toFen(),
+          current_turn: nextTurn,
+          move_history: updatedHistory,
+          status: 'in_progress',
+          host_time_remaining: activeRoom.host_time_remaining,
+          guest_time_remaining: activeRoom.guest_time_remaining,
+          last_move_at: new Date().toISOString(),
+        })
+        .eq('id', activeRoom.id);
+    } catch (err) {
+      console.error('Error handling go move:', err);
+    }
+  };
+
+  // Handle Pass Turn (Cờ Vây)
+  const handleGoPass = async () => {
+    if (!activeRoom || !supabase) return;
+    try {
+      const engine = new GoEngine(activeRoom.fen);
+      const { isGameOver } = engine.pass();
+
+      gameAudio.playCheckSound();
+      const nextTurn = engine.turn === 'B' ? 'black' : 'white';
+
+      const updatedHistory = [
+        ...activeRoom.move_history,
+        {
+          notation: `${activeRoom.current_turn === 'black' ? '⚫' : '⚪'} Bỏ lượt (Pass)`,
+        },
+      ];
+
+      let winnerId: string | null = null;
+      let winReason: string | null = null;
+
+      if (isGameOver) {
+        const score = engine.estimateScore();
+        winnerId = score.winner === 'B' ? activeRoom.host_user_id : activeRoom.guest_user_id;
+        winReason = `Cả 2 bên bỏ lượt - Tính điểm lãnh thổ: Đen ${score.scoreB} vs Trắng ${score.scoreW} (+6.5 Komi)`;
+        gameAudio.playVictorySound();
+      }
+
+      await supabase
+        .from('game_rooms')
+        .update({
+          fen: engine.toFen(),
+          current_turn: nextTurn,
+          move_history: updatedHistory,
+          status: isGameOver ? 'finished' : 'in_progress',
+          winner_user_id: winnerId,
+          win_reason: winReason,
+          host_time_remaining: activeRoom.host_time_remaining,
+          guest_time_remaining: activeRoom.guest_time_remaining,
+          last_move_at: new Date().toISOString(),
+        })
+        .eq('id', activeRoom.id);
+    } catch (err) {
+      console.error('Error handling go pass:', err);
     }
   };
 
@@ -397,11 +517,21 @@ export const GameLobby: React.FC<GameLobbyProps> = ({ currentUserId, currentUser
   // Handle Rematch
   const handleRematch = async () => {
     if (!activeRoom || !supabase || !currentUserId) return;
-    const initialFen =
-      activeRoom.game_type === 'chess'
-        ? new Chess().fen()
-        : INITIAL_XIANGQI_FEN;
-    const initialTurn = activeRoom.game_type === 'chess' ? 'white' : 'red';
+    let initialFen = '';
+    let initialTurn: 'white' | 'black' | 'red' = 'white';
+
+    if (activeRoom.game_type === 'chess') {
+      initialFen = new Chess().fen();
+      initialTurn = 'white';
+    } else if (activeRoom.game_type === 'xiangqi') {
+      initialFen = INITIAL_XIANGQI_FEN;
+      initialTurn = 'red';
+    } else if (activeRoom.game_type === 'go') {
+      const oldEngine = new GoEngine(activeRoom.fen);
+      initialFen = GoEngine.initialFen(oldEngine.size);
+      initialTurn = 'black';
+    }
+
     const timeInSec = activeRoom.time_limit_minutes > 0 ? activeRoom.time_limit_minutes * 60 : 0;
 
     await supabase
@@ -431,6 +561,7 @@ export const GameLobby: React.FC<GameLobbyProps> = ({ currentUserId, currentUser
 
   const myChessColor = myRole === 'host' ? 'white' : myRole === 'guest' ? 'black' : 'spectator';
   const myXiangqiColor = myRole === 'host' ? 'red' : myRole === 'guest' ? 'black' : 'spectator';
+  const myGoColor = myRole === 'host' ? 'black' : myRole === 'guest' ? 'white' : 'spectator';
 
   const isMyTurn =
     activeRoom?.status === 'in_progress' &&
@@ -439,7 +570,10 @@ export const GameLobby: React.FC<GameLobbyProps> = ({ currentUserId, currentUser
         (myRole === 'guest' && activeRoom.current_turn === 'black'))) ||
       (activeRoom.game_type === 'xiangqi' &&
         ((myRole === 'host' && activeRoom.current_turn === 'red') ||
-          (myRole === 'guest' && activeRoom.current_turn === 'black'))));
+          (myRole === 'guest' && activeRoom.current_turn === 'black'))) ||
+      (activeRoom.game_type === 'go' &&
+        ((myRole === 'host' && activeRoom.current_turn === 'black') ||
+          (myRole === 'guest' && activeRoom.current_turn === 'white'))));
 
   const handleExitRoom = () => {
     setActiveRoomId(null);
@@ -489,7 +623,7 @@ export const GameLobby: React.FC<GameLobbyProps> = ({ currentUserId, currentUser
           id: Math.random().toString(),
           sender_id: 'system',
           sender_name: 'Hệ Thống',
-          message: `⏱️ Đã cập nhật thời gian thi đấu (${newLimitMinutes === 0 ? 'Chế độ Không giới hạn' : `Trắng/Đỏ: ${Math.floor(newHostSeconds / 60)}p, Đen: ${Math.floor(newGuestSeconds / 60)}p`})`,
+          message: `⏱️ Đã cập nhật thời gian thi đấu (${newLimitMinutes === 0 ? 'Chế độ Không giới hạn' : `Trắng/Đỏ/Đen: ${Math.floor(newHostSeconds / 60)}p vs ${Math.floor(newGuestSeconds / 60)}p`})`,
           created_at: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
         },
       });
@@ -591,12 +725,22 @@ export const GameLobby: React.FC<GameLobbyProps> = ({ currentUserId, currentUser
                 lastMove={lastMove}
                 disabled={activeRoom.status !== 'in_progress'}
               />
-            ) : (
+            ) : activeRoom.game_type === 'xiangqi' ? (
               <XiangqiBoardView
                 fen={activeRoom.fen}
                 myColor={myXiangqiColor}
                 isMyTurn={isMyTurn}
                 onMove={handleXiangqiMove}
+                lastMove={lastMove}
+                disabled={activeRoom.status !== 'in_progress'}
+              />
+            ) : (
+              <GoBoardView
+                fen={activeRoom.fen}
+                myColor={myGoColor}
+                isMyTurn={isMyTurn}
+                onMove={handleGoMove}
+                onPass={handleGoPass}
                 lastMove={lastMove}
                 disabled={activeRoom.status !== 'in_progress'}
               />
@@ -640,6 +784,7 @@ export const GameLobby: React.FC<GameLobbyProps> = ({ currentUserId, currentUser
             onRequestRematch={handleRematch}
             onLeaveRoom={handleExitRoom}
             onAdjustTime={handleAdjustTime}
+            onPassTurn={activeRoom.game_type === 'go' ? handleGoPass : undefined}
           />
         </div>
       </div>
@@ -654,41 +799,43 @@ export const GameLobby: React.FC<GameLobbyProps> = ({ currentUserId, currentUser
         style={{
           display: 'flex',
           flexWrap: 'wrap',
-          alignItems: 'center',
           justifyContent: 'space-between',
+          alignItems: 'center',
           gap: '1rem',
           backgroundColor: '#1E293B',
-          padding: '1.5rem',
+          padding: '1.25rem 1.5rem',
           borderRadius: '12px',
-          border: '1px solid rgba(255, 255, 255, 0.1)',
+          border: '1px solid rgba(255,255,255,0.08)',
         }}
       >
         <div>
-          <h2 style={{ margin: 0, fontSize: '1.4rem', color: '#F1F5F9', display: 'flex', alignItems: 'center', gap: '8px' }}>
-            <Swords color="#00df89" size={24} /> Khu Giải Trí Đánh Cờ (Game Lounge)
+          <h2 style={{ margin: 0, fontSize: '1.4rem', color: '#F1F5F9', display: 'flex', alignItems: 'center', gap: '10px' }}>
+            <Swords size={24} color="#00df89" /> Khu Giải Trí & Kỳ Đài (Game Lounge)
           </h2>
-          <p style={{ margin: '4px 0 0 0', color: '#94A3B8', fontSize: '0.85rem' }}>
-            Thư giãn đối kháng 1v1 thời gian thực với Cờ Vua và Cờ Tướng dành riêng cho thành viên CMS.
+          <p style={{ margin: '4px 0 0 0', fontSize: '0.85rem', color: '#94A3B8' }}>
+            Giao lưu, thi đấu Cờ Vua, Cờ Tướng & Cờ Vây trực tuyến thời gian thực giữa các thành viên CMS.
           </p>
         </div>
 
         <div style={{ display: 'flex', gap: '0.75rem' }}>
           <button
-            onClick={() => void fetchRooms()}
+            onClick={() => fetchRooms()}
+            disabled={loading}
             style={{
               display: 'flex',
               alignItems: 'center',
               gap: '6px',
               backgroundColor: '#334155',
+              border: '1px solid rgba(255,255,255,0.1)',
               color: '#F1F5F9',
-              border: 'none',
               borderRadius: '8px',
-              padding: '0.6rem 1rem',
-              fontSize: '0.85rem',
+              padding: '0.55rem 1rem',
               cursor: 'pointer',
+              fontWeight: 500,
+              fontSize: '0.85rem',
             }}
           >
-            <RefreshCw size={15} /> Làm mới
+            <RefreshCw size={15} className={loading ? 'animate-spin' : ''} /> Làm mới
           </button>
           <button
             onClick={() => setIsCreating(true)}
@@ -697,13 +844,13 @@ export const GameLobby: React.FC<GameLobbyProps> = ({ currentUserId, currentUser
               alignItems: 'center',
               gap: '6px',
               backgroundColor: '#098f64',
-              color: '#FFFFFF',
               border: 'none',
+              color: '#FFF',
               borderRadius: '8px',
-              padding: '0.6rem 1.25rem',
-              fontSize: '0.85rem',
-              fontWeight: 600,
+              padding: '0.55rem 1.25rem',
               cursor: 'pointer',
+              fontWeight: 600,
+              fontSize: '0.85rem',
               boxShadow: '0 4px 12px rgba(9, 143, 100, 0.3)',
             }}
           >
@@ -712,28 +859,29 @@ export const GameLobby: React.FC<GameLobbyProps> = ({ currentUserId, currentUser
         </div>
       </div>
 
-      {/* Create Room Modal */}
+      {/* Create Room Modal / Drawer */}
       {isCreating && (
         <div
           style={{
             backgroundColor: '#0F172A',
-            border: '2px solid #098f64',
             borderRadius: '12px',
+            border: '2px solid #098f64',
             padding: '1.5rem',
-            boxShadow: '0 15px 30px rgba(0,0,0,0.5)',
+            boxShadow: '0 10px 25px rgba(0,0,0,0.5)',
           }}
         >
-          <h3 style={{ margin: '0 0 1rem 0', color: '#F1F5F9', fontSize: '1.1rem' }}>
-            Tạo phòng thi đấu cờ mới
+          <h3 style={{ margin: '0 0 1rem 0', color: '#F1F5F9', fontSize: '1.15rem' }}>
+            Tạo Bàn Cờ Thi Đấu Mới
           </h3>
-          <form onSubmit={handleCreateRoom} style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '1rem' }}>
+
+          <form onSubmit={handleCreateRoom} style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '1rem' }}>
             <div>
               <label style={{ display: 'block', fontSize: '0.8rem', color: '#94A3B8', marginBottom: '4px' }}>
-                Chọn Thể Loại Cờ:
+                Loại Cờ:
               </label>
               <select
                 value={newGameType}
-                onChange={(e) => setNewGameType(e.target.value as any)}
+                onChange={(e) => setNewGameType(e.target.value as 'chess' | 'xiangqi' | 'go')}
                 style={{
                   width: '100%',
                   backgroundColor: '#1E293B',
@@ -746,8 +894,34 @@ export const GameLobby: React.FC<GameLobbyProps> = ({ currentUserId, currentUser
               >
                 <option value="chess">♟️ Cờ Vua Quốc Tế (Chess)</option>
                 <option value="xiangqi">🀄 Cờ Tướng Cổ Truyền (Xiangqi)</option>
+                <option value="go">⚪⚫ Cờ Vây (Weiqi / Go)</option>
               </select>
             </div>
+
+            {newGameType === 'go' && (
+              <div>
+                <label style={{ display: 'block', fontSize: '0.8rem', color: '#94A3B8', marginBottom: '4px' }}>
+                  Kích Thước Bàn Cờ Vây:
+                </label>
+                <select
+                  value={newGoSize}
+                  onChange={(e) => setNewGoSize(Number(e.target.value) as 19 | 13 | 9)}
+                  style={{
+                    width: '100%',
+                    backgroundColor: '#1E293B',
+                    border: '1px solid rgba(255,255,255,0.15)',
+                    color: '#FFF',
+                    borderRadius: '6px',
+                    padding: '0.6rem',
+                    fontSize: '0.9rem',
+                  }}
+                >
+                  <option value={19}>19 x 19 (Tiêu Chuẩn Thi Đấu Quốc Tế)</option>
+                  <option value={13}>13 x 13 (Trung Bình - Luyện Tập)</option>
+                  <option value={9}>9 x 9 (Nhanh - Nhập Môn)</option>
+                </select>
+              </div>
+            )}
 
             <div>
               <label style={{ display: 'block', fontSize: '0.8rem', color: '#94A3B8', marginBottom: '4px' }}>
@@ -866,6 +1040,13 @@ export const GameLobby: React.FC<GameLobbyProps> = ({ currentUserId, currentUser
             const isWaiting = room.status === 'waiting';
             const isInProgress = room.status === 'in_progress';
 
+            const gameTypeLabel =
+              room.game_type === 'chess'
+                ? '♟️ Cờ Vua'
+                : room.game_type === 'xiangqi'
+                ? '🀄 Cờ Tướng'
+                : '⚪⚫ Cờ Vây';
+
             return (
               <div
                 key={room.id}
@@ -886,7 +1067,7 @@ export const GameLobby: React.FC<GameLobbyProps> = ({ currentUserId, currentUser
                   <div>
                     <h4 style={{ margin: 0, color: '#F1F5F9', fontSize: '1rem' }}>{room.room_name}</h4>
                     <span style={{ fontSize: '0.75rem', color: '#94A3B8' }}>
-                      {room.game_type === 'chess' ? '♟️ Cờ Vua' : '🀄 Cờ Tướng'} • {room.time_limit_minutes === 0 ? '♾️ Không giới hạn' : `${room.time_limit_minutes} Phút`}
+                      {gameTypeLabel} • {room.time_limit_minutes === 0 ? '♾️ Không giới hạn' : `${room.time_limit_minutes} Phút`}
                     </span>
                   </div>
 
@@ -912,11 +1093,11 @@ export const GameLobby: React.FC<GameLobbyProps> = ({ currentUserId, currentUser
                 {/* Players info */}
                 <div style={{ backgroundColor: '#0F172A', padding: '0.6rem 0.8rem', borderRadius: '6px', fontSize: '0.8rem', display: 'flex', flexDirection: 'column', gap: '4px' }}>
                   <div style={{ display: 'flex', justifyContent: 'space-between', color: '#E2E8F0' }}>
-                    <span>🔴 {room.game_type === 'chess' ? 'Trắng' : 'Đỏ'} (Host):</span>
+                    <span>🔴 {room.game_type === 'chess' ? 'Trắng' : room.game_type === 'xiangqi' ? 'Đỏ' : 'Đen'} (Host):</span>
                     <strong>{hostName}</strong>
                   </div>
                   <div style={{ display: 'flex', justifyContent: 'space-between', color: '#94A3B8' }}>
-                    <span>⚫ Đen (Guest):</span>
+                    <span>⚪ {room.game_type === 'go' ? 'Trắng' : 'Đen'} (Guest):</span>
                     <strong>{guestName || '— (Trống)'}</strong>
                   </div>
                 </div>
@@ -935,47 +1116,40 @@ export const GameLobby: React.FC<GameLobbyProps> = ({ currentUserId, currentUser
                       color: '#FFF',
                       border: 'none',
                       borderRadius: '6px',
-                      padding: '0.6rem',
-                      fontSize: '0.85rem',
+                      padding: '0.5rem',
+                      fontSize: '0.8rem',
                       fontWeight: 600,
                       cursor: 'pointer',
                       transition: 'background-color 0.15s ease',
                     }}
                   >
                     <Play size={14} />
-                    {isWaiting
-                      ? room.host_user_id === currentUserId
-                        ? 'Vào phòng của bạn'
-                        : 'Tham gia thi đấu'
-                      : 'Vào bàn cờ'}
+                    {room.host_user_id === currentUserId
+                      ? 'Vào Lại Bàn'
+                      : room.guest_user_id === currentUserId
+                      ? 'Vào Lại Bàn'
+                      : isWaiting
+                      ? 'Tham Gia Đấu'
+                      : 'Vào Xem (Khán Giả)'}
                   </button>
 
-                  {(room.host_user_id === currentUserId || isWaiting) && (
+                  {room.host_user_id === currentUserId && (
                     <button
                       onClick={(e) => handleDeleteRoom(room.id, e)}
                       title="Xóa bàn cờ này"
                       style={{
+                        backgroundColor: 'transparent',
+                        border: '1px solid rgba(239, 68, 68, 0.3)',
+                        color: '#EF4444',
+                        borderRadius: '6px',
+                        padding: '0.5rem',
+                        cursor: 'pointer',
                         display: 'flex',
                         alignItems: 'center',
                         justifyContent: 'center',
-                        backgroundColor: 'rgba(239, 68, 68, 0.15)',
-                        color: '#EF4444',
-                        border: '1px solid rgba(239, 68, 68, 0.3)',
-                        borderRadius: '6px',
-                        padding: '0.6rem 0.75rem',
-                        cursor: 'pointer',
-                        transition: 'all 0.15s ease',
-                      }}
-                      onMouseEnter={(e) => {
-                        e.currentTarget.style.backgroundColor = '#EF4444';
-                        e.currentTarget.style.color = '#FFF';
-                      }}
-                      onMouseLeave={(e) => {
-                        e.currentTarget.style.backgroundColor = 'rgba(239, 68, 68, 0.15)';
-                        e.currentTarget.style.color = '#EF4444';
                       }}
                     >
-                      <Trash2 size={15} />
+                      <Trash2 size={14} />
                     </button>
                   )}
                 </div>
