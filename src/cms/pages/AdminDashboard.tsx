@@ -2003,7 +2003,19 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
       </div>
 
       {/* RIGHT CONTENT PANEL */}
-      <div style={{ flex: 1, padding: '2.5rem', display: 'flex', flexDirection: 'column', gap: '2rem', overflowX: 'hidden' }}>
+      <div
+        style={{
+          flex: 1,
+          padding: activeTab === 'games' ? '1.5rem 2rem' : '2.5rem',
+          backgroundColor: activeTab === 'games' ? '#0A0F1D' : '#F8FAFC',
+          minHeight: '100vh',
+          display: 'flex',
+          flexDirection: 'column',
+          gap: '1.5rem',
+          overflowX: 'hidden',
+          transition: 'background-color 0.2s ease',
+        }}
+      >
         
         {/* OVERVIEW TAB */}
         {activeTab === 'overview' && (

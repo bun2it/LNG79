@@ -36,7 +36,7 @@ interface GameLobbyProps {
   currentUserName?: string;
 }
 
-export const GameLobby: React.FC<GameLobbyProps> = ({ currentUserId, currentUserName: _currentUserName }) => {
+export const GameLobby: React.FC<GameLobbyProps> = ({ currentUserId, currentUserName }) => {
   const [rooms, setRooms] = useState<GameRoom[]>([]);
   const [activeRoomId, setActiveRoomId] = useState<string | null>(null);
   const [activeRoom, setActiveRoom] = useState<GameRoom | null>(null);
@@ -142,7 +142,7 @@ export const GameLobby: React.FC<GameLobbyProps> = ({ currentUserId, currentUser
 
   // Game clock countdown interval for active in_progress room
   useEffect(() => {
-    if (!activeRoom || activeRoom.status !== 'in_progress') return;
+    if (!activeRoom || activeRoom.status !== 'in_progress' || activeRoom.time_limit_minutes === 0) return;
 
     const timer = setInterval(() => {
       setActiveRoom((prev) => {
@@ -188,7 +188,7 @@ export const GameLobby: React.FC<GameLobbyProps> = ({ currentUserId, currentUser
           ? new Chess().fen()
           : INITIAL_XIANGQI_FEN;
       const initialTurn = newGameType === 'chess' ? 'white' : 'red';
-      const timeInSec = newTimeLimit * 60;
+      const timeInSec = newTimeLimit > 0 ? newTimeLimit * 60 : 0;
 
       const { data, error } = await supabase
         .from('game_rooms')
@@ -402,7 +402,7 @@ export const GameLobby: React.FC<GameLobbyProps> = ({ currentUserId, currentUser
         ? new Chess().fen()
         : INITIAL_XIANGQI_FEN;
     const initialTurn = activeRoom.game_type === 'chess' ? 'white' : 'red';
-    const timeInSec = activeRoom.time_limit_minutes * 60;
+    const timeInSec = activeRoom.time_limit_minutes > 0 ? activeRoom.time_limit_minutes * 60 : 0;
 
     await supabase
       .from('game_rooms')
@@ -465,6 +465,39 @@ export const GameLobby: React.FC<GameLobbyProps> = ({ currentUserId, currentUser
     }
   };
 
+  const handleAdjustTime = async (newHostSeconds: number, newGuestSeconds: number, newLimitMinutes?: number) => {
+    if (!activeRoomId || !activeRoom || !supabase) return;
+    try {
+      const updates: any = {
+        host_time_remaining: Math.max(0, newHostSeconds),
+        guest_time_remaining: Math.max(0, newGuestSeconds),
+      };
+      if (newLimitMinutes !== undefined) {
+        updates.time_limit_minutes = newLimitMinutes;
+      }
+      const { error } = await supabase.from('game_rooms').update(updates).eq('id', activeRoomId);
+      if (error) throw error;
+
+      setActiveRoom((prev) => (prev ? { ...prev, ...updates } : null));
+
+      // Broadcast chat announcement
+      const channel = supabase.channel(`game_chat_${activeRoomId}`);
+      void channel.send({
+        type: 'broadcast',
+        event: 'chat_msg',
+        payload: {
+          id: Math.random().toString(),
+          sender_id: 'system',
+          sender_name: 'Hệ Thống',
+          message: `⏱️ Đã cập nhật thời gian thi đấu (${newLimitMinutes === 0 ? 'Chế độ Không giới hạn' : `Trắng/Đỏ: ${Math.floor(newHostSeconds / 60)}p, Đen: ${Math.floor(newGuestSeconds / 60)}p`})`,
+          created_at: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+        },
+      });
+    } catch (err) {
+      console.error('Failed to adjust time:', err);
+    }
+  };
+
   // --- ACTIVE ROOM VIEW ---
   if (activeRoomId && activeRoom) {
     const hostName = activeRoom.host_profile?.name || activeRoom.host_profile?.username || 'Host';
@@ -482,44 +515,73 @@ export const GameLobby: React.FC<GameLobbyProps> = ({ currentUserId, currentUser
         : null;
 
     return (
-      <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem', width: '100%', maxWidth: '1100px', margin: '0 auto' }}>
-        {/* Top bar back button */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
-          <button
-            onClick={handleExitRoom}
-            style={{
-              display: 'flex',
-              alignItems: 'center',
-              gap: '6px',
-              backgroundColor: '#1E293B',
-              border: '1px solid rgba(255,255,255,0.15)',
-              color: '#F1F5F9',
-              borderRadius: '8px',
-              padding: '0.5rem 0.9rem',
-              cursor: 'pointer',
-              fontWeight: 500,
-              fontSize: '0.85rem',
-            }}
-          >
-            <ArrowLeft size={16} /> Quay lại sảnh cờ (Lobby)
-          </button>
-          <span style={{ color: '#94A3B8', fontSize: '0.85rem' }}>
-            Bạn đang tham gia với vai trò: <strong style={{ color: '#00df89' }}>{myRole === 'host' ? 'Chủ phòng (Host)' : myRole === 'guest' ? 'Đối thủ (Guest)' : 'Khán giả'}</strong>
-          </span>
-        </div>
-
-        {/* Main Game Arena */}
+      <div
+        style={{
+          display: 'flex',
+          width: '100%',
+          height: 'calc(100vh - 110px)',
+          minHeight: '660px',
+          borderRadius: '16px',
+          overflow: 'hidden',
+          backgroundColor: '#0A0F1D',
+          border: '1px solid rgba(255, 255, 255, 0.08)',
+          boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.7)',
+        }}
+      >
+        {/* Left Game Viewport: occupies remaining width (full screen - 340px) */}
         <div
           style={{
-            display: 'flex',
-            flexWrap: 'wrap',
-            gap: '2rem',
-            justifyContent: 'center',
-            alignItems: 'flex-start',
+            flex: '1 1 0',
+            width: 'calc(100% - 340px)',
+            height: '100%',
+            position: 'relative',
+            overflow: 'hidden',
           }}
         >
-          {/* Left: Board View */}
-          <div style={{ flex: '1 1 500px', display: 'flex', justifyContent: 'center' }}>
+          {/* Top-left Floating Back Button */}
+          <div
+            style={{
+              position: 'absolute',
+              bottom: '16px',
+              left: '16px',
+              zIndex: 20,
+              display: 'flex',
+              alignItems: 'center',
+              gap: '0.75rem',
+              backgroundColor: 'rgba(15, 23, 42, 0.85)',
+              backdropFilter: 'blur(10px)',
+              border: '1px solid rgba(255, 255, 255, 0.12)',
+              borderRadius: '10px',
+              padding: '6px 12px',
+              boxShadow: '0 8px 24px rgba(0,0,0,0.5)',
+            }}
+          >
+            <button
+              onClick={handleExitRoom}
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: '6px',
+                backgroundColor: '#1E293B',
+                border: '1px solid rgba(255,255,255,0.15)',
+                color: '#F1F5F9',
+                borderRadius: '6px',
+                padding: '0.4rem 0.8rem',
+                cursor: 'pointer',
+                fontWeight: 500,
+                fontSize: '0.8rem',
+                transition: 'all 0.15s ease',
+              }}
+            >
+              <ArrowLeft size={14} /> Sảnh Cờ
+            </button>
+            <span style={{ color: '#94A3B8', fontSize: '0.8rem' }}>
+              Vai trò: <strong style={{ color: '#00df89' }}>{myRole === 'host' ? 'Chủ phòng (Host)' : myRole === 'guest' ? 'Đối thủ (Guest)' : 'Khán giả'}</strong>
+            </span>
+          </div>
+
+          {/* Full-width 3D Canvas / 2D Board Layer */}
+          <div style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', zIndex: 1 }}>
             {activeRoom.game_type === 'chess' ? (
               <ChessBoardView
                 fen={activeRoom.fen}
@@ -540,9 +602,21 @@ export const GameLobby: React.FC<GameLobbyProps> = ({ currentUserId, currentUser
               />
             )}
           </div>
+        </div>
 
-          {/* Right: Game Controls Dashboard */}
+        {/* Right Docked Sidebar: GameControls with Live Chat & Moves History */}
+        <div
+          style={{
+            width: '340px',
+            flex: '0 0 340px',
+            height: '100%',
+            backgroundColor: '#111827',
+            borderLeft: '1px solid rgba(255, 255, 255, 0.1)',
+            zIndex: 10,
+          }}
+        >
           <GameControls
+            roomId={activeRoom.id}
             gameType={activeRoom.game_type}
             roomName={activeRoom.room_name}
             hostName={hostName}
@@ -552,17 +626,20 @@ export const GameLobby: React.FC<GameLobbyProps> = ({ currentUserId, currentUser
             status={activeRoom.status}
             winnerName={winnerName}
             winReason={activeRoom.win_reason}
+            timeLimitMinutes={activeRoom.time_limit_minutes}
             hostTimeRemaining={activeRoom.host_time_remaining}
             guestTimeRemaining={activeRoom.guest_time_remaining}
             moveHistory={activeRoom.move_history}
             drawOfferedBy={activeRoom.draw_offered_by}
             rematchRequestedBy={activeRoom.rematch_requested_by}
             currentUserId={currentUserId}
+            currentUserName={currentUserName}
             onOfferDraw={handleOfferDraw}
             onAcceptDraw={handleAcceptDraw}
             onResign={handleResign}
             onRequestRematch={handleRematch}
             onLeaveRoom={handleExitRoom}
+            onAdjustTime={handleAdjustTime}
           />
         </div>
       </div>
@@ -571,7 +648,7 @@ export const GameLobby: React.FC<GameLobbyProps> = ({ currentUserId, currentUser
 
   // --- LOBBY LIST VIEW ---
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem', width: '100%', maxWidth: '1100px', margin: '0 auto' }}>
+    <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem', width: '100%' }}>
       {/* Lobby Header */}
       <div
         style={{
@@ -711,6 +788,7 @@ export const GameLobby: React.FC<GameLobbyProps> = ({ currentUserId, currentUser
                   fontSize: '0.9rem',
                 }}
               >
+                <option value={0}>♾️ Không giới hạn thời gian (Đánh tự do)</option>
                 <option value={5}>⚡ 5 Phút (Cờ Chớp)</option>
                 <option value={10}>⏱️ 10 Phút (Tiêu Chuẩn)</option>
                 <option value={15}>⏳ 15 Phút</option>
@@ -808,7 +886,7 @@ export const GameLobby: React.FC<GameLobbyProps> = ({ currentUserId, currentUser
                   <div>
                     <h4 style={{ margin: 0, color: '#F1F5F9', fontSize: '1rem' }}>{room.room_name}</h4>
                     <span style={{ fontSize: '0.75rem', color: '#94A3B8' }}>
-                      {room.game_type === 'chess' ? '♟️ Cờ Vua' : '🀄 Cờ Tướng'} • {room.time_limit_minutes} Phút
+                      {room.game_type === 'chess' ? '♟️ Cờ Vua' : '🀄 Cờ Tướng'} • {room.time_limit_minutes === 0 ? '♾️ Không giới hạn' : `${room.time_limit_minutes} Phút`}
                     </span>
                   </div>
 
