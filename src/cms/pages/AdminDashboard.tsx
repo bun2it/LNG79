@@ -3,8 +3,9 @@ import { useLanguage } from '../../context/LanguageContext';
 import { 
   Layers, Settings, 
   Trash2, Plus, Edit, RefreshCw, TrendingUp, Flame, ChefHat, FileText, Briefcase, History,
-  Shield
+  Shield, Swords
 } from 'lucide-react';
+import { GameLobby } from '../games/GameLobby';
 import { createClient } from '@supabase/supabase-js';
 import type { ArticleItem } from '../../public/pages/Knowledge';
 import type { ProjectItem } from '../../public/pages/Projects';
@@ -227,7 +228,15 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
   const [expandedFaqPageId, setExpandedFaqPageId] = useState<string | null>(null);
   const [selectedNodeIndex, setSelectedNodeIndex] = useState(0);
   const [previewLayout, setPreviewLayout] = useState<'canvas' | 'hero' | 'banner'>('canvas');
-  const [activeTab, setActiveTab] = useState<'overview' | 'pages' | 'navigation' | 'media' | 'authorization' | 'products' | 'settings' | 'articles' | 'projects' | 'seo' | 'logs' | 'trash' | 'gui'>('overview');
+  const [activeTab, setActiveTab] = useState<'overview' | 'pages' | 'navigation' | 'media' | 'authorization' | 'products' | 'settings' | 'articles' | 'projects' | 'seo' | 'logs' | 'trash' | 'gui' | 'games'>('overview');
+  const [currentUserProfile, setCurrentUserProfile] = useState<any | null>(null);
+
+  React.useEffect(() => {
+    if (isLoggedIn) {
+      void getCurrentCmsProfile().then((p) => setCurrentUserProfile(p));
+    }
+  }, [isLoggedIn]);
+
   const [seoSubTab, setSeoSubTab] = useState<'assistant' | 'redirects' | 'global'>('assistant');
   const [gscPropUrlInput, setGscPropUrlInput] = useState('');
   const [gscJsonInput, setGscJsonInput] = useState('');
@@ -1960,6 +1969,19 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
             >
               <Trash2 size={16} />
               <span>{language === 'vi' ? 'Thùng rác' : 'Trash Bin'}</span>
+            </button>
+
+            {/* Game Lounge */}
+            <button 
+              onClick={() => setActiveTab('games')}
+              style={{
+                display: 'flex', alignItems: 'center', gap: '0.75rem', background: 'none', border: 'none', padding: '0.75rem 1rem', width: '100%', cursor: 'pointer', fontSize: '0.85rem', fontWeight: 600, textAlign: 'left', borderRadius: 'var(--border-radius-sm)', transition: 'var(--transition-fast)',
+                color: activeTab === 'games' ? 'var(--color-white)' : 'rgba(255, 255, 255, 0.7)',
+                backgroundColor: activeTab === 'games' ? 'var(--color-teal)' : 'transparent'
+              }}
+            >
+              <Swords size={16} />
+              <span>{language === 'vi' ? 'Khu Giải Trí' : 'Game Lounge'}</span>
             </button>
           </div>
         </div>
@@ -4697,6 +4719,13 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                 </div>
               )}
             </div>
+          </div>
+        )}
+
+        {/* GAME LOUNGE TAB */}
+        {activeTab === 'games' && (
+          <div className="animate-fade-in" style={{ display: 'flex', flexDirection: 'column', gap: '2rem' }}>
+            <GameLobby currentUserId={currentUserProfile?.id} currentUserName={currentUserProfile?.full_name} />
           </div>
         )}
       </div>

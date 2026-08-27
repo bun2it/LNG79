@@ -13,6 +13,7 @@ interface HomeProps {
   pages?: any[];
   setPages?: React.Dispatch<React.SetStateAction<any[]>>;
   isVisualEditing?: boolean;
+  products?: any[];
 }
 
 const PartnerLogoMarquee: React.FC<{ logos?: string[]; names: string[] }> = ({ logos = [], names }) => {
@@ -25,7 +26,7 @@ const PartnerLogoMarquee: React.FC<{ logos?: string[]; names: string[] }> = ({ l
   return <div className="partner-logo-marquee" data-visual-editor-ui aria-label="Partner logos"><div className="partner-logo-track">{loop.map((entry, index) => <div className="partner-logo-tile" key={`${entry.image || entry.name}-${index}`} aria-hidden={index >= entries.length}>{entry.image ? <img src={entry.image} alt={index < entries.length ? entry.name : ''} /> : <span>{entry.name}</span>}</div>)}</div></div>;
 };
 
-export const Home: React.FC<HomeProps> = ({ setView, onAddProduct, cartItems, pages, setPages, isVisualEditing }) => {
+export const Home: React.FC<HomeProps> = ({ setView, onAddProduct, cartItems, pages, setPages, isVisualEditing, products }) => {
   const { language, t } = useLanguage();
   const [activeProcessStep, setActiveProcessStep] = useState<number>(0);
   const [activeProcessLoopIndex, setActiveProcessLoopIndex] = useState<number>(0);
@@ -124,6 +125,11 @@ export const Home: React.FC<HomeProps> = ({ setView, onAddProduct, cartItems, pa
       origin: 'Malaysia / Italy'
     }
   ];
+
+  const dynamicFeatured = products && products.length > 0
+    ? products.filter(p => p.visible !== false).slice(0, 4)
+    : [];
+  const listFeatured = dynamicFeatured.length > 0 ? dynamicFeatured : featuredProducts;
 
   const renderEditableText = (
     blockId: string, 
@@ -706,7 +712,7 @@ export const Home: React.FC<HomeProps> = ({ setView, onAddProduct, cartItems, pa
           </div>
 
           <div className="grid-4" style={{ marginBottom: '3rem' }}>
-            {featuredProducts.map((prod) => {
+            {listFeatured.map((prod) => {
               const inCart = cartItems.some(i => i.id === prod.id);
               return (
                 <div key={prod.id} className="card" style={styles.productCard}>

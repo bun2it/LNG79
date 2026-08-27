@@ -1577,7 +1577,7 @@ export const AppContent: React.FC = () => {
   const renderView = () => {
     switch (currentView) {
       case 'home':
-        return <Home setView={setView} onAddProduct={handleAddProduct} cartItems={cartItems} pages={pages} setPages={setPages} isVisualEditing={isVisualEditing} />;
+        return <Home setView={setView} onAddProduct={handleAddProduct} cartItems={cartItems} pages={pages} setPages={setPages} isVisualEditing={isVisualEditing} products={products} />;
       case 'lng-solution':
         return <Solutions subView="lng-solution" setView={setView} pages={pages} setPages={setPages} isVisualEditing={isVisualEditing} />;
       case 'lpg-solution':
@@ -1643,7 +1643,7 @@ export const AppContent: React.FC = () => {
           /></Suspense>
         );
       default:
-        return <Home setView={setView} onAddProduct={handleAddProduct} cartItems={cartItems} pages={pages} setPages={setPages} isVisualEditing={isVisualEditing} />;
+        return <Home setView={setView} onAddProduct={handleAddProduct} cartItems={cartItems} pages={pages} setPages={setPages} isVisualEditing={isVisualEditing} products={products} />;
     }
   };
 
